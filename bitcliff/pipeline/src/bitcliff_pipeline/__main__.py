@@ -126,7 +126,8 @@ def run_pipeline(
 
     if stage in ("report", "all"):
         grades = read_grades(run_dir / "grades.jsonl")
-        rows = add_retention(aggregate(grades))
+        spectacle_labels = frozenset(q.label for q in config.quants if q.spectacle_only)
+        rows = add_retention(aggregate(grades, spectacle_only_labels=spectacle_labels))
         write_csv(rows, run_dir / "results.csv")
         write_json(rows, run_dir / "results.json")
         ladder_order = ["F16"] + [q.label for q in config.quants]

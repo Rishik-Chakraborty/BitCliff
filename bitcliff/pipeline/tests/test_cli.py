@@ -25,7 +25,7 @@ ARITHMETIC_RECORDS = [
 ]
 
 
-def make_config(tmp_path: Path) -> LadderConfig:
+def make_config(tmp_path: Path, spectacle_only: bool = False) -> LadderConfig:
     spectacle = tmp_path / "configs" / "prompts_spectacle.yaml"
     spectacle.parent.mkdir(parents=True)
     spectacle.write_text(
@@ -36,7 +36,7 @@ def make_config(tmp_path: Path) -> LadderConfig:
         model_id="test-model",
         hf_repo="fake/repo",
         f16_path=tmp_path / "models" / "f16.gguf",
-        quants=(QuantFile("Q4_K_M", "m-Q4_K_M.gguf", "bartowski", True),),
+        quants=(QuantFile("Q4_K_M", "m-Q4_K_M.gguf", "bartowski", True, spectacle_only=spectacle_only),),
         generation=GenSettings(42, 0.0, 1, 640, 4096),
         suites={
             "arithmetic": {"n_items": 4, "seed": 1},
@@ -213,3 +213,28 @@ def test_token_id_item_roundtrips_through_items_jsonl_and_grades(tmp_path, monke
     # the grade stage actually reconstructed prompt_tokens as a tuple, not a list
     assert captured["prompt_tokens"] == (11, 12, 13)
     assert isinstance(captured["prompt_tokens"], tuple)
+
+
+def test_spectacle_only_flag_in_results(tmp_path):
+    """Test that spectacle_only=True in config creates rows with spectacle_only=True."""
+    cfg = make_config(tmp_path, spectacle_only=True)
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    run_pipeline(
+        cfg, run_id="spectacle-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+    )
+
+    run = runs_dir / "spectacle-test"
+    results = json.loads((run / "results.json").read_text())
+    f16_rows = [r for r in results if r["quant_label"] == "F16"]
+    q4_rows = [r for r in results if r["quant_label"] == "Q4_K_M"]
+
+    # F16 should have spectacle_only=False
+    assert all(r["spectacle_only"] is False for r in f16_rows)
+    # Q4_K_M should have spectacle_only=True
+    assert all(r["spectacle_only"] is True for r in q4_rows)
