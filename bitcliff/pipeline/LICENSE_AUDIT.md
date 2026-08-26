@@ -5,19 +5,39 @@ must run and commit this audit first. Verification date for every entry
 below: **2026-08-26**. All raw snippets are pasted verbatim from the cited
 API/HTTP responses, fetched on the verification date.
 
-## Verdict (see §1): BLOCKED
+## Verdict (see §1): MIT — via canonical source release
 
 `akariasai/PopQA` — the dataset user ruling 1 designates as the primary
-source — carries **no license metadata at all** on the Hugging Face Hub: no
-`license:` tag, no `cardData.license`, and no license section in the
-dataset-card README. This is the "missing license" stop condition from the
-task brief. Per the binding order, I recorded the audit (including the named
-fallback, TriviaQA) and am reporting BLOCKED rather than substituting
-TriviaQA myself — that switch is a controller decision, not mine.
+source — carries **no license metadata at all** on the Hugging Face Hub
+mirror: no `license:` tag, no `cardData.license`, and no license section in
+the dataset-card README (finding kept below, unchanged). That mirror-level
+gap initially triggered the task brief's "missing license" stop condition
+and this task was reported BLOCKED pending a controller decision.
+
+**Controller decision (recorded 2026-08-26):** the license resolves via the
+canonical source release, not the HF mirror. `github.com/AlexTMallen/
+adaptive-retrieval` is the original PopQA release by the paper's authors
+(Mallen et al. 2023). It has a `LICENSE` file: **MIT**. The dataset file
+`data/popQA.tsv` ships IN that repo, so the MIT license covers the data.
+The repo's README names the HF mirror `akariasai/PopQA` (maintained by
+paper co-author Akari Asai) as an access path for the same data. HF mirror
+card itself carries no license tag (recorded above); the MIT grant attaches
+to the canonical release. Independently re-verified via the GitHub API
+(`curl https://api.github.com/repos/AlexTMallen/adaptive-retrieval`
+returns `"license":{"key":"mit","name":"MIT License","spdx_id":"MIT"}`) and
+by fetching the LICENSE file directly (`curl https://raw.githubusercontent.
+com/AlexTMallen/adaptive-retrieval/main/LICENSE` — "MIT License / Copyright
+(c) 2023 Alex Mallen ..."), and by confirming `data/popQA.tsv` is present
+in the repo tree via `curl https://api.github.com/repos/AlexTMallen/
+adaptive-retrieval/contents/data`. Verified 2026-08-26.
+
+TriviaQA (`mandarjoshi/trivia_qa`) remains the named fallback per ruling 1
+and is unused — PopQA (MIT via the canonical release) is the suite's data
+source. This unblocks Task 3; the suite build proceeds below.
 
 ---
 
-## 1. `akariasai/PopQA` (primary source, user ruling 1) — LICENSE MISSING
+## 1. `akariasai/PopQA` (primary source, user ruling 1) — MIT via canonical release
 
 Query: `curl https://huggingface.co/api/datasets/akariasai/PopQA`
 
@@ -41,10 +61,22 @@ Observations:
   Fields, Citation Information) contains no License section and no license
   mention anywhere in the text.
 
-**Verdict: license missing.** Per the task brief's stop condition ("If
-PopQA's license is missing or restrictive, STOP and report BLOCKED"), this
-audit halts here for the suite build. No `factual_qa` suite code was written
-against PopQA.
+**Mirror-level verdict: license missing** on the `akariasai/PopQA` HF card
+itself. Per the task brief's stop condition ("If PopQA's license is missing
+or restrictive, STOP and report BLOCKED"), Task 3 was initially halted here
+and reported BLOCKED.
+
+**Final verdict: MIT — via canonical source release.** Controller decision
+(2026-08-26): the license resolves via `github.com/AlexTMallen/
+adaptive-retrieval`, the original PopQA release by the paper's authors
+(Mallen et al. 2023), which carries a `LICENSE` file of MIT and ships
+`data/popQA.tsv` in-repo — the MIT grant covers the data. The HF mirror's
+README names `akariasai/PopQA` as an access path for the same data,
+maintained by paper co-author Akari Asai. Independently re-verified via
+`curl https://api.github.com/repos/AlexTMallen/adaptive-retrieval`
+(`"license":{"spdx_id":"MIT", ...}`), the raw `LICENSE` file content, and
+the presence of `data/popQA.tsv` in the repo's `data/` directory listing.
+This unblocks the suite build; `factual_qa` proceeds against PopQA below.
 
 ### Schema (recorded for whoever resolves this, via `datasets-server`)
 
@@ -66,9 +98,9 @@ Example row:
 So: question field is `question`; gold aliases live in `possible_answers`
 (a JSON-encoded list string, matching the task brief's expectation);
 popularity field is `s_pop` (subject entity's Wikipedia monthly pageviews —
-matches the brief's "likely `s_pop`" guess). This is recorded for reference
-only; it is not wired into any suite code while the license question is
-open.
+matches the brief's "likely `s_pop`" guess). Now that the license question
+is resolved (see updated verdict above), this schema is exactly what
+`factual_qa.py` uses.
 
 ---
 
@@ -249,8 +281,8 @@ freeze-plan §4's resolved item #4.
 
 | Repo | Type | License | Status |
 |---|---|---|---|
-| `akariasai/PopQA` | dataset | **none / missing** | **BLOCKING** |
-| `mandarjoshi/trivia_qa` | dataset | `unknown` (HF tag) | named fallback, not selected |
+| `akariasai/PopQA` | dataset | HF mirror card: none/missing; **canonical release (AlexTMallen/adaptive-retrieval): MIT** | resolved — MIT via canonical source, in use |
+| `mandarjoshi/trivia_qa` | dataset | `unknown` (HF tag) | named fallback, unused |
 | `openai/gsm8k` | dataset | MIT | in use (arithmetic suite) |
 | `sgoel9/paul_graham_essays` | dataset | MIT uploader tag; underlying essays unresolved | quarantined to never-published 2a run |
 | `Qwen/Qwen2.5-1.5B-Instruct` | model | Apache-2.0 | clear |
