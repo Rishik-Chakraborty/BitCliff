@@ -14,13 +14,14 @@ from .report import add_retention, aggregate, plot_retention, write_csv, write_j
 
 
 def build_items(config: LadderConfig, base_dir: Path) -> list[EvalItem]:
-    from .suites import arithmetic, retrieval, spectacle
+    # longctx_retrieval items are NOT built here: that suite needs a real
+    # tokenizer and a verified corpus, and exposes its own
+    # `longctx_retrieval.build_items(tokenizer, corpus_text, corpus_sha256,
+    # ...)` builder for run configs that wire those in.
+    from .suites import arithmetic, spectacle
 
     items: list[EvalItem] = []
     suites = config.suites
-    if "retrieval" in suites:
-        s = suites["retrieval"]
-        items += retrieval.generate_items(s["n_items"], s["n_pairs"], s["seed"])
     if "arithmetic" in suites:
         s = suites["arithmetic"]
         items += arithmetic.load_gsm8k_items(s["n_items"], s["seed"])
@@ -79,7 +80,15 @@ def run_pipeline(
 
     if stage in ("grade", "all"):
         items = [
-            EvalItem(**{**d, "expected": tuple(d["expected"]) if d["expected"] else None})
+            EvalItem(
+                **{
+                    **d,
+                    "expected": tuple(d["expected"]) if d["expected"] else None,
+                    "prompt_tokens": (
+                        tuple(d["prompt_tokens"]) if d.get("prompt_tokens") else None
+                    ),
+                }
+            )
             for d in map(json.loads, (run_dir / "items.jsonl").read_text().splitlines())
         ]
         items_by_id = {i.id: i for i in items}
