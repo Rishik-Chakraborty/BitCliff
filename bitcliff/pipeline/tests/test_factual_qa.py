@@ -105,3 +105,37 @@ def test_grade_multi_word_alias():
 def test_grade_no_alias_is_wrong():
     item = _item(["Paris"])
     assert grade(item, "The answer is London") == "wrong"
+
+
+def _full_item(question, aliases):
+    return EvalItem(
+        id="factual_qa-1-0000",
+        suite="factual_qa",
+        prompt=PROMPT_PREFIX + question,
+        expected=tuple(aliases),
+    )
+
+
+def test_grade_subject_echo_alias_in_question_is_ignored():
+    # The Asti pattern: "Asti" is a valid alias AND the question's subject.
+    # An output that echoes the subject but gives a different, wrong actual
+    # answer must not be scored correct just because "Asti" appears.
+    item = _full_item(
+        "What is Asti the capital of?",
+        ["Province of Asti", "Asti", "provincia di Asti", "Asti province"],
+    )
+    assert grade(item, "Asti is the capital of Piedmont, Italy.") == "wrong"
+
+
+def test_grade_normal_item_unaffected_by_subject_echo_guard():
+    # Alias absent from the question, present in the output -> still correct.
+    item = _full_item("What is the capital of France?", ["Paris"])
+    assert grade(item, "The answer is Paris") == "correct"
+
+
+def test_grade_all_aliases_in_question_forces_wrong():
+    # Every alias already appears in the question -> auto-wrong regardless
+    # of what the model outputs (empty effective-alias set).
+    item = _full_item("Is Paris the capital of France, Paris?", ["Paris"])
+    assert grade(item, "Paris") == "wrong"
+    assert grade(item, "London") == "wrong"

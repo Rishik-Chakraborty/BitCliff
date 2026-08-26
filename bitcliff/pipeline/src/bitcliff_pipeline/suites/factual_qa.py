@@ -107,12 +107,39 @@ def _normalize(s: str) -> str:
     return _WHITESPACE.sub(" ", s.strip().lower())
 
 
+def _word_boundary_match(alias_norm: str, haystack_norm: str) -> bool:
+    if not alias_norm:
+        return False
+    return bool(re.search(rf"(?<!\w){re.escape(alias_norm)}(?!\w)", haystack_norm))
+
+
+def _question_text(prompt: str) -> str:
+    if prompt.startswith(PROMPT_PREFIX):
+        return prompt[len(PROMPT_PREFIX) :]
+    return prompt
+
+
 def grade(item: EvalItem, text: str) -> str:
+    """Grade `text` against item.expected (the alias list).
+
+    Subject-echo guard (characterization round 2): an alias that already
+    word-boundary-matches inside the *question* itself is dropped from the
+    set of aliases eligible to score a hit. This defends against items
+    where the question's subject-entity name coincides with a valid alias
+    for the expected answer (e.g. "What is Asti the capital of?" with
+    "Asti" itself in the alias list for "Province of Asti") — without the
+    guard, an output that merely echoes the subject scores "correct" even
+    when its actual claimed answer is wrong. If every alias is disqualified
+    this way, the item grades "wrong" regardless of the output text.
+    """
     text_norm = _normalize(text)
-    for alias in item.expected:
-        alias_norm = _normalize(alias)
-        if not alias_norm:
-            continue
-        if re.search(rf"(?<!\w){re.escape(alias_norm)}(?!\w)", text_norm):
+    question_norm = _normalize(_question_text(item.prompt))
+    effective_aliases = [
+        alias
+        for alias in item.expected
+        if not _word_boundary_match(_normalize(alias), question_norm)
+    ]
+    for alias in effective_aliases:
+        if _word_boundary_match(_normalize(alias), text_norm):
             return "correct"
     return "wrong"
