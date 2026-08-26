@@ -11,4 +11,4 @@ generation:
   max_tokens: 640          # generous budget; the runbook checks F16 never hits it (spec §6)
   n_ctx: 4096
 suites:
-  factual_qa: {n_items: 500, seed: 7411, max_tokens: 64}
+  factual_qa: {n_items: 500, seed: 7411, max_tokens: 64, alias_augmentation_path: data/popqa_wikidata_aliases_seed7411.json}

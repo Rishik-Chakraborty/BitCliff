@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import re
 from pathlib import Path
@@ -9,7 +10,7 @@ import bitcliff_pipeline.grading as grading_mod
 from bitcliff_pipeline.__main__ import build_items, run_pipeline
 from bitcliff_pipeline.config import GenSettings, LadderConfig, QuantFile
 from bitcliff_pipeline.items import EvalItem
-from bitcliff_pipeline.suites import arithmetic
+from bitcliff_pipeline.suites import arithmetic, factual_qa
 
 # A tiny synthetic gsm8k-shaped record set, injected via
 # `arithmetic.items_from_records` in place of the real (networked) GSM8K
@@ -144,6 +145,53 @@ def test_build_items_covers_configured_suites(tmp_path):
     suites = [i.suite for i in items]
     assert suites.count("arithmetic") == 4
     assert suites.count("spectacle") == 2
+
+
+def test_build_items_factual_qa_forwards_alias_augmentation_path(tmp_path, monkeypatch):
+    """build_items' factual_qa branch reads an optional
+    alias_augmentation_path key from the suite config, resolved against
+    base_dir (same pattern as the spectacle suite's `path` key), and
+    forwards it to load_popqa_items."""
+    captured = {}
+
+    def fake_load_popqa_items(n_items, seed, alias_augmentation_path=None):
+        captured["args"] = (n_items, seed, alias_augmentation_path)
+        return []
+
+    monkeypatch.setattr(factual_qa, "load_popqa_items", fake_load_popqa_items)
+
+    cfg = make_config(tmp_path)
+    cfg = dataclasses.replace(
+        cfg,
+        suites={
+            **cfg.suites,
+            "factual_qa": {
+                "n_items": 500,
+                "seed": 7411,
+                "alias_augmentation_path": "data/aliases.json",
+            },
+        },
+    )
+    build_items(cfg, base_dir=tmp_path)
+    assert captured["args"] == (500, 7411, tmp_path / "data/aliases.json")
+
+
+def test_build_items_factual_qa_without_alias_augmentation_path_passes_none(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_load_popqa_items(n_items, seed, alias_augmentation_path=None):
+        captured["args"] = (n_items, seed, alias_augmentation_path)
+        return []
+
+    monkeypatch.setattr(factual_qa, "load_popqa_items", fake_load_popqa_items)
+
+    cfg = make_config(tmp_path)
+    cfg = dataclasses.replace(
+        cfg,
+        suites={**cfg.suites, "factual_qa": {"n_items": 500, "seed": 7411}},
+    )
+    build_items(cfg, base_dir=tmp_path)
+    assert captured["args"] == (500, 7411, None)
 
 
 class TokenAwareFakeLlm(FakeLlm):

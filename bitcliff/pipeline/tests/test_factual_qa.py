@@ -1,7 +1,15 @@
 import json
 
+import pytest
+
 from bitcliff_pipeline.items import EvalItem
-from bitcliff_pipeline.suites.factual_qa import grade, items_from_records
+from bitcliff_pipeline.suites.factual_qa import (
+    grade,
+    items_from_records,
+    load_popqa_items,
+    object_qid,
+    picked_records,
+)
 
 PROMPT_PREFIX = "Answer with just the answer: "
 
@@ -186,3 +194,105 @@ def test_grade_all_aliases_in_question_forces_wrong():
     item = _full_item("Is Paris the capital of France, Paris?", ["Paris"])
     assert grade(item, "Paris") == "wrong"
     assert grade(item, "London") == "wrong"
+
+
+# ---------------------------------------------------------------------------
+# Mechanical Wikidata alias augmentation (PREREG §3.4 branch (b)).
+#
+# The object entity's Wikidata QID is derived from the record's `o_uri`
+# field ("http://www.wikidata.org/entity/Q82955" -> "Q82955"). NOTE: PopQA's
+# `obj_id` column is an internal numeric id, NOT the Wikidata QID (verified
+# against datasets-server: obj_id=2834605 for a record whose o_uri encodes
+# Q82955 -- the numbers don't correspond) -- `o_uri` is the reliable source.
+# ---------------------------------------------------------------------------
+
+
+def _aug_record(i, pop, qid, aliases):
+    return {
+        "question": f"Q{i}: what is entity {i} known for?",
+        "possible_answers": json.dumps(aliases),
+        "s_pop": pop,
+        "o_uri": f"http://www.wikidata.org/entity/{qid}",
+    }
+
+
+# 10 records, popularity == index, already sorted ascending -> 10 deciles of
+# exactly 1 record each -> the seeded draw is forced regardless of seed,
+# giving a fully deterministic picked-record order for these tests.
+AUG_RECORDS = [_aug_record(i, pop=i, qid=f"Q{700 + i}", aliases=[f"answer-{i}"]) for i in range(10)]
+
+
+def test_object_qid_extracts_from_o_uri():
+    assert object_qid({"o_uri": "http://www.wikidata.org/entity/Q82955"}) == "Q82955"
+
+
+def test_object_qid_raises_on_unrecognized_uri():
+    with pytest.raises(ValueError):
+        object_qid({"o_uri": "not-a-wikidata-uri"})
+
+
+def test_picked_records_matches_items_from_records_order():
+    picked = picked_records(AUG_RECORDS, n_items=10, seed=3)
+    items = items_from_records(AUG_RECORDS, n_items=10, seed=3)
+    assert [PROMPT_PREFIX + r["question"] for r in picked] == [i.prompt for i in items]
+
+
+def test_alias_augmentation_none_is_byte_identical():
+    a = items_from_records(AUG_RECORDS, n_items=10, seed=3, alias_augmentation=None)
+    b = items_from_records(AUG_RECORDS, n_items=10, seed=3)
+    assert a == b
+
+
+def test_alias_augmentation_omitted_matches_explicit_none():
+    a = items_from_records(AUG_RECORDS, n_items=10, seed=3)
+    b = items_from_records(AUG_RECORDS, n_items=10, seed=3, alias_augmentation=None)
+    assert a == b
+
+
+def test_alias_augmentation_merges_new_aliases_preserving_original_order():
+    records = [_aug_record(0, pop=0, qid="Q500", aliases=["Original One", "original two"])]
+    augmentation = {"Q500": ["Extra Alias", "original ONE"]}  # dup differs only in case
+    items = items_from_records(records, n_items=1, seed=1, alias_augmentation=augmentation)
+    # original aliases keep their order and casing first; "original ONE" is
+    # a case-insensitive dupe of "Original One" and is dropped; the
+    # remaining new alias is appended.
+    assert items[0].expected == ("Original One", "original two", "Extra Alias")
+
+
+def test_alias_augmentation_no_entry_for_qid_leaves_expected_unchanged():
+    records = [_aug_record(0, pop=0, qid="Q999", aliases=["Solo"])]
+    items = items_from_records(
+        records, n_items=1, seed=1, alias_augmentation={"Q1": ["Other"]}
+    )
+    assert items[0].expected == ("Solo",)
+
+
+def test_augmented_alias_matching_output_is_correct():
+    records = [_aug_record(0, pop=0, qid="Q500", aliases=["Original"])]
+    augmentation = {"Q500": ["Augmented Alias"]}
+    items = items_from_records(records, n_items=1, seed=1, alias_augmentation=augmentation)
+    item = items[0]
+    assert grade(item, "The answer is Augmented Alias.") == "correct"
+    assert grade(item, "unrelated text") == "wrong"
+
+
+def test_load_popqa_items_reads_alias_augmentation_file(monkeypatch, tmp_path):
+    import datasets
+
+    monkeypatch.setattr(datasets, "load_dataset", lambda name, split: AUG_RECORDS)
+
+    aug_path = tmp_path / "aliases.json"
+    aug_path.write_text(json.dumps({"aliases": {"Q705": ["Bonus Alias"]}}))
+
+    items = load_popqa_items(10, seed=3, alias_augmentation_path=aug_path)
+    assert len(items) == 10
+    item5 = items[5]  # decile 5 -> record index 5 -> qid Q705 (see AUG_RECORDS)
+    assert item5.expected == ("answer-5", "Bonus Alias")
+
+
+def test_load_popqa_items_without_alias_augmentation_path_is_unaugmented(monkeypatch):
+    import datasets
+
+    monkeypatch.setattr(datasets, "load_dataset", lambda name, split: AUG_RECORDS)
+    items = load_popqa_items(10, seed=3)
+    assert items[5].expected == ("answer-5",)

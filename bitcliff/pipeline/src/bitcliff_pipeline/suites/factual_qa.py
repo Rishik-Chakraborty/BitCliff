@@ -43,17 +43,36 @@ Stratified sampling (`items_from_records`):
      decile has enough records to satisfy its draw).
   4. Items are id'd `factual_qa-{seed}-{i:04d}` in the order drawn (all of
      decile 0's picks first, then decile 1's, and so on).
+
+Mechanical alias augmentation (PREREG §3.4 branch (b)): `items_from_records`
+takes an optional `alias_augmentation: dict[str, list[str]] | None` mapping
+object-entity Wikidata QID -> extra aliases (see
+`scripts/fetch_wikidata_aliases.py` and
+`data/popqa_wikidata_aliases_seed7411.json`, the committed, output-blind,
+mechanically-derived mapping). When provided, each item's expected tuple
+becomes the original `possible_answers` UNION that record's augmentation
+entries, deduped case-insensitively with original aliases taking precedence
+and kept in their original order; new aliases are appended in the order
+given (`_augment_aliases`). The object QID itself is derived from the
+record's `o_uri` field, NOT the `obj_id` column — `obj_id` is an internal
+PopQA numeric id and does not correspond to the Wikidata QID number (see
+`object_qid`). `load_popqa_items` accepts an optional
+`alias_augmentation_path` pointing at the committed mapping file. The
+grader (`grade`, below) is applied to the augmented expected tuple
+unchanged — no grading-logic changes were needed for this branch.
 """
 
 import json
 import random
 import re
+from pathlib import Path
 
 from ..items import EvalItem
 
 PROMPT_PREFIX = "Answer with just the answer: "
 
 _WHITESPACE = re.compile(r"\s+")
+_QID = re.compile(r"(Q\d+)\s*$")
 
 
 def _popularity(record) -> int:
@@ -92,9 +111,14 @@ def _apportion_counts(weights: tuple[float, ...], n_items: int) -> list[int]:
     return counts
 
 
-def items_from_records(
+def picked_records(
     records, n_items: int, seed: int, weights: tuple[float, ...] | None = None
-) -> list[EvalItem]:
+) -> list:
+    """The deterministic, seeded record draw underlying `items_from_records`
+    (module docstring steps 1-3), exposed so other tooling (e.g.
+    `scripts/fetch_wikidata_aliases.py`) can re-derive the SAME sampled
+    record set by construction, rather than re-implementing the sampling
+    logic and risking drift."""
     sorted_records = sorted(records, key=_popularity)
     deciles = _split_into_deciles(sorted_records)
 
@@ -110,25 +134,87 @@ def items_from_records(
     picked = []
     for decile, take in zip(deciles, takes):
         picked.extend(rng.sample(decile, take))
+    return picked
+
+
+def object_qid(record) -> str:
+    """The object entity's Wikidata QID, e.g. "Q82955".
+
+    Derived from the record's `o_uri` field
+    ("http://www.wikidata.org/entity/Q82955" -> "Q82955"). NOTE: PopQA's
+    `obj_id` column is an internal numeric identifier, NOT a Wikidata QID
+    (verified against datasets-server: a record with obj_id=2834605 has
+    o_uri encoding Q82955 -- the numbers do not correspond). `o_uri` is the
+    reliable source for the true QID.
+    """
+    m = _QID.search(record["o_uri"])
+    if not m:
+        raise ValueError(f"unrecognized o_uri format: {record.get('o_uri')!r}")
+    return m.group(1)
+
+
+def _augment_aliases(
+    aliases: tuple[str, ...], extra: list[str] | None
+) -> tuple[str, ...]:
+    """Union `aliases` (original possible_answers) with `extra` (this
+    record's alias-augmentation entries), deduped case-insensitively with
+    the original entries taking precedence (kept in their original order
+    and casing); new entries from `extra` are appended, in the order given,
+    skipping any that case-insensitively duplicate an alias already
+    present."""
+    if not extra:
+        return aliases
+    seen = {a.lower() for a in aliases}
+    merged = list(aliases)
+    for a in extra:
+        if a.lower() not in seen:
+            merged.append(a)
+            seen.add(a.lower())
+    return tuple(merged)
+
+
+def items_from_records(
+    records,
+    n_items: int,
+    seed: int,
+    weights: tuple[float, ...] | None = None,
+    alias_augmentation: dict[str, list[str]] | None = None,
+) -> list[EvalItem]:
+    picked = picked_records(records, n_items, seed, weights)
 
     items = []
     for i, r in enumerate(picked):
+        expected = _parse_aliases(r)
+        if alias_augmentation is not None:
+            expected = _augment_aliases(expected, alias_augmentation.get(object_qid(r)))
         items.append(
             EvalItem(
                 id=f"factual_qa-{seed}-{i:04d}",
                 suite="factual_qa",
                 prompt=PROMPT_PREFIX + r["question"],
-                expected=_parse_aliases(r),
+                expected=expected,
             )
         )
     return items
 
 
-def load_popqa_items(n_items: int, seed: int) -> list[EvalItem]:
+def _load_alias_augmentation(path: str | Path) -> dict[str, list[str]]:
+    data = json.loads(Path(path).read_text())
+    return data["aliases"]
+
+
+def load_popqa_items(
+    n_items: int, seed: int, alias_augmentation_path: str | Path | None = None
+) -> list[EvalItem]:
     from datasets import load_dataset
 
     ds = load_dataset("akariasai/PopQA", split="test")
-    return items_from_records(ds, n_items, seed)
+    alias_augmentation = (
+        _load_alias_augmentation(alias_augmentation_path)
+        if alias_augmentation_path is not None
+        else None
+    )
+    return items_from_records(ds, n_items, seed, alias_augmentation=alias_augmentation)
 
 
 def _normalize(s: str) -> str:

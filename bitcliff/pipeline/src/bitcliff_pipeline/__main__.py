@@ -32,7 +32,14 @@ def build_items(config: LadderConfig, base_dir: Path) -> list[EvalItem]:
         items += arithmetic_twins.load_pair_items(suites["arithmetic_twins"]["seed"])
     if "factual_qa" in suites:
         s = suites["factual_qa"]
-        items += factual_qa.load_popqa_items(s["n_items"], s["seed"])
+        alias_augmentation_path = (
+            base_dir / s["alias_augmentation_path"]
+            if s.get("alias_augmentation_path")
+            else None
+        )
+        items += factual_qa.load_popqa_items(
+            s["n_items"], s["seed"], alias_augmentation_path=alias_augmentation_path
+        )
     if "spectacle" in suites:
         items += spectacle.load_items(base_dir / suites["spectacle"]["path"])
     return items

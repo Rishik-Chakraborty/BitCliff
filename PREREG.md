@@ -205,9 +205,10 @@ methodology page.
 
 GSM8K test split (`openai/gsm8k`, MIT — verified, `bitcliff/pipeline/LICENSE_AUDIT.md`
 §3). **Registered confirmatory item set: n = 500
-`[USER-EDITABLE — proposed]`, sampled with fixed seed 3141
-`[USER-EDITABLE — proposed; fresh, distinct from every exploratory seed
-(pilot arithmetic 1301, twins 1301, factual_qa characterization 7411)]`.**
+`[USER-EDITABLE — confirmed by user 2026-08-26]`, sampled with fixed seed 3141
+`[USER-EDITABLE — confirmed by user 2026-08-26; fresh, distinct from every
+exploratory seed (pilot arithmetic 1301, twins 1301, factual_qa
+characterization 7411)]`.**
 The seed and n are fixed by this registration and never float (§7 amendment
 scope). Prompt appended with the registered instruction ("Solve step by
 step, then give the final answer on its own line as: `#### <number>`").
@@ -280,9 +281,10 @@ was executed and committed **before any suite code was written**
 split; HF license tag reads `unknown` — a fresh audit against the original
 release terms is required before any switch; `bitcliff/pipeline/LICENSE_AUDIT.md` §2).
 
-**Sampling:** n=500 `[USER-EDITABLE — currently 500 per ruling 2026-08-26]`,
-**confirmatory fixed seed 2718** `[USER-EDITABLE — proposed; deliberately
-distinct from the characterization run's seed 7411]`, **stratified by
+**Sampling:** n=500 `[USER-EDITABLE — confirmed by user 2026-08-26]`,
+**confirmatory fixed seed 2718** `[USER-EDITABLE — confirmed by user
+2026-08-26; deliberately distinct from the characterization run's seed
+7411]`, **stratified by
 subject-entity popularity decile** (`s_pop`, Wikipedia monthly pageviews):
 records sorted by popularity, split into 10 contiguous deciles, draws per
 decile per the registered mix with remainders to the earliest deciles
@@ -292,8 +294,8 @@ this registration and is outside the §7 amendment scope.
 
 **Prompt** (registered): `Answer with just the answer: {question}` —
 closed-book, no context. Per-suite answer budget: 64 tokens within the
-global cap `[USER-EDITABLE — carried from the characterization config; not
-separately ruled]`.
+global cap `[USER-EDITABLE — confirmed by user 2026-08-26; carried from the
+characterization config]`.
 
 **Grading rule — the amended rule (subject-echo guard).** What follows is a
 **normative restatement; the executable rule is quoted verbatim in
@@ -342,39 +344,68 @@ all accuracy numbers discarded per §12):
   auto-wrong for every model, capping maximum accuracy at 99.8% on this
   draw. Small, but systematic, not random.
 
-**[DECISION REQUIRED — user selects exactly one branch before
-timestamping. The frozen PREREG states the chosen branch and deletes the
-others; none is the default.]**
+**Registered resolution (user decision, 2026-08-26): branch (b) —
+alias-augmentation pass before freeze.** Before the freeze commit, the
+alias lists of the 500 sampled items received a documented, mechanical,
+output-blind augmentation pass; a round-3 re-characterization on a fresh
+sample follows as a separate, later step.
 
-- **Branch (a) — accept the amended rule with the measured FN rate.**
-  Freeze the rule as stated above, citing round 2 (FP 0/15, FN 3/15) as its
-  measured characterization. The registered argument: alias-gap FNs are
-  properties of the item, not the model — the same deficient alias list
-  grades both F16 and every quant on the same item, so these FNs are
-  **symmetric across paired conditions and absorbed by the paired design**,
-  exactly mirroring the multivalue2 substring-symmetry note (§3.1) but in
-  the false-negative direction; they bias absolute accuracy down, not the
-  paired Δ, except where the quant's answer surface form differs — which the
-  published per-item records make auditable. The 1/500 empty-set cap and the
-  ~20% sampled FN rate are disclosed verbatim in the methodology page.
-  Cost: absolute accuracies understate truth; the suite's paired verdicts
-  remain sound under the symmetry argument.
-- **Branch (b) — alias-augmentation pass before freeze.** Before the freeze
-  commit, run a documented, deterministic augmentation over the alias lists
-  of the sampled items only (e.g., add "-ism"/"-ity" religion-name forms and
-  other rule-generated variants; every added alias listed in a committed
-  manifest), then re-characterize (round 3, fresh seed, same 30-item
-  protocol, same bar) and freeze only on a PASS. Cost: delays the freeze by
-  one characterization cycle; the augmentation rule itself must be frozen
-  with this document so it cannot be tuned against results.
-- **Branch (c) — TriviaQA fallback.** Switch the suite to
-  `mandarjoshi/trivia_qa` (unfiltered, no-context), alias lists included,
-  same sampling structure (popularity stratification replaced by a
-  registered difficulty knob for that dataset), subject to: a fresh license
-  audit (the HF tag is `unknown`), and a fresh 30-item characterization
-  under the same bar. Note the recorded caution: the subject-echo mechanism
-  is a property of aliasing generally, not of PopQA specifically — the guard
-  (and its collateral) likely travels with the switch.
+**The augmentation rule (verbatim, as implemented):** English label +
+English aliases of the object entity, fetched for every sampled record,
+output-blind. For each of the 500 records sampled by
+`factual_qa.picked_records(seed=7411)`, the object entity's Wikidata QID is
+derived from the record's `o_uri` field (**not** `obj_id` — `obj_id` is an
+internal PopQA numeric identifier and does not correspond to the Wikidata
+QID; verified against `datasets-server`, where a record with
+`obj_id=2834605` carries `o_uri` encoding `Q82955` — the numbers do not
+correspond), and the Wikidata API (`wbgetentities`, `props=aliases|labels`,
+`languages=en`, `<=50` ids/call, `bitcliff/pipeline/scripts/
+fetch_wikidata_aliases.py`) is queried for that QID's English label and
+English aliases. Every value the API returns becomes an eligible
+augmentation alias for that record — no per-item selection or filtering by
+hand, and the mapping was built and committed **before any model output was
+read**. Mapping file: `bitcliff/pipeline/data/
+popqa_wikidata_aliases_seed7411.json` (committed, registered evidence),
+header records retrieval date 2026-08-26, the rule text above, the query
+endpoint, and counts. At grade time, `factual_qa.items_from_records`'s
+`alias_augmentation` parameter unions each item's original
+`possible_answers` with that record's mapping entries — deduped
+case-insensitively, original aliases and their order preserved, new
+aliases appended in the order given — and the subject-echo guard above then
+applies to the augmented list unchanged (no grader-logic change was
+needed). Measured coverage on this draw: 500 sampled records -> 437 unique
+object QIDs, all 437 resolved (0 missing), 1264 aliases fetched total
+(mean 2.89/QID); 177/500 sampled items received at least one alias not
+already present in `possible_answers`.
+
+**Round-3 protocol (registered):** a fresh 30-item sample — 15 items graded
+`correct` and 15 graded `wrong` under the augmented alias lists, drawn
+across the three rungs (F16/Q4_K_M/Q2_K), by a **new** fixed seed distinct
+from every seed used in rounds 1–2 — independently adjudicated by the same
+method as rounds 1 and 2. **Bar (as the user set it 2026-08-26): PASS iff
+grader-FP <= 1/15 AND grader-FN <= 2/15** (the FP side loosens from the
+round-1/2 bar of 0/15; the FN side is unchanged). **Registered consequence,
+without further debate: if round 3 fails this bar on the fresh sample, the
+TriviaQA fallback (former branch (c), kept below) executes** — the suite
+switches to `mandarjoshi/trivia_qa` per its documented protocol, subject to
+its own fresh license audit and a fresh 30-item characterization under the
+same bar. Round 3's result, its seed, and (if triggered) the fallback are
+recorded as a dated amendment to this section when that step completes.
+
+**Rejected alternatives, kept as a short record:**
+
+- **Former branch (a) — accept the amended rule with the measured FN rate
+  (round 2: FP 0/15, FN 3/15), no augmentation.** Rejected: the FN rate
+  (3/15) was left unaddressed by this branch; the user preferred to repair
+  the alias-list gap directly (branch (b), above) rather than rely solely
+  on the paired-design symmetry argument to absorb it.
+- **Former branch (c) — TriviaQA fallback, as an immediate switch.**
+  Rejected as an immediate action, and instead registered above as the
+  round-3 failure consequence: the subject-echo mechanism is a property of
+  aliasing generally, not of PopQA specifically, so an immediate switch
+  would not by itself have closed the FN gap; PopQA's license is already
+  cleared (MIT via the canonical release, `LICENSE_AUDIT.md` §1) while
+  TriviaQA's is not (HF tag `unknown`, fresh audit required before use).
 
 **Q4 linkage** (whatever branch is chosen): this suite's degradation curve
 is mechanism (i) *observed*; Q4's discussion cites it as the measured
@@ -429,19 +460,23 @@ Two arms, each with its own scope and manifest — registered exactly:
   Qwen2.5-7B-Instruct**, comparing Qwen's official GGUFs
   (`qwen2.5-7b-official.json`) against bartowski's
   (`qwen2.5-7b-bartowski.json`) at the same quant labels: **Q4_K_M and
-  Q3_K_M** `[USER-EDITABLE — proposed for symmetry with Arm 1]`. Meta ships
+  Q3_K_M** `[USER-EDITABLE — confirmed by user 2026-08-26; symmetry with
+  Arm 1]`. Meta ships
   no official GGUFs, so this arm runs on the Qwen side only.
 
-**Registered follow-up trigger (not scope creep):** if any same-label
-comparison in either arm shows a visible effect — operationally, a pair of
-same-label files whose paired-difference CI (per §8's machinery, quant vs
-quant on identical items) **excludes 0** — then extending the uploader
-shootout to Qwen2.5-7B-Instruct becomes a **registered follow-up
-measurement** under the same rules, run after the launch analyses.
-`[USER-EDITABLE — the user may widen this trigger (e.g., to include
-differing §8 cell states against F16); the CI-only form is registered
-because cell-state differences can fire on power differences alone.]`
-Absent the trigger, no 7B uploader shootout runs.
+**Registered follow-up trigger (not scope creep) — widened per user
+decision 2026-08-26:** if any same-label comparison in either arm shows a
+visible effect — operationally, **either** (i) a pair of same-label files
+whose paired-difference CI (per §8's machinery, quant vs quant on
+identical items) **excludes 0**, **or** (ii) same-label pairs landing in
+different §8 cell states (e.g. one file Equivalent against F16, its
+same-label counterpart Damaged or Small real loss) — then extending the
+uploader shootout to Qwen2.5-7B-Instruct becomes a **registered follow-up
+measurement** under the same rules, run after the launch analyses. Widened
+back to this original two-arm form (CI-excludes-0 OR differing cell
+states) per user decision 2026-08-26 — over-running a cheap shootout is
+preferred to under-detecting an uploader effect. Absent the trigger, no 7B
+uploader shootout runs.
 
 ---
 
@@ -453,7 +488,8 @@ Absent the trigger, no 7B uploader shootout runs.
   truncations. `bitcliff/pipeline/PILOT_NOTES.md`.)
 - **Per-suite answer budgets** within the global cap: `longctx_retrieval` 32
   tokens (paper-equivalent, §3.1); `factual_qa` 64 tokens
-  `[USER-EDITABLE — see §3.4]`; arithmetic suites use the global budget.
+  `[USER-EDITABLE — confirmed by user 2026-08-26; see §3.4]`; arithmetic
+  suites use the global budget.
 - **Deterministic decoding:** greedy, `temperature 0.0`, `top_k 1`,
   `seed 42`.
 - **Determinism scope, stated honestly:** determinism holds within a fixed
@@ -541,7 +577,7 @@ Calibration is disclosed as pilot-legitimate (§12).
 ## 8. Statistics: margin, per-cell inference, cell states, multiplicity
 
 - **Margin: M = 3 percentage points absolute accuracy, per suite.**
-  `[USER-EDITABLE — 3pp is the ruling of 2026-08-26; the user may set a
+  `[USER-EDITABLE — confirmed by user 2026-08-26; the user may still set a
   different value per suite during the edit pass, before timestamping.]`
 - **Per-cell inference** (quant vs F16, paired on identical items):
   McNemar exact test on the accuracy difference; two-sided 95% CI on
@@ -613,8 +649,9 @@ Registered before any rater sees anything:
   **exact binomial test against p₀ = the mean of those per-round null
   probabilities over the realized 10-label sequence**, one-sided
   (greater), **p < 0.05, per rater**.
-- **Pass rule:** **both** raters pass their individual test.
-  `[USER-EDITABLE — proposed threshold]`
+- **Pass rule:** **both** raters pass their individual test (each at
+  `p < 0.05`, above).
+  `[USER-EDITABLE — confirmed by user 2026-08-26]`
 - **Fallback:** if a second naive rater cannot be found, or the gate fails,
   **the game stays out** until a naive rater passes it.
 
@@ -652,10 +689,27 @@ Declared here so nobody discovers it themselves:
   conclusions survive) and the IQ2_M > Q2_K arithmetic observation (kept
   only as Q5's exploratory candidate, §2).
 - **Run `factualqa-explore`** (2026-08-26; 500 PopQA items × 3 rungs, both
-  grading rounds) was **exploratory**. Its accuracy/retention numbers are
-  discarded. Only two things survive: the grader FP/FN characterization
-  (§3.4) and the F16 difficulty-band observation feeding the popularity-mix
-  knob (§7).
+  grading rounds, and the augmented-alias re-grade below) was
+  **exploratory**. Its accuracy/retention numbers are discarded. Only
+  things surviving: the grader FP/FN characterization (§3.4), the F16
+  difficulty-band observation feeding the popularity-mix knob (§7), and the
+  disclosure below.
+- **Grader characterization disclosure (§3.4):** both characterization
+  rounds run against `factualqa-explore` **failed their bar**. Round 1
+  (original word-boundary rule) failed on **FP 1/15** (the subject-echo
+  mechanism — an output that merely echoes the question's subject-entity
+  name scores correct with a wrong actual answer). Round 2 (rule amended
+  with the subject-echo guard, fresh adjudication seed) fixed the FP failure
+  (**FP 0/15**) but failed on **FN 3/15**, exceeding the <=2/15 bar (a
+  pre-existing PopQA alias-list phrasing gap plus one instance of the
+  guard's own disclosed collateral). **In response, two repairs were
+  adopted:** the subject-echo guard (grading-rule change, §3.4) and the
+  mechanical Wikidata alias augmentation (branch (b), §3.4) — built and
+  committed output-blind, before any model output was read for this task.
+  **Round 3** — a fresh 30-item sample, new seed, same adjudication
+  method, bar FP <= 1/15 AND FN <= 2/15 — runs on the augmented alias lists
+  as a separate, later step; its outcome (and, if it fails, the TriviaQA
+  fallback it triggers) is appended here as a dated amendment.
 - **Difficulty calibration (§7) is disclosed as pilot-legitimate:** F16-only
   runs, executed after the freeze under the frozen rule, appended as dated
   amendments.
