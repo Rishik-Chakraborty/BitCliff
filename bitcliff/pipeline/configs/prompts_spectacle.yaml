@@ -1,0 +1,13 @@
+# Unscored entertainment prompts (spec §5). Pilot candidates; the launch 50
+# get curated from whatever the pilot shows degrades most visibly.
+prompts:
+  - {id: spec-001, prompt: "Tell me the plot of Romeo and Juliet in exactly three sentences."}
+  - {id: spec-002, prompt: "List the planets of the solar system in order from the Sun."}
+  - {id: spec-003, prompt: "Write a limerick about a cat who codes in Python."}
+  - {id: spec-004, prompt: "What year did the Berlin Wall fall, and what country was reunified afterward?"}
+  - {id: spec-005, prompt: "Count backwards from 20 to 1, separated by commas."}
+  - {id: spec-006, prompt: "Translate 'Good morning, how are you?' into French, Spanish, and German."}
+  - {id: spec-007, prompt: "Name the four members of The Beatles and the instrument each mainly played."}
+  - {id: spec-008, prompt: "Explain why the sky is blue in one short paragraph a child could understand."}
+  - {id: spec-009, prompt: "Write the first 12 numbers of the Fibonacci sequence."}
+  - {id: spec-010, prompt: "Give me a recipe for pancakes with exact measurements for 4 servings."}
