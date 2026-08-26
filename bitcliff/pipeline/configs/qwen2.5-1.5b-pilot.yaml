@@ -9,6 +9,9 @@ quants:
   - {label: Q3_K_M, filename: Qwen2.5-1.5B-Instruct-Q3_K_M.gguf, uploader: bartowski, imatrix: true}
   - {label: Q2_K,   filename: Qwen2.5-1.5B-Instruct-Q2_K.gguf,   uploader: bartowski, imatrix: true}
   - {label: IQ2_M,  filename: Qwen2.5-1.5B-Instruct-IQ2_M.gguf,  uploader: bartowski, imatrix: true}
+  - {label: IQ2_XXS, filename: Qwen2.5-1.5B-Instruct-IQ2_XXS-bitcliff-inhouse.gguf, uploader: bitcliff-inhouse, imatrix: true, spectacle_only: true}
+  - {label: IQ1_M,  filename: Qwen2.5-1.5B-Instruct-IQ1_M-bitcliff-inhouse.gguf,  uploader: bitcliff-inhouse, imatrix: true, spectacle_only: true}
+  - {label: IQ1_S,  filename: Qwen2.5-1.5B-Instruct-IQ1_S-bitcliff-inhouse.gguf,  uploader: bitcliff-inhouse, imatrix: true, spectacle_only: true}
 generation:
   seed: 42
   temperature: 0.0
