@@ -1,0 +1,118 @@
+"""Closed-book factual QA suite (PopQA).
+
+Dataset: `akariasai/PopQA`, `test` split (user ruling 1). The HF mirror's
+dataset card carries no license metadata of its own, but the canonical
+source release, github.com/AlexTMallen/adaptive-retrieval (Mallen et al.
+2023), is MIT-licensed and ships the same data as `data/popQA.tsv`; the HF
+mirror is maintained by paper co-author Akari Asai as an access path to
+that same MIT-licensed data. See ../../../LICENSE_AUDIT.md section 1 for
+the full verification trail.
+
+Schema fields used (verified via `datasets-server` first-rows against the
+real PopQA `test` split — see LICENSE_AUDIT.md section 1):
+  - question: the `question` field (str).
+  - aliases: the `possible_answers` field — a JSON-encoded list string of
+    gold aliases, e.g. '["politician", "political leader"]'. Parsed with
+    `json.loads`. A record whose `possible_answers` is already a Python
+    list (as used by this module's own network-free unit tests) is
+    accepted as-is.
+  - popularity: the `s_pop` field (int) — the subject entity's Wikipedia
+    monthly pageview count. (`o_pop`, the object entity's count, is also
+    present in the schema but is not used here.)
+
+Stratified sampling (`items_from_records`):
+  1. Sort records by `s_pop` ascending (Python's sort is stable, so ties
+     keep their original relative order).
+  2. Split into 10 contiguous deciles. Sizes are as equal as possible:
+     with N records, `base = N // 10` and `extra = N % 10`; the first
+     `extra` deciles get `base + 1` records each, the remaining deciles
+     get `base`.
+  3. Draw from each decile with `random.Random(seed)`, processing deciles
+     in order 0..9. Per-decile draw count uses the same "remainder to the
+     earliest buckets" rule as the decile sizing above: `base_n = n_items
+     // 10`, `remainder = n_items % 10`; the first `remainder` deciles
+     draw `base_n + 1` items, the rest draw `base_n`. This draws exactly
+     `n_items` in total (given each decile has enough records to satisfy
+     its draw).
+  4. Items are id'd `factual_qa-{seed}-{i:04d}` in the order drawn (all of
+     decile 0's picks first, then decile 1's, and so on).
+"""
+
+import json
+import random
+import re
+
+from ..items import EvalItem
+
+PROMPT_PREFIX = "Answer with just the answer: "
+
+_WHITESPACE = re.compile(r"\s+")
+
+
+def _popularity(record) -> int:
+    return int(record["s_pop"])
+
+
+def _parse_aliases(record) -> tuple[str, ...]:
+    raw = record["possible_answers"]
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    return tuple(raw)
+
+
+def _split_into_deciles(sorted_records: list) -> list[list]:
+    n = len(sorted_records)
+    base, extra = divmod(n, 10)
+    deciles = []
+    idx = 0
+    for i in range(10):
+        size = base + (1 if i < extra else 0)
+        deciles.append(sorted_records[idx : idx + size])
+        idx += size
+    return deciles
+
+
+def items_from_records(records, n_items: int, seed: int) -> list[EvalItem]:
+    sorted_records = sorted(records, key=_popularity)
+    deciles = _split_into_deciles(sorted_records)
+
+    base_n, remainder = divmod(n_items, 10)
+    rng = random.Random(seed)
+    picked = []
+    for i, decile in enumerate(deciles):
+        take = base_n + (1 if i < remainder else 0)
+        picked.extend(rng.sample(decile, take))
+
+    items = []
+    for i, r in enumerate(picked):
+        items.append(
+            EvalItem(
+                id=f"factual_qa-{seed}-{i:04d}",
+                suite="factual_qa",
+                prompt=PROMPT_PREFIX + r["question"],
+                expected=_parse_aliases(r),
+            )
+        )
+    return items
+
+
+def load_popqa_items(n_items: int, seed: int) -> list[EvalItem]:
+    from datasets import load_dataset
+
+    ds = load_dataset("akariasai/PopQA", split="test")
+    return items_from_records(ds, n_items, seed)
+
+
+def _normalize(s: str) -> str:
+    return _WHITESPACE.sub(" ", s.strip().lower())
+
+
+def grade(item: EvalItem, text: str) -> str:
+    text_norm = _normalize(text)
+    for alias in item.expected:
+        alias_norm = _normalize(alias)
+        if not alias_norm:
+            continue
+        if re.search(rf"(?<!\w){re.escape(alias_norm)}(?!\w)", text_norm):
+            return "correct"
+    return "wrong"

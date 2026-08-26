@@ -5,12 +5,13 @@ from pathlib import Path
 
 from .generate import OutputRecord
 from .items import EvalItem
-from .suites import arithmetic, longctx_retrieval, spectacle
+from .suites import arithmetic, factual_qa, longctx_retrieval, spectacle
 
 GRADERS = {
     "longctx_retrieval": longctx_retrieval.grade,
     "arithmetic": arithmetic.grade,
     "spectacle": spectacle.grade,
+    "factual_qa": factual_qa.grade,
 }
 
 
