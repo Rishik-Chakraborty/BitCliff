@@ -12,7 +12,7 @@ from bitcliff_pipeline.items import EvalItem
 GEN = GenSettings(seed=42, temperature=0.0, top_k=1, max_tokens=640, n_ctx=4096)
 
 ITEMS = [
-    EvalItem("retrieval-1-000", "retrieval", "What is Alice's code?", ("1234", "5678")),
+    EvalItem("arithmetic-1-000", "arithmetic", "What is 12 * 34?", ("408",)),
     EvalItem("spec-001", "spectacle", "Write a haiku.", None),
 ]
 
@@ -62,8 +62,8 @@ def test_run_items_builds_records_with_settings():
     records = run_items(llm, ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN)
     assert len(records) == 2
     r = records[0]
-    assert r.item_id == "retrieval-1-000"
-    assert r.suite == "retrieval"
+    assert r.item_id == "arithmetic-1-000"
+    assert r.suite == "arithmetic"
     assert r.quant_label == "Q4_K_M"
     assert r.model_sha256 == "abc123"
     assert r.finish_reason == "stop"

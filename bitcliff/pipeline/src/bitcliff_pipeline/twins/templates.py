@@ -182,11 +182,14 @@ TEMPLATES: tuple[TwinTemplate, ...] = (
     ),
     TwinTemplate(
         gsm8k_index=20,
-        text_template='I have {vol1} liters of orange drink that are two-thirds water and I wish to add it to {vol2} liters of pineapple drink that is three-fifths water. But as I pour it, I spill one liter of the orange drink. How much water is in the remaining 24 liters?',
+        text_template='I have {vol1} liters of orange drink that are two-thirds water and I wish to add it to {vol2} liters of pineapple drink that is three-fifths water. But as I pour it, I spill one liter of the orange drink. How much water is in the remaining {remaining} liters?',
         param_names=('vol1', 'vol2'),
         solve_src="def solve(**p):\n    water_pine = p['vol2'] * 3 / 5\n    orange_after_spill = p['vol1'] - 1\n    water_orange = orange_after_spill * 2 / 3\n    return water_pine + water_orange\n",
         constraints_src="def valid(**p):\n    v1, v2 = p['vol1'], p['vol2']\n    if not (v1 > 1 and v2 > 0 and v2 % 5 == 0 and (v1 - 1) % 3 == 0):\n        return False\n    return True\n",
-        original_values={'vol1': 10, 'vol2': 15},
+        # "the remaining 24 liters" is a derived literal: 24 = vol1 + vol2 - 1
+        # (total poured minus the spilled liter). Computed, never resampled.
+        derived_src="def derive(**p):\n    return {'remaining': p['vol1'] + p['vol2'] - 1}\n",
+        original_values={'vol1': 10, 'vol2': 15, 'remaining': 24},
         original_answer='15',
     ),
     TwinTemplate(
@@ -200,11 +203,14 @@ TEMPLATES: tuple[TwinTemplate, ...] = (
     ),
     TwinTemplate(
         gsm8k_index=22,
-        text_template="Billy sells DVDs. He has 8 customers on Tuesday. His first {c1} customers buy one DVD each.  His next {c2} customers buy {dvd2} DVDs each.  His last {c3} customers don't buy any DVDs. How many DVDs did Billy sell on Tuesday?",
+        text_template="Billy sells DVDs. He has {total_customers} customers on Tuesday. His first {c1} customers buy one DVD each.  His next {c2} customers buy {dvd2} DVDs each.  His last {c3} customers don't buy any DVDs. How many DVDs did Billy sell on Tuesday?",
         param_names=('c1', 'c2', 'dvd2', 'c3'),
         solve_src="def solve(**p):\n    return p['c1'] * 1 + p['c2'] * p['dvd2'] + p['c3'] * 0\n",
         constraints_src="def valid(**p):\n    return p['c1'] > 0 and p['c2'] > 0 and p['c3'] > 0 and p['dvd2'] > 0 and p['dvd2'] < 20\n",
-        original_values={'c1': 3, 'c2': 2, 'dvd2': 2, 'c3': 3},
+        # "He has 8 customers" is a derived literal: 8 = c1 + c2 + c3.
+        # Computed from the resampled group sizes, never resampled itself.
+        derived_src="def derive(**p):\n    return {'total_customers': p['c1'] + p['c2'] + p['c3']}\n",
+        original_values={'c1': 3, 'c2': 2, 'dvd2': 2, 'c3': 3, 'total_customers': 8},
         original_answer='7',
     ),
     TwinTemplate(
@@ -317,11 +323,15 @@ TEMPLATES: tuple[TwinTemplate, ...] = (
     ),
     TwinTemplate(
         gsm8k_index=35,
-        text_template='Mike plays ping pong for 40 minutes.  In the first {block} minutes, he scores {points1} points.  In the second 20 minutes, he scores {pct}% more points.  How many total points did he score?',
-        param_names=('block', 'points1', 'pct'),
+        text_template='Mike plays ping pong for {total} minutes.  In the first {block1} minutes, he scores {points1} points.  In the second {block2} minutes, he scores {pct}% more points.  How many total points did he score?',
+        param_names=('block1', 'block2', 'points1', 'pct'),
         solve_src="def solve(**p):\n    extra = p['points1'] * p['pct'] / 100\n    points2 = p['points1'] + extra\n    return p['points1'] + points2\n",
-        constraints_src="def valid(**p):\n    p1, pct = p['points1'], p['pct']\n    return p1 > 0 and pct > 0 and (p1 * pct) % 100 == 0 and p['block'] > 0\n",
-        original_values={'block': 20, 'points1': 4, 'pct': 25},
+        constraints_src="def valid(**p):\n    p1, pct = p['points1'], p['pct']\n    return p1 > 0 and pct > 0 and (p1 * pct) % 100 == 0 and p['block1'] > 0 and p['block2'] > 0\n",
+        # "plays ping pong for 40 minutes" is a derived literal: 40 = the sum
+        # of the two block durations (both 20 in the original). Both blocks
+        # are now free params; the total is computed, never resampled.
+        derived_src="def derive(**p):\n    return {'total': p['block1'] + p['block2']}\n",
+        original_values={'block1': 20, 'block2': 20, 'points1': 4, 'pct': 25, 'total': 40},
         original_answer='9',
     ),
     TwinTemplate(

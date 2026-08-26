@@ -28,12 +28,19 @@ Stratified sampling (`items_from_records`):
      `extra` deciles get `base + 1` records each, the remaining deciles
      get `base`.
   3. Draw from each decile with `random.Random(seed)`, processing deciles
-     in order 0..9. Per-decile draw count uses the same "remainder to the
-     earliest buckets" rule as the decile sizing above: `base_n = n_items
-     // 10`, `remainder = n_items % 10`; the first `remainder` deciles
-     draw `base_n + 1` items, the rest draw `base_n`. This draws exactly
-     `n_items` in total (given each decile has enough records to satisfy
-     its draw).
+     in order 0..9. With the default uniform mix (`weights=None`), the
+     per-decile draw count uses the same "remainder to the earliest
+     buckets" rule as the decile sizing above: `base_n = n_items // 10`,
+     `remainder = n_items % 10`; the first `remainder` deciles draw
+     `base_n + 1` items, the rest draw `base_n`. With an explicit
+     `weights` vector (a registered non-uniform mix, PREREG §7), per-decile
+     counts are the **largest-remainder apportionment** of
+     `weights[i] * n_items`: floor each raw count, then hand the shortfall
+     to the deciles with the largest fractional remainders, ties broken
+     toward the lower decile index. `weights[i]` applies to `deciles[i]` as
+     built here (ascending `s_pop`). Either way the seeded per-decile draw
+     itself is unchanged and draws exactly `n_items` in total (given each
+     decile has enough records to satisfy its draw).
   4. Items are id'd `factual_qa-{seed}-{i:04d}` in the order drawn (all of
      decile 0's picks first, then decile 1's, and so on).
 """
@@ -72,15 +79,36 @@ def _split_into_deciles(sorted_records: list) -> list[list]:
     return deciles
 
 
-def items_from_records(records, n_items: int, seed: int) -> list[EvalItem]:
+def _apportion_counts(weights: tuple[float, ...], n_items: int) -> list[int]:
+    """Largest-remainder apportionment of weights[i] * n_items (PREREG §7):
+    floor each raw count, then give the shortfall to the largest fractional
+    remainders, ties broken toward the lower decile index."""
+    raw = [w * n_items for w in weights]
+    counts = [int(r) for r in raw]
+    shortfall = n_items - sum(counts)
+    by_remainder = sorted(range(len(weights)), key=lambda i: (counts[i] - raw[i], i))
+    for i in by_remainder[:shortfall]:
+        counts[i] += 1
+    return counts
+
+
+def items_from_records(
+    records, n_items: int, seed: int, weights: tuple[float, ...] | None = None
+) -> list[EvalItem]:
     sorted_records = sorted(records, key=_popularity)
     deciles = _split_into_deciles(sorted_records)
 
-    base_n, remainder = divmod(n_items, 10)
+    if weights is None:
+        base_n, remainder = divmod(n_items, 10)
+        takes = [base_n + (1 if i < remainder else 0) for i in range(10)]
+    else:
+        if len(weights) != len(deciles):
+            raise ValueError(f"weights must have {len(deciles)} entries, got {len(weights)}")
+        takes = _apportion_counts(tuple(weights), n_items)
+
     rng = random.Random(seed)
     picked = []
-    for i, decile in enumerate(deciles):
-        take = base_n + (1 if i < remainder else 0)
+    for decile, take in zip(deciles, takes):
         picked.extend(rng.sample(decile, take))
 
     items = []

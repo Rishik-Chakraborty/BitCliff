@@ -10,6 +10,9 @@ from .suites import arithmetic, factual_qa, longctx_retrieval, spectacle
 GRADERS = {
     "longctx_retrieval": longctx_retrieval.grade,
     "arithmetic": arithmetic.grade,
+    # PREREG §3.3: twins are graded by the identical §3.2 rule — same
+    # function object, deliberately not a copy.
+    "arithmetic_twins": arithmetic.grade,
     "spectacle": spectacle.grade,
     "factual_qa": factual_qa.grade,
 }

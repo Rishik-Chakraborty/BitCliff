@@ -3,7 +3,14 @@ import random
 from pathlib import Path
 
 from ..hashing import sha256_file
-from .verifier import TwinTemplate, _normalize_number, load_solve, load_valid, verify_template
+from .verifier import (
+    TwinTemplate,
+    _normalize_number,
+    load_derive,
+    load_solve,
+    load_valid,
+    verify_template,
+)
 
 # Fixed pool of names used to resample any string-valued ("name") params.
 # Deliberately distinct from names appearing in the first-60 GSM8K items used
@@ -62,12 +69,16 @@ def _resample_value(rng: random.Random, name: str, original, used_names: set):
 def build_twin(t: TwinTemplate, seed: int) -> dict:
     """Resample t's numeric params (and any string/name params, from a fixed
     name pool) until constraints_src's valid(...) accepts them, deterministic
-    per (template, seed). Returns
+    per (template, seed). Derived placeholders (t.derived_src) are never
+    resampled: they are recomputed from the accepted base params, so the twin
+    text stays internally consistent at any seed. valid() sees the base
+    params only (it can recompute any derived quantity itself). Returns
     {"question", "answer", "template_index", "seed"}.
     """
     rng = random.Random(f"{t.gsm8k_index}:{seed}")
     valid = load_valid(t.constraints_src)
     solve = load_solve(t.solve_src)
+    derive = load_derive(t.derived_src) if t.derived_src is not None else None
 
     for _ in range(MAX_RESAMPLE_ATTEMPTS):
         used_names: set = set()
@@ -76,8 +87,11 @@ def build_twin(t: TwinTemplate, seed: int) -> dict:
             for name in t.param_names
         }
         if valid(**candidate):
-            answer = solve(**candidate)
-            question = t.text_template.format(**candidate)
+            full = dict(candidate)
+            if derive is not None:
+                full.update(derive(**candidate))
+            answer = solve(**full)
+            question = t.text_template.format(**full)
             return {
                 "question": question,
                 "answer": _normalize_number(answer),

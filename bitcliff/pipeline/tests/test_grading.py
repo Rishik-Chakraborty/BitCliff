@@ -54,7 +54,7 @@ def test_grade_record_spectacle_unscored():
 
 def test_grades_jsonl_roundtrip(tmp_path):
     grades = [
-        GradeResult("a", "retrieval", "Q8_0", "correct", False, False),
+        GradeResult("a", "longctx_retrieval", "Q8_0", "correct", False, False),
         GradeResult("b", "arithmetic", "Q2_K", "wrong", True, True),
     ]
     path = tmp_path / "grades.jsonl"

@@ -18,13 +18,18 @@ def build_items(config: LadderConfig, base_dir: Path) -> list[EvalItem]:
     # tokenizer and a verified corpus, and exposes its own
     # `longctx_retrieval.build_items(tokenizer, corpus_text, corpus_sha256,
     # ...)` builder for run configs that wire those in.
-    from .suites import arithmetic, factual_qa, spectacle
+    from .suites import arithmetic, arithmetic_twins, factual_qa, spectacle
 
     items: list[EvalItem] = []
     suites = config.suites
     if "arithmetic" in suites:
         s = suites["arithmetic"]
         items += arithmetic.load_gsm8k_items(s["n_items"], s["seed"])
+    if "arithmetic_twins" in suites:
+        # config block: `arithmetic_twins: {seed: 1301}` — n is fixed at all
+        # 47 template pairs (94 items) by PREREG §3.3, so only the seed is
+        # configurable.
+        items += arithmetic_twins.load_pair_items(suites["arithmetic_twins"]["seed"])
     if "factual_qa" in suites:
         s = suites["factual_qa"]
         items += factual_qa.load_popqa_items(s["n_items"], s["seed"])

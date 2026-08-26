@@ -162,9 +162,10 @@ wrapper, not the underlying copyright in Paul Graham's original essay text,
 which sgoel9 does not hold and which this uploader tag cannot license on
 Paul Graham's behalf. The underlying essays' actual redistribution terms
 are **unresolved**. Per freeze-plan §4, this dataset stays quarantined: it
-may be used only as the source corpus for GSM8K-twin **outputs and
-statistics** in the never-published 2a run, and must not be redistributed
-or published as raw text. Not used by the `factual_qa` suite in this task.
+may be used only as the source corpus for the never-published
+configuration-2a `longctx_retrieval` (multivalue2) run's **outputs and
+statistics**, and must not be redistributed or published as raw text. Not
+used by the `factual_qa` suite in this task.
 
 ---
 

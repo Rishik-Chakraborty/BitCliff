@@ -76,6 +76,33 @@ def build_items(
     ]
 
 
+def assert_tokenizer_match(hf_tokenizer, llama_tokenize, samples: list[str]) -> None:
+    """PREREG §3.1 tokenizer-equivalence gate: assert the HF tokenizer and
+    the llama-cpp (GGUF) tokenizer produce identical token ids for every
+    sample string; raise AssertionError on the first mismatch (or on an
+    empty sample list, which would make the gate vacuous).
+
+    `hf_tokenizer` is HF-style: `hf_tokenizer(text, add_special_tokens=
+    False)["input_ids"]`. `llama_tokenize` is the llama-cpp model's tokenize
+    as a plain callable `text -> list[int]` — e.g.
+    `lambda s: llm.tokenize(s.encode("utf-8"), add_bos=False)` — with
+    `add_bos`/special-token handling configured consistently with the HF
+    side (`add_special_tokens=False` here, so no BOS on either side). The
+    helper is pure given the two callables; per PREREG §3.1 it runs before
+    each confirmatory generation run, over the registered 20-string sample
+    (the question strings of the run's first 20 items, in id order).
+    """
+    assert samples, "assert_tokenizer_match called with an empty sample list"
+    for i, text in enumerate(samples):
+        hf_ids = list(hf_tokenizer(text, add_special_tokens=False)["input_ids"])
+        llama_ids = list(llama_tokenize(text))
+        assert hf_ids == llama_ids, (
+            f"tokenizer mismatch on sample {i}: HF ids {hf_ids} != llama-cpp "
+            f"ids {llama_ids} for text {text!r} — the GGUF and HF tokenizers "
+            f"disagree; token-space items would not be comparable"
+        )
+
+
 def grade(item: EvalItem, text: str) -> str:
     """Paper's verbatim grading rule (GRADING.md §1): an item is correct iff
     every gold match string appears as a plain, unanchored, order-

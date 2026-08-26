@@ -196,3 +196,43 @@ def test_build_items_corpus_hash_mismatch_raises():
         longctx_retrieval.build_items(
             make_tokenizer(), CORPUS_TEXT, "0" * 64, n_items=1, seed=1, target_tokens=64,
         )
+
+
+# ---------------------------------------------------------------------------
+# assert_tokenizer_match — the PREREG §3.1 build-time GGUF/HF tokenizer
+# equivalence gate. Pure given two callables: an HF-style tokenizer and the
+# llama-cpp model's tokenize function.
+# ---------------------------------------------------------------------------
+
+
+def _llama_tokenize_from(stub: StubTokenizer):
+    """A llama-cpp-shaped tokenize callable (text -> list[int]) that agrees
+    with `stub` exactly."""
+    return lambda text: stub(text, add_special_tokens=False)["input_ids"]
+
+
+def test_assert_tokenizer_match_passes_when_encodings_agree():
+    hf = make_tokenizer()
+    samples = [f"needle sentence number {i} with passcode {1000 + i}" for i in range(20)]
+    longctx_retrieval.assert_tokenizer_match(hf, _llama_tokenize_from(hf), samples)
+    # no raise = pass
+
+
+def test_assert_tokenizer_match_raises_on_any_mismatch():
+    hf = make_tokenizer()
+    good = _llama_tokenize_from(hf)
+
+    def drifting_tokenize(text):
+        ids = good(text)
+        # a GGUF-side divergence on one sample only (e.g. different merges)
+        return ids + [999999] if "sample-7" in text else ids
+
+    samples = [f"sample-{i} text" for i in range(20)]
+    with pytest.raises(AssertionError, match="sample 7"):
+        longctx_retrieval.assert_tokenizer_match(hf, drifting_tokenize, samples)
+
+
+def test_assert_tokenizer_match_raises_on_empty_sample_list():
+    hf = make_tokenizer()
+    with pytest.raises(AssertionError, match="empty"):
+        longctx_retrieval.assert_tokenizer_match(hf, _llama_tokenize_from(hf), [])

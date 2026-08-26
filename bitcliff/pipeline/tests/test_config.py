@@ -19,7 +19,7 @@ generation:
   max_tokens: 640
   n_ctx: 4096
 suites:
-  retrieval: {n_items: 40, n_pairs: 8, seed: 1301}
+  longctx_retrieval: {n_items: 40, seed: 1301}
   arithmetic: {n_items: 40, seed: 1301}
   spectacle: {path: configs/prompts_spectacle.yaml}
 """
@@ -41,7 +41,7 @@ def test_loads_valid_config(tmp_path):
     assert cfg.quants[0].imatrix is True
     assert cfg.generation.seed == 42
     assert cfg.generation.temperature == 0.0
-    assert cfg.suites["retrieval"]["n_pairs"] == 8
+    assert cfg.suites["longctx_retrieval"]["n_items"] == 40
 
 
 def test_rejects_duplicate_quant_labels(tmp_path):
@@ -58,8 +58,7 @@ def test_rejects_missing_required_key(tmp_path):
 
 def test_suites_max_tokens_override_is_reachable(tmp_path):
     yaml_text = VALID_YAML.replace(
-        "  retrieval: {n_items: 40, n_pairs: 8, seed: 1301}\n",
-        "  retrieval: {n_items: 40, n_pairs: 8, seed: 1301}\n"
+        "  longctx_retrieval: {n_items: 40, seed: 1301}\n",
         "  longctx_retrieval: {n_items: 10, seed: 1301, max_tokens: 32}\n",
     )
     cfg = load_config(write_yaml(tmp_path, yaml_text))

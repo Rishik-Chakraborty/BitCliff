@@ -11,11 +11,11 @@ def g(quant, suite, state, truncated=False, loop=False, i=[0]):
 
 
 GRADES = (
-    [g("F16", "retrieval", "correct") for _ in range(9)]
-    + [g("F16", "retrieval", "wrong")]
-    + [g("Q2_K", "retrieval", "correct") for _ in range(3)]
-    + [g("Q2_K", "retrieval", "partial")]
-    + [g("Q2_K", "retrieval", "wrong", truncated=True, loop=True) for _ in range(6)]
+    [g("F16", "longctx_retrieval", "correct") for _ in range(9)]
+    + [g("F16", "longctx_retrieval", "wrong")]
+    + [g("Q2_K", "longctx_retrieval", "correct") for _ in range(3)]
+    + [g("Q2_K", "longctx_retrieval", "partial")]
+    + [g("Q2_K", "longctx_retrieval", "wrong", truncated=True, loop=True) for _ in range(6)]
     + [g("F16", "spectacle", "unscored")]
 )
 
@@ -27,9 +27,9 @@ def row(rows, quant, suite):
 def test_aggregate_counts_and_accuracy():
     rows = aggregate(GRADES)
     assert all(r["suite"] != "spectacle" for r in rows)  # unscored excluded
-    f16 = row(rows, "F16", "retrieval")
+    f16 = row(rows, "F16", "longctx_retrieval")
     assert (f16["n"], f16["correct"], f16["accuracy"]) == (10, 9, 0.9)
-    q2 = row(rows, "Q2_K", "retrieval")
+    q2 = row(rows, "Q2_K", "longctx_retrieval")
     assert q2["n"] == 10
     assert q2["accuracy"] == (3 + 0.5) / 10
     assert q2["truncated"] == 6
@@ -38,8 +38,8 @@ def test_aggregate_counts_and_accuracy():
 
 def test_add_retention():
     rows = add_retention(aggregate(GRADES))
-    assert row(rows, "F16", "retrieval")["retention"] == 1.0
-    assert abs(row(rows, "Q2_K", "retrieval")["retention"] - 0.35 / 0.9) < 1e-9
+    assert row(rows, "F16", "longctx_retrieval")["retention"] == 1.0
+    assert abs(row(rows, "Q2_K", "longctx_retrieval")["retention"] - 0.35 / 0.9) < 1e-9
 
 
 def test_write_csv_and_json(tmp_path):
@@ -72,8 +72,8 @@ def test_write_json_empty_rows(tmp_path):
 def test_aggregate_with_spectacle_only_labels():
     """Test that aggregate adds spectacle_only flag based on quant_label."""
     rows = aggregate(GRADES, spectacle_only_labels=frozenset({"Q2_K"}))
-    f16_row = row(rows, "F16", "retrieval")
-    q2_row = row(rows, "Q2_K", "retrieval")
+    f16_row = row(rows, "F16", "longctx_retrieval")
+    q2_row = row(rows, "Q2_K", "longctx_retrieval")
     assert f16_row["spectacle_only"] is False
     assert q2_row["spectacle_only"] is True
 
@@ -88,8 +88,8 @@ def test_add_retention_preserves_spectacle_only():
     """Test that add_retention passes spectacle_only through unchanged."""
     rows_agg = aggregate(GRADES, spectacle_only_labels=frozenset({"Q2_K"}))
     rows_ret = add_retention(rows_agg)
-    f16_row = row(rows_ret, "F16", "retrieval")
-    q2_row = row(rows_ret, "Q2_K", "retrieval")
+    f16_row = row(rows_ret, "F16", "longctx_retrieval")
+    q2_row = row(rows_ret, "Q2_K", "longctx_retrieval")
     assert f16_row["spectacle_only"] is False
     assert q2_row["spectacle_only"] is True
 

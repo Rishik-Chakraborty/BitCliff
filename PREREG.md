@@ -111,7 +111,13 @@ described.
 Items are **token-id sequences**, not text prompts; evaluation runs from
 token ids, bypassing chat-template re-rendering (the generator splices the
 chat template in token space). The GGUF and HF tokenizers for a given model
-are asserted identical via a token-roundtrip spot check at build time.
+are asserted identical by
+`suites/longctx_retrieval.py::assert_tokenizer_match` — both tokenizers
+encode each sample string (HF with `add_special_tokens=False`; llama-cpp's
+`tokenize` with BOS/special-token handling configured to match) and any
+id-sequence mismatch raises, aborting the run. The check is **asserted
+before each confirmatory generation run over a registered 20-string
+sample**: the question strings of the run's first 20 items, in id order.
 
 **Configuration 2a — Q5 comparability run (Qwen2.5-1.5B-Instruct only).**
 Exact `bitcliff/pipeline/vendor/bundle-docs/PAPER_CONFIG.md` settings:
@@ -235,13 +241,19 @@ skipped items are recorded with reasons in `SKIPPED_ITEMS`). The instantiated
 twin set (`private/twins/twin_set_seed1301.jsonl`, seed 1301, 47 records) is
 **embargoed** — the file is excluded from the repository and the published
 dataset; its sha256 is committed here as the integrity anchor:
-`2e1e5a665db7b324d24e472180ebb9d10f343cbf6bbf90afaf2206e239d54007`.
+`5c4de0cac5d4a243d80411dcc91682e3c271614434eedb7e1f68a6300eb19b8e`.
 
 **Registered analysis rules.** The `arithmetic_twins` suite evaluates **all
 47 original+twin pairs — both members of each pair run in this same suite**
 (the originals here are the 47 templated GSM8K items themselves, evaluated
 alongside their twins under identical settings; the §3.2 sample is a
-separate item set and is not the contamination comparator). The
+separate item set and is not the contamination comparator). The shipped
+runnable path is
+`src/bitcliff_pipeline/suites/arithmetic_twins.py::build_pair_items` — wired
+through `__main__.build_items` via an `arithmetic_twins: {seed: 1301}` config
+block — producing the 94 pair items (ids
+`arithmetic_twins-{seed}-orig|twin-{gsm8k_index:03d}`), each prompted with
+the §3.2 answer instruction and graded by the identical §3.2 rule. The
 original-vs-twin contamination comparison operates **within those pairs**
 and is restricted to pairs where **the F16 model solves both the original
 and the twin** — comparing on different populations would rig the result
@@ -492,6 +504,15 @@ order:
     (0.182, 0.164, 0.145, 0.127, 0.109, 0.091, 0.073, 0.055, 0.036, 0.018).
   - **M3 — step-tail-heavy** (popular-weighted with a fixed 20% tail
     floor): (0.16, 0.16, 0.16, 0.16, 0.16, 0.04, 0.04, 0.04, 0.04, 0.04).
+
+  **Mix→counts mapping (registered):** per-decile draw counts are the
+  **largest-remainder apportionment** of weight_i × n — floor each raw
+  count, then hand the shortfall to the deciles with the largest fractional
+  remainders, **ties broken toward the lower decile index** — after which
+  the seeded per-decile draw proceeds in decile order exactly as in the
+  uniform case (implemented as the optional `weights` argument of
+  `suites/factual_qa.py::items_from_records`; the uniform M1 mix reproduces
+  §3.4's remainders-to-the-earliest-deciles rule exactly).
 
   **"Hardest" = the most tail-heavy candidate with F16 in-band**, in the
   order M1 > M2 > M3. If no candidate lands in-band, the suite runs at M3

@@ -18,6 +18,18 @@ class TwinTemplate:
     that returns True iff a set of (possibly resampled) parameter values
     keeps the problem sane (positivity, integer intermediates, ordering
     relations the text asserts, etc).
+
+    ``derived_src`` (optional) is Python source defining
+    ``def derive(**base_params) -> dict`` returning extra placeholder values
+    the ORIGINAL text states as literals but that are functions of the base
+    params (e.g. "the remaining 24 liters" where 24 = vol1 + vol2 - 1).
+    Derived names appear as placeholders in ``text_template`` and their
+    ORIGINAL values are stored in ``original_values`` (so the exact-text
+    round trip against the real GSM8K record still holds), but they are
+    never resampled: the builder recomputes them from the resampled base
+    params, so the twin text stays internally consistent at any seed.
+    ``verify_template`` additionally asserts derive(**original base params)
+    reproduces the stored original derived values exactly.
     """
 
     gsm8k_index: int
@@ -27,6 +39,7 @@ class TwinTemplate:
     constraints_src: str
     original_values: dict
     original_answer: str
+    derived_src: str | None = None
 
 
 def _normalize_number(value) -> str:
@@ -46,6 +59,12 @@ def load_valid(constraints_src: str):
     return ns["valid"]
 
 
+def load_derive(derived_src: str):
+    ns: dict = {}
+    exec(derived_src, ns)  # noqa: S102 - trusted, repo-authored template source
+    return ns["derive"]
+
+
 def verify_template(t: TwinTemplate, gsm8k_question: str, gsm8k_answer: str) -> None:
     """Raise TwinVerificationError unless t round-trips against the real
     GSM8K record (gsm8k_question, gsm8k_answer).
@@ -54,7 +73,11 @@ def verify_template(t: TwinTemplate, gsm8k_question: str, gsm8k_answer: str) -> 
       (a) t.text_template.format(**t.original_values) == gsm8k_question, exactly.
       (b) solve(**original numeric params) equals the #### answer extracted
           from gsm8k_answer.
-      (c) every param's original value appears in the formatted text.
+      (c) if t.derived_src is set, derive(**original base params) reproduces
+          the stored original derived values exactly (names must not collide
+          with base params).
+      (d) every param's (and derived placeholder's) original value appears in
+          the formatted text.
     """
     try:
         formatted = t.text_template.format(**t.original_values)
@@ -96,7 +119,31 @@ def verify_template(t: TwinTemplate, gsm8k_question: str, gsm8k_answer: str) -> 
             f"does not match GSM8K #### answer {gold!r}"
         )
 
-    for name in t.param_names:
+    derived_names: tuple[str, ...] = ()
+    if t.derived_src is not None:
+        derive = load_derive(t.derived_src)
+        base = {name: t.original_values[name] for name in t.param_names}
+        try:
+            derived = derive(**base)
+        except Exception as exc:  # noqa: BLE001 - surface any derive() failure
+            raise TwinVerificationError(
+                f"template idx {t.gsm8k_index}: derive(**original base params) raised: {exc!r}"
+            ) from exc
+        derived_names = tuple(derived)
+        for name, value in derived.items():
+            if name in t.param_names:
+                raise TwinVerificationError(
+                    f"template idx {t.gsm8k_index}: derived param {name!r} "
+                    f"collides with a base param name"
+                )
+            if name not in t.original_values or t.original_values[name] != value:
+                raise TwinVerificationError(
+                    f"template idx {t.gsm8k_index}: derived param {name!r}: "
+                    f"derive(**original base params) = {value!r} but "
+                    f"original_values stores {t.original_values.get(name)!r}"
+                )
+
+    for name in t.param_names + derived_names:
         value = t.original_values[name]
         expected_repr = _formatted_repr_for_param(t.text_template, name, value)
         if expected_repr is None:

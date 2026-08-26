@@ -61,6 +61,53 @@ def test_different_seed_changes_selection():
     assert a != b
 
 
+# ---------------------------------------------------------------------------
+# Non-uniform mix (PREREG §7): per-decile counts by largest-remainder
+# apportionment of weight_i * n, ties toward the lower decile index, then
+# the seeded per-decile draw exactly as in the uniform case.
+# ---------------------------------------------------------------------------
+
+# PREREG §7 M2 shape, w_i = (11-i)/55, expressed in this function's decile
+# order (index 0..9): non-integer raw counts at any n not divisible by 55.
+M2_WEIGHTS = tuple((10 - i) / 55 for i in range(10))
+
+
+def test_weights_none_is_byte_identical_to_uniform_default():
+    assert items_from_records(RECORDS, n_items=50, seed=7, weights=None) == \
+        items_from_records(RECORDS, n_items=50, seed=7)
+
+
+def test_m2_style_weights_produce_largest_remainder_apportionment():
+    items = items_from_records(RECORDS, n_items=50, seed=7, weights=M2_WEIGHTS)
+    assert len(items) == 50
+    # raw = 50 * (10..1)/55 = (9.09, 8.18, 7.27, 6.36, 5.45, 4.55, 3.64,
+    # 2.73, 1.82, 0.91); floors sum to 45, the 5 largest remainders are
+    # deciles 9, 8, 7, 6, 5.
+    assert _deciles_hit(items) == [9, 8, 7, 6, 5, 5, 4, 3, 2, 1]
+
+
+def test_apportionment_ties_break_toward_lower_decile_index():
+    weights = (0.15, 0.15, 0.15, 0.15, 0.1, 0.1, 0.05, 0.05, 0.05, 0.05)
+    items = items_from_records(RECORDS, n_items=10, seed=7, weights=weights)
+    # raw = (1.5, 1.5, 1.5, 1.5, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5): shortfall 4,
+    # eight deciles tie at remainder .5 -> the four lowest indices win.
+    assert _deciles_hit(items) == [2, 2, 2, 2, 1, 1, 0, 0, 0, 0]
+
+
+def test_weighted_draw_is_deterministic_per_seed():
+    a = items_from_records(RECORDS, n_items=50, seed=7, weights=M2_WEIGHTS)
+    b = items_from_records(RECORDS, n_items=50, seed=7, weights=M2_WEIGHTS)
+    assert a == b
+
+
+def test_explicit_uniform_weights_match_the_default_rule():
+    # M1 (uniform) through the apportionment path lands on the same counts
+    # as the registered remainders-to-earliest-deciles default.
+    a = items_from_records(RECORDS, n_items=23, seed=7, weights=(0.1,) * 10)
+    b = items_from_records(RECORDS, n_items=23, seed=7)
+    assert a == b
+
+
 def test_ids_and_shape():
     items = items_from_records(RECORDS[:20], n_items=10, seed=3)
     assert items[0].id == "factual_qa-3-0000"
