@@ -54,3 +54,13 @@ def test_rejects_missing_required_key(tmp_path):
     bad = VALID_YAML.replace("hf_repo: bartowski/Qwen2.5-1.5B-Instruct-GGUF\n", "")
     with pytest.raises(KeyError):
         load_config(write_yaml(tmp_path, bad))
+
+
+def test_spectacle_only_defaults_false_and_parses(tmp_path):
+    yaml_text = VALID_YAML.replace(
+        "  - {label: Q4_K_M, filename: Qwen2.5-1.5B-Instruct-Q4_K_M.gguf, uploader: bartowski, imatrix: true}",
+        "  - {label: IQ1_S, filename: x-IQ1_S.gguf, uploader: bitcliff-inhouse, imatrix: true, spectacle_only: true}",
+    )
+    cfg = load_config(write_yaml(tmp_path, yaml_text))
+    assert cfg.quants[0].spectacle_only is False   # omitted -> default
+    assert cfg.quants[1].spectacle_only is True

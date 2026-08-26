@@ -48,6 +48,12 @@ def test_pipeline_end_to_end(tmp_path):
 
     run = runs_dir / "pilot-test"
     assert (run / "manifest.json").exists()
+    manifest = json.loads((run / "manifest.json").read_text())
+    assert manifest["Q4_K_M"]["uploader"] == "bartowski"
+    assert manifest["Q4_K_M"]["imatrix"] is True
+    assert manifest["Q4_K_M"]["spectacle_only"] is False
+    assert manifest["F16"]["uploader"] == "bitcliff-local-f16-conversion"
+    assert manifest["F16"]["spectacle_only"] is False
     assert (run / "outputs" / "F16.jsonl").exists()
     assert (run / "outputs" / "Q4_K_M.jsonl").exists()
     grades = [json.loads(l) for l in (run / "grades.jsonl").read_text().splitlines()]

@@ -10,6 +10,7 @@ class QuantFile:
     filename: str
     uploader: str
     imatrix: bool
+    spectacle_only: bool = False
 
 
 @dataclass(frozen=True)

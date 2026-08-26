@@ -45,7 +45,15 @@ def run_pipeline(
     if stage in ("download", "all"):
         ensure_quants(config, models_dir)
         paths = resolve_all(config, models_dir)
-        write_manifest(build_manifest(paths), manifest_path)
+        manifest = build_manifest(paths)
+        meta = {
+            q.label: {"uploader": q.uploader, "imatrix": q.imatrix, "spectacle_only": q.spectacle_only}
+            for q in config.quants
+        }
+        meta["F16"] = {"uploader": "bitcliff-local-f16-conversion", "imatrix": False, "spectacle_only": False}
+        for label, entry in manifest.items():
+            entry.update(meta[label])
+        write_manifest(manifest, manifest_path)
         print(f"manifest written: {manifest_path}")
 
     if stage in ("generate", "all"):
