@@ -391,6 +391,10 @@ switches to `mandarjoshi/trivia_qa` per its documented protocol, subject to
 its own fresh license audit and a fresh 30-item characterization under the
 same bar. Round 3's result, its seed, and (if triggered) the fallback are
 recorded as a dated amendment to this section when that step completes.
+Round 3 result: fresh 30-item sample, seed `20260828`, FP 0/15, FN 0/15 —
+PASS; recorded as dated amendment 2026-08-26 (full table:
+`bitcliff/pipeline/GRADER_CHARACTERIZATION.md` §9). The TriviaQA fallback
+above does not execute.
 
 **Rejected alternatives, kept as a short record:**
 
