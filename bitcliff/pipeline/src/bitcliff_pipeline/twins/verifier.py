@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 
+from ..suites.arithmetic import _normalize as _normalize_answer_string
 from ..suites.arithmetic import extract_final_number
 
 
@@ -43,8 +44,21 @@ class TwinTemplate:
 
 
 def _normalize_number(value) -> str:
-    f = float(value)
-    return str(int(f)) if f == int(f) else str(f)
+    """Normalize a solve() result to the exact answer string the arithmetic
+    grader would accept from a correct model.
+
+    The pre-rounding step lives here (rather than in every solve()) because
+    this is the single choke point through which both verify_template and
+    build_twin format answers: round to 6 decimals first, killing binary
+    float artifacts (882.9999999999999 -> 883, 0.9999999999999997 -> 1,
+    671.5999999999999 -> 671.6) so a registered twin answer can never be one
+    that exact-match grading would wrongly fail. Formatting then reuses the
+    arithmetic suite's own normalizer (integer-valued -> integer string,
+    else decimal string) — the same function the grader applies to model
+    output — deliberately imported, not duplicated.
+    """
+    rounded = round(float(value), 6)
+    return _normalize_answer_string(repr(rounded))
 
 
 def load_solve(solve_src: str):

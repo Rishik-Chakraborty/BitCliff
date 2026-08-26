@@ -384,7 +384,11 @@ TEMPLATES: tuple[TwinTemplate, ...] = (
         text_template='According to its nutritional info, a bag of chips has {cal} calories per serving. If a {bag}g bag has {servings} servings, how many grams can you eat if your daily calorie target is {target} and you have already consumed {consumed} calories?',
         param_names=('cal', 'bag', 'servings', 'target', 'consumed'),
         solve_src="def solve(**p):\n    cal, bag, sv, target, cons = (p['cal'], p['bag'], p['servings'],\n                                   p['target'], p['consumed'])\n    remaining_cal = target - cons\n    frac = remaining_cal / cal\n    gram_per_serving = bag / sv\n    return frac * gram_per_serving\n",
-        constraints_src="def valid(**p):\n    cal, bag, sv, target, cons = (p['cal'], p['bag'], p['servings'],\n                                   p['target'], p['consumed'])\n    return (cal > 0 and bag > 0 and sv > 0 and target > cons > 0\n            and (target - cons) < cal * 3)\n",
+        # The original GSM8K answer (48) is an integer; the last conjunct
+        # keeps every twin's answer in the same integer form (integral
+        # grams), so the twin never trades the original's exact-match-clean
+        # answer for a long fraction.
+        constraints_src="def valid(**p):\n    cal, bag, sv, target, cons = (p['cal'], p['bag'], p['servings'],\n                                   p['target'], p['consumed'])\n    if not (cal > 0 and bag > 0 and sv > 0 and target > cons > 0\n            and (target - cons) < cal * 3):\n        return False\n    grams = (target - cons) / cal * (bag / sv)\n    return abs(grams - round(grams)) < 1e-9\n",
         original_values={'cal': 250, 'bag': 300, 'servings': 5, 'target': 2000, 'consumed': 1800},
         original_answer='48',
     ),

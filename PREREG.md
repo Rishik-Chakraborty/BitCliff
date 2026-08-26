@@ -241,7 +241,7 @@ skipped items are recorded with reasons in `SKIPPED_ITEMS`). The instantiated
 twin set (`private/twins/twin_set_seed1301.jsonl`, seed 1301, 47 records) is
 **embargoed** — the file is excluded from the repository and the published
 dataset; its sha256 is committed here as the integrity anchor:
-`5c4de0cac5d4a243d80411dcc91682e3c271614434eedb7e1f68a6300eb19b8e`.
+`2002447536db8560c7160fc80ec7ba4f1c56074a1a949c1322114e8263d9e14b`.
 
 **Registered analysis rules.** The `arithmetic_twins` suite evaluates **all
 47 original+twin pairs — both members of each pair run in this same suite**

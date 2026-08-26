@@ -293,6 +293,56 @@ def test_build_twin_respects_constraints_for_every_committed_template():
         float(twin["answer"])
 
 
+def test_build_twin_answer_normalizes_float_artifacts_to_the_exact_value():
+    # A solve() whose float arithmetic lands epsilon away from the exact
+    # integer (the idx-9/25/26 class: 882.9999999999999 for 883) must
+    # register the answer the arithmetic grader would accept from a correct
+    # model, not the artifact.
+    t = fake_template(
+        text_template="Sam has {n} apples. How many?",
+        param_names=("n",),
+        solve_src="def solve(**p):\n    return 882.9999999999999\n",
+        constraints_src="def valid(**p):\n    return p['n'] > 0\n",
+        original_values={"n": 10},
+        original_answer="883",
+    )
+    assert build_twin(t, seed=1)["answer"] == "883"
+
+
+def test_build_twin_answer_keeps_genuine_decimals():
+    t = fake_template(
+        text_template="Sam has {n} apples. How many halves?",
+        param_names=("n",),
+        solve_src="def solve(**p):\n    return 2.5\n",
+        constraints_src="def valid(**p):\n    return p['n'] > 0\n",
+        original_values={"n": 10},
+        original_answer="2.5",
+    )
+    assert build_twin(t, seed=1)["answer"] == "2.5"
+
+
+def test_committed_twin_answers_carry_no_float_artifacts():
+    # The registered set must never contain an answer that exact-match
+    # grading would wrongly fail: every twin answer round-trips through the
+    # 6-decimal rounding unchanged.
+    for t in TEMPLATES:
+        for seed in (99, 1301):
+            answer = build_twin(t, seed)["answer"]
+            assert float(answer) == round(float(answer), 6)
+            assert "999999" not in answer and "000001" not in answer, (
+                f"idx {t.gsm8k_index} seed {seed}: suspicious answer {answer!r}"
+            )
+
+
+def test_idx43_twin_answer_stays_integer_like_the_original():
+    # The original GSM8K answer for idx 43 is the integer 48; the twin must
+    # keep the original's answer form (constrained integral grams).
+    t = next(t for t in TEMPLATES if t.gsm8k_index == 43)
+    for seed in (1, 7, 99, 1301, 2024):
+        answer = build_twin(t, seed)["answer"]
+        assert float(answer) == int(float(answer)), answer
+
+
 def test_build_twin_raises_when_constraints_are_unsatisfiable():
     t = fake_template(constraints_src="def valid(**p):\n    return False\n")
     with pytest.raises(TwinBuildError):
