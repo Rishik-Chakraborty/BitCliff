@@ -472,9 +472,10 @@ order:
 
 - `longctx_retrieval`: the knobs are the **variant** and **`target_tokens`**;
   the depth cycle is fixed at (0.1, 0.5, 0.9). The variant order is the
-  paper's own calibrated ladder (source: the multivalue2 bundle's TASK.md in
-  the source repository; the order is registered here in full, so this
-  document is self-contained), a total order from easiest to hardest:
+  paper's own calibrated ladder
+  (`bitcliff/pipeline/vendor/bundle-docs/TASK.md`; the order is registered
+  here in full, so this document is self-contained), a total order from
+  easiest to hardest:
   `single < multikey4 < multikey8 < multikey12 < multivalue2 < multiquery2 <
   multiquery3 < multivalue3 < multiquery4 < multivalue4`.
   The search runs at `target_tokens` 4096 first, then 8192; **"hardest" =
@@ -678,7 +679,7 @@ Per binding ruling 2026-08-26 (ruling 4):
    every `[USER-EDITABLE]` value confirmed or changed.
 2. The edited PREREG.md is committed together with the reference manifests,
    the twins templates and verifier (embargoed instances by hash only), and
-   the evidence documents cited here — including the four bundle documents
+   the evidence documents cited here — including the six bundle documents
    vendored verbatim into `bitcliff/pipeline/vendor/bundle-docs/` (each
    carries a provenance header naming the source repo, its Apache-2.0
    license, the paper-draft commit `8071fc44d91b15842c57cbf26a92bdd968b0d522`,
@@ -691,6 +692,8 @@ Per binding ruling 2026-08-26 (ruling 4):
    | `vendor/bundle-docs/PAPER_CONFIG.md` | `dfd2c6835dfef5936797343c17d7c68f9d60d10fb2d90b12130ca1f361f0d19e` |
    | `vendor/bundle-docs/GRADING.md` | `c0cd7bb6be0aa9b8e5feff639126958c674cc124c33143ab72fccc1a2fe27879` |
    | `vendor/bundle-docs/ANSWER_TOKENS.md` | `5d7999ec2d29d446b4b752f0298cbb0ea92125424d28310e92a1e243b671a638` |
+   | `vendor/bundle-docs/TASK.md` | `33a0001ce8ea58f71a014e615d21ba4c4a33ffd3ca573dca4634a80084c04886` |
+   | `vendor/bundle-docs/PROVENANCE.md` | `04bc3682e64299bb2516f44ed450e1c9c397923ea095646c98dfc20c7d04c25f` |
 
    **This is the freeze commit.** No
    confirmatory run exists before it and no GPU money is spent before it.
