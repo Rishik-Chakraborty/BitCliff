@@ -1,6 +1,7 @@
 models/
 runs/
 calibration/
+private/
 __pycache__/
 *.egg-info/
 .venv/
