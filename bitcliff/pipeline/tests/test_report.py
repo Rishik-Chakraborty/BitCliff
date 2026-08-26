@@ -57,3 +57,13 @@ def test_plot_retention_writes_png(tmp_path):
     out = tmp_path / "retention.png"
     plot_retention(rows, ["F16", "Q2_K"], out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_write_csv_empty_rows(tmp_path):
+    write_csv([], tmp_path / "empty.csv")
+    assert (tmp_path / "empty.csv").exists()
+
+
+def test_write_json_empty_rows(tmp_path):
+    write_json([], tmp_path / "empty.json")
+    assert json.loads((tmp_path / "empty.json").read_text()) == []

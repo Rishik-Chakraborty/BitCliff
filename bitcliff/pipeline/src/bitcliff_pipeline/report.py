@@ -47,9 +47,10 @@ def add_retention(rows: list[dict], baseline_label: str = "F16") -> list[dict]:
 def write_csv(rows: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
+        if rows:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
 
 
 def write_json(rows: list[dict], path: Path) -> None:
