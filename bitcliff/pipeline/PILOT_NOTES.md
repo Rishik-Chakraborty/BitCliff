@@ -143,3 +143,8 @@ rungs deliver unambiguous word salad, loops, and forgotten/hallucinated
 facts. **Spectacle bar: PASS**, contingent on these rungs staying
 `spectacle_only` and `bitcliff-inhouse`-labeled as designed — they are
 diagnostic curiosities, not deployment recommendations.
+
+## Freeze cross-reference
+
+The PREREG commit hash will be recorded here at F4 (OpenTimestamps-stamped):
+PREREG commit: [TO BE FILLED AT F4]
