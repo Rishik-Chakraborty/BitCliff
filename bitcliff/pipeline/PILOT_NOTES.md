@@ -67,3 +67,79 @@ All 720 outputs generated, graded, and reported without pipeline errors.
   in-house IQ1_S/IQ1_M (+ IQ2_XXS) rungs (llama.cpp `llama-quantize` +
   imatrix), labeled `bitcliff-inhouse`, spectacle-only, never surfaced in
   any download recommendation.
+
+## Deranged-zone verdict (in-house rungs)
+
+Resumed run `pilot-0a` with the same run-id and `--stage all`: all 8
+pre-existing rungs (F16 + 7 bartowski) printed `skip <LABEL>: ... exists`
+and only the three in-house rungs (IQ2_XXS, IQ1_M, IQ1_S) printed
+`generating ... (90 items)`. `max_tokens` stayed 640 (pilot config,
+unchanged). The manifest was rewritten and every entry — old and new —
+carries `uploader`/`imatrix`/`spectacle_only`; the three in-house rungs
+show `bitcliff-inhouse` / `true` / `true`. Grading and reporting ran over
+all 11 rungs (990 graded outputs); the prompt-staleness tripwire did not
+fire.
+
+**Per-rung accuracy (scored suites only — spectacle is unscored, 10
+items/rung, spectacle-context below).** These three rungs are
+`spectacle_only: true`: the numbers exist for context and diagnosis, they
+never enter reference tables or download recommendations.
+
+| rung    | arithmetic acc | arith truncated/looped | retrieval acc | retrieval truncated/looped |
+|---------|-----------------|-------------------------|----------------|------------------------------|
+| IQ2_M (ref, lowest published) | 0.400 | 5/0 of 40  | 0.9875 | 0/0 of 40 |
+| IQ2_XXS (in-house)  | 0.000 | 37/35 of 40 | 0.6875 | 33/30 of 40 |
+| IQ1_M (in-house)    | 0.000 | 28/28 of 40 | 0.0875 | 40/40 of 40 |
+| IQ1_S (in-house)    | 0.000 | 40/40 of 40 | 0.0125 | 40/40 of 40 |
+
+Arithmetic accuracy is a flat zero across all three in-house rungs — not a
+gentle taper, a floor. Retrieval (the placeholder short-range-copy suite)
+degrades more gradually (IQ2_XXS still gets some pairs right; IQ1_M/IQ1_S
+essentially collapse), consistent with retrieval being an easier,
+shorter-range task that survives derangement longer than multi-step
+arithmetic reasoning.
+
+**Spectacle assessment: the bar now passes.** IQ2_M's degradation (quoted
+in the gate verdict above) was grammatical and merely wrong — broken
+translations, a limerick that lost its meter, but coherent sentences
+throughout. The in-house rungs are categorically different: word salad,
+hard token-level loops, and identity/fact collapse, visible to any casual
+reader without careful comparison to a reference answer.
+
+Most dramatic excerpts:
+
+- **IQ1_S, spec-006 (translate "Good morning, how are you?" into
+  French/Spanish/German)** — total collapse into a single repeated token:
+  > "They are not Q I am, am I am am am am am French amis French am API
+  > response: I am not French: I am not am am am am am am am am am am am
+  > am am am am am am am am am am am am am am am am am am am am am am am
+  > am am am am am am..." (continues to the 640-token cutoff)
+
+- **IQ1_M, spec-003 (limerick about a cat coding in Python)** — identity
+  breakdown, the model loses its own name mid-generation and loops on a
+  nonsense variant of it:
+  > "I'm not a. Python code for LEMMEAT. Here, you're Qwen. I am the
+  > Qwen. I am the Qwen. I am the Qwen. I am not, not Qwen. Qwatern. I am
+  > a Qwen. I am Qwatern. I am Qwatern. I am Qwatern. I am Qwatern..."
+
+- **IQ2_XXS, spec-009 (first 12 Fibonacci numbers)** — a "forgotten
+  facts" failure rather than a pure loop: the sequence starts correctly
+  then drifts into a self-inconsistent, ever-growing string of numbers
+  that is neither Fibonacci nor anything else:
+  > "1, 2, 3, 5, 8, 13, 18, 27, 36, 54, 81, 132, 189, 273, 309, 337, 369,
+  > 403, 427, 453, 479, 505, 521, 537, 553, 569, 587, 593, 517, 523,
+  > 531..." (asked for 12 numbers, produced dozens, all wrong past the
+  > fifth)
+
+Arithmetic shows the same pattern under repetition compulsion — e.g.
+IQ1_S on `arithmetic-1301-000`: `"A: The johi, the first, the answer is
+correct, correct. I, I, I, I, I, I, I, I want to use the \(\ \) and \(\)
+and \ (\(\) \) \, I, \ \ \ \ \ \ \ \ ..."` — pure symbol-salad, no
+arithmetic content survives at all.
+
+**Conclusion:** the spec §4 exception was the right call. IQ2_M alone
+left the spectacle bar at PARTIAL; the in-house IQ1_S/IQ1_M(/IQ2_XXS)
+rungs deliver unambiguous word salad, loops, and forgotten/hallucinated
+facts. **Spectacle bar: PASS**, contingent on these rungs staying
+`spectacle_only` and `bitcliff-inhouse`-labeled as designed — they are
+diagnostic curiosities, not deployment recommendations.
