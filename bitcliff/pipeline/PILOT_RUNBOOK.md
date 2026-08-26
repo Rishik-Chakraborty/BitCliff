@@ -16,14 +16,14 @@ Convert F16 locally (the reference; never a download recommendation):
 ```bash
 # ~3 GB download + ~3 GB output; needs the llama.cpp conversion script
 git clone --depth 1 https://github.com/ggml-org/llama.cpp ../llama.cpp
-uv run --with -r ../llama.cpp/requirements/requirements-convert_hf_to_gguf.txt \
+uv run --with-requirements ../llama.cpp/requirements/requirements-convert_hf_to_gguf.txt \
   hf download Qwen/Qwen2.5-1.5B-Instruct --local-dir models/hf/Qwen2.5-1.5B-Instruct
-uv run --with -r ../llama.cpp/requirements/requirements-convert_hf_to_gguf.txt \
+uv run --with-requirements ../llama.cpp/requirements/requirements-convert_hf_to_gguf.txt \
   python ../llama.cpp/convert_hf_to_gguf.py models/hf/Qwen2.5-1.5B-Instruct \
   --outtype f16 --outfile models/f16/Qwen2.5-1.5B-Instruct-f16.gguf
 ```
 
-(If the `--with -r` incantation fights back, make a scratch venv for the converter;
+(If the `--with-requirements` incantation fights back, make a scratch venv for the converter;
 it only runs once. Any working conversion is fine — the F16 gets hashed either way.)
 
 Sanity-check the ladder still matches the uploader's repo (filenames drift when
@@ -51,8 +51,9 @@ Notes:
 
 ```bash
 uv run python -c "
+from pathlib import Path
 from bitcliff_pipeline.generate import read_records
-recs = read_records('runs/pilot-0a/outputs/F16.jsonl')
+recs = read_records(Path('runs/pilot-0a/outputs/F16.jsonl'))
 trunc = [r.item_id for r in recs if r.finish_reason == 'length']
 print(f'{len(trunc)}/{len(recs)} F16 outputs truncated'); print(trunc)"
 ```
@@ -72,8 +73,8 @@ for the launch-50 come from.
   forgotten facts, loops, salad? If yes, the spectacle half has content.
 - **Signal bar:** are the retrieval/arithmetic curves informative? Flat-then-cliff
   COUNTS as informative. Only "every curve is noise" kills the project.
-- Record the verdict, the chosen length budget, and curation notes in
-  `runs/pilot-0a/PILOT_NOTES.md` (committed; the outputs themselves stay gitignored).
+- Record the verdict, the chosen length budget, the run-id, and curation notes in
+  `PILOT_NOTES.md` next to this runbook (committed; the run outputs themselves stay gitignored).
 
 **If the gate passes → next plan: the freeze** (registration text, twin problems,
 margins, license audit, file lists+hashes for the 8B ladders). Nothing confirmatory
