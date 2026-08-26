@@ -26,25 +26,30 @@ All 720 outputs generated, graded, and reported without pipeline errors.
 
 ## Findings that feed the freeze
 
-1. **Length budget:** 640 tokens clipped exactly 1/90 F16 outputs — spec-010
-   (pancake recipe), an unscored spectacle item. Both scored suites had zero
-   F16 truncations, so the pilot's scored numbers are budget-clean. Decision:
-   raise `max_tokens` to 896 in the confirmatory config so the frozen budget
-   clips nothing at all; not worth re-running the throwaway pilot for.
-2. **Retrieval task is too easy as instantiated.** With 8 pairs in context,
-   even IQ2_M scores 0.9875 — the task measures short-range copying, which
-   survives 2-bit. F16's own errors (10 partials, e.g. answering
-   "9493, 8577" for expected "8974, 9493" — one code hallucinated) mean the
-   low rungs sometimes "beat" full precision on noise flips. For the freeze:
-   reconcile with the paper's exact multivalue2 (more pairs / distractors /
-   longer range) so retrieval has headroom to be damaged.
+1. **Length budget:** the registered budget is **1024 tokens** and does not
+   churn. The pilot ran at 640 and clipped exactly 1/90 F16 outputs —
+   spec-010 (pancake recipe), an unscored spectacle item; both scored suites
+   had zero F16 truncations. 640 being near-sufficient confirms 1024 is
+   generous. Confirmatory configs use 1024 as registered.
+2. **CAVEAT — the pilot retrieval suite is a placeholder.** It saturates
+   into short-range copying (even IQ2_M scores 0.9875 with 8 pairs in
+   context), so **zero retrieval conclusions are drawn from pilot data** —
+   not about durability, not about asymmetry, not about noise flips. The
+   real multivalue2 task arrives as an external bundle at the freeze and
+   replaces this suite entirely; the freeze then recalibrates difficulty so
+   F16 lands ~0.6–0.85 on every scored suite with visible headroom
+   (difficulty tuning is legitimate pilot use, disclosed in PREREG).
+   Observed here and noted only as pipeline behavior: F16 itself makes
+   errors on this placeholder (10 partials with hallucinated codes).
 3. **Grading precision:** spot-checked low-rung retrieval "correct" grades —
    they are genuine answers, not context echoes, so the known substring
    false-positive did not drive the numbers here. The word-boundary fix
    stays queued for the freeze regardless.
-4. **Odd case to flag, never smooth (spec §5):** Q2_K scores *below* IQ2_M
-   on arithmetic (0.325 vs 0.40) — a non-monotonic bottom, exactly the kind
-   of row the matrix must show with a flag.
+4. **Q2_K below IQ2_M on arithmetic (0.325 vs 0.40): expected scheme
+   pattern, flag, never smooth.** IQ-quants are known to outperform K-quants
+   around 2.5 bpw, so this is not an anomaly to explain away — it is a
+   candidate finding for registered question 5 (k-quant transfer /
+   scheme-dependence) and the matrix shows it with a flag.
 5. **Curation seeds for the launch 50:** Q2_K loop on arithmetic-1301-007
    (the fries problem — repeats "Griffin has 27 fries" forever), IQ2_M's
    mistranslations (spec-006) and broken limerick (spec-003) are the most
@@ -53,8 +58,12 @@ All 720 outputs generated, graded, and reported without pipeline errors.
 
 ## Chosen parameters going forward
 
-- `max_tokens`: 896 (was 640) for all confirmatory configs.
-- Retrieval: harder instantiation at freeze (paper-reconciled multivalue2).
+- `max_tokens`: 1024 for all confirmatory configs — the registered value,
+  confirmed generous by the pilot; registered parameters do not churn.
+- Retrieval: the placeholder suite is replaced at the freeze by the real
+  multivalue2 bundle (external), then difficulty-recalibrated so F16 lands
+  ~0.6–0.85 per scored suite; recalibration disclosed in PREREG.
 - Ladder: unchanged for reference models; 1.5B spectacle ladder gains
-  in-house IQ1_S/IQ1_M rungs (llama.cpp `llama-quantize` + imatrix),
-  labeled in-house, never a download recommendation.
+  in-house IQ1_S/IQ1_M (+ IQ2_XXS) rungs (llama.cpp `llama-quantize` +
+  imatrix), labeled `bitcliff-inhouse`, spectacle-only, never surfaced in
+  any download recommendation.
