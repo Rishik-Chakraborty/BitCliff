@@ -55,4 +55,9 @@ def write_grades(grades: list[GradeResult], path: Path) -> None:
 
 
 def read_grades(path: Path) -> list[GradeResult]:
-    return [GradeResult(**json.loads(line)) for line in path.read_text().splitlines()]
+    field_names = {f.name for f in dataclasses.fields(GradeResult)}
+    out = []
+    for line in path.read_text().splitlines():
+        d = json.loads(line)
+        out.append(GradeResult(**{k: v for k, v in d.items() if k in field_names}))
+    return out

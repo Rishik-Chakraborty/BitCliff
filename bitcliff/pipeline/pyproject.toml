@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-bitcliff-pipeline = "bitcliff_pipeline:main"
+bitcliff-pipeline = "bitcliff_pipeline.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.11.31,<0.12.0"]
