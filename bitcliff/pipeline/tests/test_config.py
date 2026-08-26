@@ -56,6 +56,16 @@ def test_rejects_missing_required_key(tmp_path):
         load_config(write_yaml(tmp_path, bad))
 
 
+def test_suites_max_tokens_override_is_reachable(tmp_path):
+    yaml_text = VALID_YAML.replace(
+        "  retrieval: {n_items: 40, n_pairs: 8, seed: 1301}\n",
+        "  retrieval: {n_items: 40, n_pairs: 8, seed: 1301}\n"
+        "  longctx_retrieval: {n_items: 10, seed: 1301, max_tokens: 32}\n",
+    )
+    cfg = load_config(write_yaml(tmp_path, yaml_text))
+    assert cfg.suites["longctx_retrieval"]["max_tokens"] == 32
+
+
 def test_spectacle_only_defaults_false_and_parses(tmp_path):
     yaml_text = VALID_YAML.replace(
         "  - {label: Q4_K_M, filename: Qwen2.5-1.5B-Instruct-Q4_K_M.gguf, uploader: bartowski, imatrix: true}",

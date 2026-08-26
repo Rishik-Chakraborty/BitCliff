@@ -16,10 +16,22 @@ ITEMS = [
     EvalItem("spec-001", "spectacle", "Write a haiku.", None),
 ]
 
+TOKEN_ITEMS = [
+    EvalItem(
+        "longctx_retrieval-1-000",
+        "longctx_retrieval",
+        "What is Alice's code?",
+        ("1234",),
+        prompt_tokens=(1, 2, 3, 4, 5),
+    ),
+    EvalItem("spec-001", "spectacle", "Write a haiku.", None),
+]
+
 
 class FakeLlm:
     def __init__(self):
         self.calls = []
+        self.completion_calls = []
 
     def create_chat_completion(self, messages, max_tokens, temperature, top_k, seed):
         self.calls.append(
@@ -30,6 +42,17 @@ class FakeLlm:
             "choices": [
                 {"message": {"content": f"echo: {messages[0]['content'][:10]}"},
                  "finish_reason": "stop"}
+            ]
+        }
+
+    def create_completion(self, prompt, max_tokens, temperature, top_k, seed):
+        self.completion_calls.append(
+            {"prompt": prompt, "max_tokens": max_tokens,
+             "temperature": temperature, "top_k": top_k, "seed": seed}
+        )
+        return {
+            "choices": [
+                {"text": f"tok-echo: {prompt[:3]}", "finish_reason": "stop"}
             ]
         }
 
@@ -44,13 +67,61 @@ def test_run_items_builds_records_with_settings():
     assert r.quant_label == "Q4_K_M"
     assert r.model_sha256 == "abc123"
     assert r.finish_reason == "stop"
-    assert r.gen_settings == asdict(GEN)
+    assert r.gen_settings == {**asdict(GEN), "max_tokens_effective": GEN.max_tokens}
     assert r.machine  # non-empty platform string
     assert "llama-cpp-python" in r.machine
     # deterministic settings actually passed through to the model
     assert llm.calls[0]["temperature"] == 0.0
     assert llm.calls[0]["top_k"] == 1
     assert llm.calls[0]["seed"] == 42
+
+
+def test_run_items_routes_token_id_items_to_create_completion():
+    llm = FakeLlm()
+    records = run_items(llm, TOKEN_ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN)
+    assert len(records) == 2
+
+    # first item has prompt_tokens -> create_completion, exact token list passed
+    assert len(llm.completion_calls) == 1
+    assert llm.completion_calls[0]["prompt"] == [1, 2, 3, 4, 5]
+    assert llm.completion_calls[0]["max_tokens"] == GEN.max_tokens
+    assert llm.completion_calls[0]["temperature"] == GEN.temperature
+    assert llm.completion_calls[0]["top_k"] == GEN.top_k
+    assert llm.completion_calls[0]["seed"] == GEN.seed
+    r0 = records[0]
+    assert r0.item_id == "longctx_retrieval-1-000"
+    assert r0.text == "tok-echo: [1, 2, 3]"
+    assert r0.finish_reason == "stop"
+    assert r0.gen_settings["max_tokens_effective"] == GEN.max_tokens
+
+    # second item has no prompt_tokens -> stays on the chat path
+    assert len(llm.calls) == 1
+    r1 = records[1]
+    assert r1.item_id == "spec-001"
+    assert r1.text.startswith("echo:")
+    assert r1.gen_settings["max_tokens_effective"] == GEN.max_tokens
+
+
+def test_run_items_honors_per_suite_max_tokens_override():
+    llm = FakeLlm()
+    records = run_items(
+        llm, TOKEN_ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN,
+        max_tokens_by_suite={"longctx_retrieval": 32},
+    )
+    assert llm.completion_calls[0]["max_tokens"] == 32
+    assert records[0].gen_settings["max_tokens_effective"] == 32
+    # spectacle isn't in the override map -> falls back to gen.max_tokens
+    assert llm.calls[0]["max_tokens"] == GEN.max_tokens
+    assert records[1].gen_settings["max_tokens_effective"] == GEN.max_tokens
+
+
+def test_run_items_max_tokens_by_suite_none_is_treated_as_empty():
+    llm = FakeLlm()
+    records = run_items(
+        llm, TOKEN_ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN,
+        max_tokens_by_suite=None,
+    )
+    assert records[0].gen_settings["max_tokens_effective"] == GEN.max_tokens
 
 
 def test_jsonl_roundtrip(tmp_path):

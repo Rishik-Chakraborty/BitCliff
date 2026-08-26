@@ -4,8 +4,11 @@ from pathlib import Path
 
 import pytest
 
+import bitcliff_pipeline.__main__ as main_mod
+import bitcliff_pipeline.grading as grading_mod
 from bitcliff_pipeline.__main__ import build_items, run_pipeline
 from bitcliff_pipeline.config import GenSettings, LadderConfig, QuantFile
+from bitcliff_pipeline.items import EvalItem
 from bitcliff_pipeline.suites import arithmetic
 
 # A tiny synthetic gsm8k-shaped record set, injected via
@@ -141,3 +144,72 @@ def test_build_items_covers_configured_suites(tmp_path):
     suites = [i.suite for i in items]
     assert suites.count("arithmetic") == 4
     assert suites.count("spectacle") == 2
+
+
+class TokenAwareFakeLlm(FakeLlm):
+    """Extends FakeLlm with create_completion, for suites (e.g.
+    longctx_retrieval) that generate from a token-id prompt rather than a
+    chat message. Records the exact token list it was called with.
+    """
+
+    def create_completion(self, prompt, **kwargs):
+        return {"choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}]}
+
+
+def test_token_id_item_roundtrips_through_items_jsonl_and_grades(tmp_path, monkeypatch):
+    """Covers the Task-1 deferred gap: a token-id item (prompt_tokens set)
+    must survive write -> items.jsonl -> read (reconstructed as a tuple) and
+    the grade stage must actually run the longctx_retrieval grader over its
+    generated record — not just parse it.
+    """
+    cfg = make_config(tmp_path)
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    token_item = EvalItem(
+        "longctx_retrieval-1-0000",
+        "longctx_retrieval",
+        "Alice's code?",
+        ("42",),
+        prompt_tokens=(11, 12, 13),
+    )
+    original_build_items = main_mod.build_items
+
+    def build_items_with_token_item(config, base_dir):
+        return original_build_items(config, base_dir) + [token_item]
+
+    monkeypatch.setattr(main_mod, "build_items", build_items_with_token_item)
+
+    # Spy on the real grader so we can assert, from inside the grade stage
+    # itself, that item.prompt_tokens came back as a tuple after the
+    # items.jsonl roundtrip — not just that grading happened to succeed.
+    captured = {}
+    original_grade = grading_mod.GRADERS["longctx_retrieval"]
+
+    def spy_grade(item, text):
+        captured["prompt_tokens"] = item.prompt_tokens
+        return original_grade(item, text)
+
+    monkeypatch.setitem(grading_mod.GRADERS, "longctx_retrieval", spy_grade)
+
+    run_pipeline(
+        cfg, run_id="token-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=lambda path, gen: TokenAwareFakeLlm(), base_dir=tmp_path,
+    )
+
+    run = runs_dir / "token-test"
+    items = [json.loads(l) for l in (run / "items.jsonl").read_text().splitlines()]
+    on_disk = next(i for i in items if i["id"] == "longctx_retrieval-1-0000")
+    assert on_disk["prompt_tokens"] == [11, 12, 13]  # JSON has no tuple type
+
+    grades = [json.loads(l) for l in (run / "grades.jsonl").read_text().splitlines()]
+    token_grades = [g for g in grades if g["item_id"] == "longctx_retrieval-1-0000"]
+    assert len(token_grades) == 2  # one per ladder rung (F16, Q4_K_M)
+    assert all(g["state"] == "correct" for g in token_grades)
+
+    # the grade stage actually reconstructed prompt_tokens as a tuple, not a list
+    assert captured["prompt_tokens"] == (11, 12, 13)
+    assert isinstance(captured["prompt_tokens"], tuple)

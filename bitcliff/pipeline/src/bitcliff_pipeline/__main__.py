@@ -66,6 +66,11 @@ def run_pipeline(
         items_path.write_text(
             "".join(json.dumps(dataclasses.asdict(i)) + "\n" for i in items)
         )
+        max_tokens_by_suite = {
+            suite: scfg["max_tokens"]
+            for suite, scfg in config.suites.items()
+            if isinstance(scfg, dict) and "max_tokens" in scfg
+        }
         for label, path in paths.items():
             out_path = run_dir / "outputs" / f"{label}.jsonl"
             if out_path.exists():
@@ -74,7 +79,8 @@ def run_pipeline(
             print(f"generating {label} ({len(items)} items)...")
             llm = llm_factory(path, config.generation)
             records = gen_mod.run_items(
-                llm, items, label, manifest[label]["sha256"], config.generation
+                llm, items, label, manifest[label]["sha256"], config.generation,
+                max_tokens_by_suite,
             )
             gen_mod.write_records(records, out_path)
 
