@@ -236,7 +236,7 @@ TEMPLATES: tuple[TwinTemplate, ...] = (
     ),
     TwinTemplate(
         gsm8k_index=26,
-        text_template='Mishka bought {n} pairs of shorts, 3 pairs of pants, and 3 pairs of shoes. One pair of shorts costs ${shorts:.2f}. One pair of pants costs ${pants:.2f} and one pair of shoes costs ${shoes}. How many dollars did Mishka spend on all the clothing items?',
+        text_template='Mishka bought {n} pairs of shorts, {n} pairs of pants, and {n} pairs of shoes. One pair of shorts costs ${shorts:.2f}. One pair of pants costs ${pants:.2f} and one pair of shoes costs ${shoes}. How many dollars did Mishka spend on all the clothing items?',
         param_names=('n', 'shorts', 'pants', 'shoes'),
         solve_src="def solve(**p):\n    return p['n'] * (p['shorts'] + p['pants'] + p['shoes'])\n",
         constraints_src="def valid(**p):\n    return p['n'] > 0 and p['n'] < 20 and all(p[k] > 0 for k in ('shorts', 'pants', 'shoes'))\n",
@@ -362,11 +362,11 @@ TEMPLATES: tuple[TwinTemplate, ...] = (
     ),
     TwinTemplate(
         gsm8k_index=42,
-        text_template="Grandma Jones baked {n_pies} apple pies for the fireman's luncheon.  She cut each pie into {pieces} pieces and set the five pies out on the buffet table for the guests to serve themselves.  At the end of the evening, after the guests had taken and eaten their pieces of pie, there were {remaining} pieces of pie remaining.  How many pieces were taken by the guests?",
-        param_names=('n_pies', 'pieces', 'remaining'),
+        text_template="Grandma Jones baked {n_pies} apple pies for the fireman's luncheon.  She cut each pie into {pieces} pieces and set the {n_pies_word} pies out on the buffet table for the guests to serve themselves.  At the end of the evening, after the guests had taken and eaten their pieces of pie, there were {remaining} pieces of pie remaining.  How many pieces were taken by the guests?",
+        param_names=('n_pies', 'pieces', 'n_pies_word', 'remaining'),
         solve_src="def solve(**p):\n    total = p['n_pies'] * p['pieces']\n    return total - p['remaining']\n",
-        constraints_src="def valid(**p):\n    n, pc, rem = p['n_pies'], p['pieces'], p['remaining']\n    total = n * pc\n    return rem > 0 and total > rem\n",
-        original_values={'n_pies': 5, 'pieces': 8, 'remaining': 14},
+        constraints_src="def valid(**p):\n    words = {'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,\n             'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11,\n             'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,\n             'sixteen': 16, 'twenty': 20, 'thirty': 30}\n    n, pc, rem, nw = p['n_pies'], p['pieces'], p['remaining'], p['n_pies_word']\n    total = n * pc\n    return rem > 0 and total > rem and words.get(nw) == n\n",
+        original_values={'n_pies': 5, 'pieces': 8, 'n_pies_word': 'five', 'remaining': 14},
         original_answer='26',
     ),
     TwinTemplate(

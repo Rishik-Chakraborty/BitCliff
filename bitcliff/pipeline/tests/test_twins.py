@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,7 @@ import pytest
 from bitcliff_pipeline.hashing import sha256_file
 from bitcliff_pipeline.twins.builder import (
     NAME_POOL,
+    NUMBER_WORDS,
     TwinBuildError,
     build_twin,
     build_twin_set,
@@ -14,6 +16,7 @@ from bitcliff_pipeline.twins.templates import SKIPPED_ITEMS, TEMPLATES
 from bitcliff_pipeline.twins.verifier import (
     TwinTemplate,
     TwinVerificationError,
+    load_solve,
     verify_template,
 )
 
@@ -213,3 +216,107 @@ def test_build_twin_set_raises_if_any_template_fails_verification():
     out_path = Path("unused.jsonl")
     with pytest.raises(TwinVerificationError):
         build_twin_set([bad], GSM8K_FIRST60, seed=1, out_path=out_path)
+
+
+# ---------------------------------------------------------------------------
+# Consistency guard: catch the idx-26/idx-42 class of bug (a literal number
+# or number-word in the *unparametrized* part of text_template happens to
+# equal a free param's original value, and solve() actually depends on that
+# param) BEFORE it ships as a committed template.
+#
+# Rule implemented (the "simpler accepted alternative" from the review):
+#   1. Strip every {param} / {param:spec} placeholder out of text_template,
+#      leaving only the literal/constant text.
+#   2. Scan the leftover literal text for bare digit-runs (e.g. "8", "20")
+#      and for spelled-out number words (from NUMBER_WORDS, e.g. "five").
+#   3. For each param whose *original* numeric value numerically matches one
+#      of those leftover literals: perturb that param's value (holding all
+#      others at their original values) and re-run solve(). If solve()'s
+#      output changes, the param provably feeds the answer *and* the text
+#      contains an unparametrized restatement of it that won't move when the
+#      param is resampled -- that's exactly the idx-26/idx-42 failure mode,
+#      so it's flagged.
+#   4. If solve() is unchanged by the perturbation, the leftover literal is
+#      pure flavor text solve() never reads (the idx-22/idx-35 pattern,
+#      which the review explicitly calls out as harmless) -- not flagged.
+#
+# This deliberately does NOT flag two independent params that coincidentally
+# share the same original value (e.g. idx 22's c1=3 and c3=3): each has its
+# own placeholder consuming its own occurrence of "3" in the real text, so
+# after stripping placeholders there is no leftover "3" left to match against.
+_PLACEHOLDER_RE = re.compile(r"\{[^{}:]+(?::[^{}]*)?\}")
+_DIGIT_RUN_RE = re.compile(r"\d[\d,]*\.?\d*")
+_REVERSE_NUMBER_WORDS = {v: k for k, v in NUMBER_WORDS.items()}
+
+
+def _leftover_literal_text(text_template: str) -> str:
+    return " ".join(_PLACEHOLDER_RE.split(text_template))
+
+
+def _leftover_numeric_values(leftover_text: str) -> set[float]:
+    values = set()
+    for tok in _DIGIT_RUN_RE.findall(leftover_text):
+        try:
+            values.add(float(tok.replace(",", "")))
+        except ValueError:
+            continue
+    for word, n in NUMBER_WORDS.items():
+        if re.search(r"\b" + re.escape(word) + r"\b", leftover_text):
+            values.add(float(n))
+    return values
+
+
+def _perturb(value):
+    if isinstance(value, bool):
+        raise TypeError("bool params not supported")
+    if isinstance(value, int):
+        return value + 3
+    if isinstance(value, float):
+        return round(value * 1.37 + 0.71, 2)
+    if isinstance(value, str) and value in NUMBER_WORDS:
+        other = (NUMBER_WORDS[value] + 3) % 17  # stays within NUMBER_WORDS' small ints
+        return _REVERSE_NUMBER_WORDS.get(other, "eleven")
+    if isinstance(value, str):
+        return "Zzyzx-guard-probe"
+    raise TypeError(f"unsupported param type {type(value)!r}")
+
+
+def test_no_unparametrized_literal_ties_to_a_free_param():
+    """Guard against the idx-26/idx-42 class of bug: see the block comment
+    above this test for the exact rule. Runs against every committed
+    template; any flagged (template, param) pair means a literal in the
+    text restates a param's value without being tied to it, and solve()
+    actually depends on that param -- i.e. a resampled twin would be
+    self-contradictory."""
+    flagged = []
+    for t in TEMPLATES:
+        leftover = _leftover_literal_text(t.text_template)
+        leftover_values = _leftover_numeric_values(leftover)
+        if not leftover_values:
+            continue
+        solve = load_solve(t.solve_src)
+        base = solve(**t.original_values)
+        for name in t.param_names:
+            value = t.original_values[name]
+            numeric = None
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                numeric = float(value)
+            elif isinstance(value, str) and value in NUMBER_WORDS:
+                numeric = float(NUMBER_WORDS[value])
+            if numeric is None or numeric not in leftover_values:
+                continue
+            perturbed = dict(t.original_values)
+            perturbed[name] = _perturb(value)
+            try:
+                changed = solve(**perturbed) != base
+            except Exception:
+                changed = True  # solve() breaking under perturbation is itself suspicious
+            if changed:
+                flagged.append((t.gsm8k_index, name, value))
+    assert not flagged, (
+        f"unparametrized literal(s) tied to a solve()-consumed param: {flagged} "
+        f"-- a leftover literal in text_template restates a param's original "
+        f"value, and solve() depends on that param, so a resampled twin would "
+        f"show a stale literal alongside a changed number (see idx 26 / idx 42 "
+        f"fix history)."
+    )

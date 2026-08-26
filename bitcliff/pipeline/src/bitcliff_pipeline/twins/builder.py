@@ -14,6 +14,21 @@ NAME_POOL: tuple[str, ...] = (
     "Bao", "Elif", "Ronan", "Amara", "Deshi", "Yusuf", "Marisol", "Otieno",
 )
 
+# Fixed pool used to resample string-valued params that hold a *spelled-out
+# number* (e.g. a param whose original text is "five" restating a numeric
+# param's value in words, per the idx-42 "Grandma Jones" template). These
+# are distinguished from ordinary name params by checking membership below:
+# a param whose original value is itself a key of NUMBER_WORDS is treated as
+# a number-word param and resampled from this pool instead of NAME_POOL.
+# constraints_src is expected to tie the resulting word back to its sibling
+# numeric param via an equality check (see templates.py idx 42).
+NUMBER_WORDS: dict[str, int] = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+    "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "sixteen": 16, "twenty": 20, "thirty": 30,
+}
+
 MAX_RESAMPLE_ATTEMPTS = 2000
 
 
@@ -31,6 +46,11 @@ def _resample_value(rng: random.Random, name: str, original, used_names: set):
     if isinstance(original, float):
         lo, hi = original * 0.5, original * 2
         return round(rng.uniform(lo, hi), 2)
+    if isinstance(original, str) and original in NUMBER_WORDS:
+        choices = [w for w in NUMBER_WORDS if w not in used_names]
+        value = rng.choice(choices)
+        used_names.add(value)
+        return value
     if isinstance(original, str):
         choices = [n for n in NAME_POOL if n not in used_names]
         value = rng.choice(choices)
