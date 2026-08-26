@@ -187,10 +187,11 @@ for Q4.
   Gutenberg PG #1184 — public domain, rule + hash recorded; model output
   redistribution — Qwen2.5 (Apache-2.0) and Llama 3.1 (Community License —
   verify output-publication terms and record the verbatim clause);
-  **the multivalue2 generator itself — the source repo has NO LICENSE file**:
-  fine for internal use (you are the author), but publishing the generator in
-  the open pipeline (deliverable §8) requires you to add a license to the
-  source repo or grant one for the vendored copy. **Blocked on you (§9).**
+  **the multivalue2 generator itself** — the source repo is now Apache-2.0
+  (commit 0d1885e, added 2026-08-26), so the vendored generator ships under
+  Apache-2.0 with attribution; note the repo's own README flags a
+  corpus-redistribution caveat (commit d69a363) which the plan already handles
+  by never publishing the PG-essays corpus or 2a prompts.
 
 ## 5. Verified reference-model file lists with SHAs
 
@@ -260,8 +261,7 @@ for all suites, with these exclusions:
 1. Approve/adjust the **closed-book QA source and grading rule** (§3).
 2. Approve the **Gutenberg corpus choice** (PG #1184) or name another (§2b).
 3. Approve **margin M = 3pp** and the multiplicity choice (§6).
-4. **Add a LICENSE** to the `quantization` repo (or grant terms for the
-   vendored generator) before the open pipeline ships (§4, §8).
+4. ~~Add a LICENSE to the quantization repo~~ — RESOLVED: Apache-2.0 added (commit 0d1885e, 2026-08-26).
 5. **Edit and sign off PREREG.md**, then choose the timestamp mechanism —
    proposed: **OpenTimestamps** on the PREREG commit hash (free,
    Bitcoin-anchored, verifiable offline).
@@ -273,7 +273,10 @@ for all suites, with these exclusions:
 1. **F1 — engineering:** vendor the generator; `longctx_retrieval` suite +
    token-id generation path; closed-book QA suite; twins builder + round-trip
    verifier; delete the placeholder retrieval suite; rename surfaces to
-   long-context retrieval. (All local, tested, no confirmatory runs.)
+   long-context retrieval; propagate `spectacle_only` from config into the
+   aggregated report rows and plot styling so exclusion from reference tables
+   is enforced by the reporting code, not by convention. (All local, tested,
+   no confirmatory runs.)
 2. **F2 — audits & lists:** license audit (§4); reference-model file
    enumeration + download + hashing (§5). Downloads are free; no GPU spend.
 3. **F3 — PREREG assembly:** draft per §1 with §6/§7/§8 text inlined; hand

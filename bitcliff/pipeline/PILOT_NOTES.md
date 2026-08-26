@@ -90,7 +90,7 @@ never enter reference tables or download recommendations.
 | IQ2_M (ref, lowest published) | 0.400 | 5/0 of 40  | 0.9875 | 0/0 of 40 |
 | IQ2_XXS (in-house)  | 0.000 | 37/35 of 40 | 0.6875 | 33/30 of 40 |
 | IQ1_M (in-house)    | 0.000 | 28/28 of 40 | 0.0875 | 40/40 of 40 |
-| IQ1_S (in-house)    | 0.000 | 40/40 of 40 | 0.0125 | 40/40 of 40 |
+| IQ1_S (in-house)    | 0.000 | 40/32 of 40 | 0.0125 | 40/38 of 40 |
 
 Arithmetic accuracy is a flat zero across all three in-house rungs — not a
 gentle taper, a floor. Retrieval (the placeholder short-range-copy suite)
