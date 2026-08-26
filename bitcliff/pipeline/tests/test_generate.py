@@ -46,6 +46,7 @@ def test_run_items_builds_records_with_settings():
     assert r.finish_reason == "stop"
     assert r.gen_settings == asdict(GEN)
     assert r.machine  # non-empty platform string
+    assert "llama-cpp-python" in r.machine
     # deterministic settings actually passed through to the model
     assert llm.calls[0]["temperature"] == 0.0
     assert llm.calls[0]["top_k"] == 1

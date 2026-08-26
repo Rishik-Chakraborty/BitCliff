@@ -46,6 +46,9 @@ Notes:
 - Ladder = 8 rungs × ~90 items (~40 retrieval, 40 arithmetic, 10 spectacle).
   Interrupt any time; `--stage generate` resumes, skipping finished rungs.
 - Total quant downloads ≈ 8 GB. F16 is the slowest rung; start it before dinner.
+- If you change anything under `suites:` in the config mid-run, delete `runs/pilot-0a/`
+  entirely (not just `outputs/`) before rerunning — the grade stage will refuse stale
+  outputs, but a clean slate avoids confusion.
 
 ## 3. Length-budget check (spec §6: the budget must be genuinely generous)
 

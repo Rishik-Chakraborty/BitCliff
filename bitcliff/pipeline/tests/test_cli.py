@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from bitcliff_pipeline.__main__ import build_items, run_pipeline
 from bitcliff_pipeline.config import GenSettings, LadderConfig, QuantFile
 
@@ -56,6 +58,34 @@ def test_pipeline_end_to_end(tmp_path):
     results = json.loads((run / "results.json").read_text())
     assert all(r["retention"] == 1.0 for r in results)  # identical fake outputs
     assert (run / "retention.png").exists()
+
+
+def test_grade_stage_rejects_stale_outputs(tmp_path):
+    cfg = make_config(tmp_path)
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    run_pipeline(
+        cfg, run_id="pilot-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+    )
+
+    # Simulate a stale items.jsonl: rewrite one item's prompt while keeping its id.
+    # Outputs from the earlier "all" run still hold the old prompt.
+    run = runs_dir / "pilot-test"
+    items_path = run / "items.jsonl"
+    items = [json.loads(l) for l in items_path.read_text().splitlines()]
+    items[0]["prompt"] = items[0]["prompt"] + " (edited)"
+    items_path.write_text("".join(json.dumps(i) + "\n" for i in items))
+
+    with pytest.raises(RuntimeError, match="prompt mismatch"):
+        run_pipeline(
+            cfg, run_id="pilot-test", models_dir=models_dir, runs_dir=runs_dir,
+            stage="grade", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+        )
 
 
 def test_build_items_covers_configured_suites(tmp_path):

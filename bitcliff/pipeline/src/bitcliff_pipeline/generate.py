@@ -1,4 +1,5 @@
 import dataclasses
+import importlib.metadata
 import json
 import platform
 from dataclasses import dataclass
@@ -40,7 +41,14 @@ def run_items(
     model_sha256: str,
     gen: GenSettings,
 ) -> list[OutputRecord]:
-    machine = f"{platform.platform()} / {platform.machine()}"
+    try:
+        llama_cpp_version = importlib.metadata.version("llama-cpp-python")
+    except importlib.metadata.PackageNotFoundError:
+        llama_cpp_version = "unknown"
+    machine = (
+        f"{platform.platform()} / {platform.machine()} "
+        f"/ llama-cpp-python {llama_cpp_version}"
+    )
     records = []
     for item in items:
         out = llm.create_chat_completion(

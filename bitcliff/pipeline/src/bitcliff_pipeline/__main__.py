@@ -6,12 +6,11 @@ from pathlib import Path
 from . import generate as gen_mod
 from .config import LadderConfig, load_config
 from .divergence import divergence_for_records
-from .grading import grade_record, write_grades
+from .grading import grade_record, read_grades
 from .hashing import build_manifest, load_manifest, verify_manifest, write_manifest
 from .items import EvalItem
 from .models import ensure_quants, resolve_all
 from .report import add_retention, aggregate, plot_retention, write_csv, write_json
-from .grading import read_grades
 
 
 def build_items(config: LadderConfig, base_dir: Path) -> list[EvalItem]:
@@ -82,6 +81,13 @@ def run_pipeline(
         graded_dicts = []
         for out_path in sorted((run_dir / "outputs").glob("*.jsonl")):
             for record in gen_mod.read_records(out_path):
+                expected_prompt = items_by_id[record.item_id].prompt
+                if record.prompt != expected_prompt:
+                    raise RuntimeError(
+                        f"{out_path.name}: prompt mismatch for {record.item_id} — "
+                        "outputs are stale relative to items.jsonl; delete "
+                        "runs/<run-id>/outputs/ and regenerate"
+                    )
                 g = grade_record(items_by_id, record)
                 div = divergence_for_records(
                     baseline[record.item_id], record, tokenize=str.split
