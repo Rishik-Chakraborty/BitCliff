@@ -1,7 +1,11 @@
 models/
 runs/
-calibration/
 private/
+# NOT calibration/ wholesale: calibration/<model-id>/{measurements.jsonl,
+# summary.json} from scripts/calibrate_f16.py (PREREG §7) is committed
+# EVIDENCE. Only the large, re-derivable imatrix calibration text stays
+# untracked (rule + hash recorded in INHOUSE_QUANTS.md).
+calibration/wikitext2-raw-v1-train-first500k.txt
 corpora/
 __pycache__/
 *.egg-info/
