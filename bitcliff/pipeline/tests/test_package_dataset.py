@@ -254,6 +254,48 @@ def test_longctx_prompt_and_tokens_absent_from_every_produced_byte(tmp_path, cle
             assert needle not in content, f"{path} leaked embargoed longctx content"
 
 
+def test_scanner_passes_with_published_golds_but_fails_on_a_planted_prompt_sentence(
+    tmp_path,
+):
+    """Ruling 4a: publishing `expected` (a bare gold like "4242") must never
+    make the post-write scanner false-positive, even though that gold digit
+    string is also a substring of the item's embargoed prompt text. But the
+    scanner must still catch a real leak — the full prompt sentence itself
+    landing anywhere in the output tree."""
+    raw_longctx_items = [
+        {
+            "id": "longctx_retrieval-fakevariant-t100-s999-0000",
+            "suite": "longctx_retrieval",
+            "prompt": f"What is the secret passcode? {SENTINEL_PROMPT_TEXT}",
+            "expected": ["4242"],
+            "prompt_tokens": SENTINEL_TOKENS,
+        }
+    ]
+    published_record = {
+        "id": raw_longctx_items[0]["id"],
+        "suite": "longctx_retrieval",
+        "expected": raw_longctx_items[0]["expected"],
+        "rungs": {},
+    }
+
+    # Case 1: only the golds-bearing published record is on disk — no
+    # prompt text, no token array anywhere. Must pass cleanly.
+    clean_dir = tmp_path / "scan-clean"
+    clean_dir.mkdir()
+    (clean_dir / "longctx_retrieval.jsonl").write_text(json.dumps(published_record) + "\n")
+    pkg.scan_for_embargoed_content(clean_dir, raw_longctx_items)  # must not raise
+
+    # Case 2: the same golds-only record, PLUS a planted copy of the raw
+    # prompt sentence elsewhere in the tree (simulating a real leak) — the
+    # scanner must still catch this.
+    leaky_dir = tmp_path / "scan-leaky"
+    leaky_dir.mkdir()
+    (leaky_dir / "longctx_retrieval.jsonl").write_text(json.dumps(published_record) + "\n")
+    (leaky_dir / "leaked.txt").write_text(raw_longctx_items[0]["prompt"] + "\n")
+    with pytest.raises(pkg.EmbargoViolation, match="prompt text"):
+        pkg.scan_for_embargoed_content(leaky_dir, raw_longctx_items)
+
+
 def test_longctx_record_still_published_with_id_and_outputs(tmp_path, clean_run_dir):
     out_dir = tmp_path / "dist" / "dataset-clean-run"
     _package_clean(clean_run_dir, out_dir)
@@ -264,7 +306,10 @@ def test_longctx_record_still_published_with_id_and_outputs(tmp_path, clean_run_
     assert rec["id"] == "longctx_retrieval-fakevariant-t100-s999-0000"
     assert "prompt" not in rec
     assert "prompt_tokens" not in rec
-    assert "expected" not in rec
+    # Ruling 4a (2026-08-27): expected (the gold match strings) MUST be
+    # published on longctx records — it comes straight from items.jsonl,
+    # no reconstruction needed, and is not embargoed content.
+    assert rec["expected"] == ["4242"]
     assert set(rec["rungs"].keys()) == {"F16", "Q4_K_M"}
     assert rec["rungs"]["F16"]["text"] == "answer-from-F16-for-longctx_retrieval-fakevariant-t100-s999-0000"
     assert rec["rungs"]["F16"]["uploader"] == "bitcliff-local-f16-conversion"
@@ -369,6 +414,7 @@ def test_build_longctx_metadata_is_additive_not_all_or_nothing():
     assert meta["key"] == "Mei"
     assert meta["depths"] == [0.3]
     assert meta["n_answer_tokens"] == 5
+    assert meta["expected"] == ["9"]  # ruling 4a: golds are published
     assert "prompt" not in meta
     assert "prompt_tokens" not in meta
 

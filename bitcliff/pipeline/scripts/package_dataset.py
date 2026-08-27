@@ -7,21 +7,25 @@ ENFORCED IN CODE, not by convention:
 
 - `longctx_retrieval` items: the raw prompt text and the token-id prompt
   array are never read by the record-builder for that suite (see
-  `build_longctx_metadata`, which only ever looks at `item["id"]`, an
-  explicit allowlist of extra keys, and a `reconstructed` dict of
-  already-safe fields — never `item["prompt"]` / `item["prompt_tokens"]`).
-  The registered `key` / `depths` / `n_answer_tokens` metadata (PREREG §11)
-  is not present on real run items, so it is reconstructed by rebuilding the
-  item set through the same vendored-generator path `--verify-recipe` uses
-  (tokenizer + a corpus file verified against the registered sha256) and
-  merging those three fields in by id, hard-failing
-  (`ReconstructionMismatch`) if reconstruction disagrees with the run.
-  After every file is written, a post-write scanner
+  `build_longctx_metadata`, which only ever looks at `item["id"]`,
+  `item["expected"]`, an explicit allowlist of extra keys, and a
+  `reconstructed` dict of already-safe fields — never `item["prompt"]` /
+  `item["prompt_tokens"]`). The registered `key` / `depths` /
+  `n_answer_tokens` metadata (PREREG §11) is not present on real run items,
+  so it is reconstructed by rebuilding the item set through the same
+  vendored-generator path `--verify-recipe` uses (tokenizer + a corpus file
+  verified against the registered sha256) and merging those three fields in
+  by id, hard-failing (`ReconstructionMismatch`) if reconstruction disagrees
+  with the run. After every file is written, a post-write scanner
   (`scan_for_embargoed_content`) re-reads every byte of every produced file
   and hard-fails if any longctx item's prompt text or token array shows up
-  anywhere. Published: item id, a best-effort `config` parsed from the item
-  id, any allowlisted extra keys the item happens to carry, the
-  reconstructed `key`/`depths`/`n_answer_tokens`, model outputs, grades, and
+  anywhere; the gold match strings (`expected`) are published per user
+  ruling 4a and are deliberately outside the scanner's forbidden list (a
+  bare 4-digit gold is not prompt/token-array leakage even though it also
+  appears inside the excluded prompt text). Published: item id, `expected`,
+  a best-effort `config` parsed from the item id, any allowlisted extra
+  keys the item happens to carry, the reconstructed
+  `key`/`depths`/`n_answer_tokens`, model outputs, grades, and
   `RECONSTRUCTION.md` (PREREG §3.1/§11).
 - `arithmetic_twins` (and anything staged under a `private/` path inside the
   run directory): the packager REFUSES outright — raises before writing
@@ -211,22 +215,31 @@ def parse_longctx_id(item_id: str) -> dict | None:
 
 def build_longctx_metadata(item: dict, reconstructed: dict | None = None) -> dict:
     """PREREG §11 STRUCTURAL exclusion: this function's only inputs are
-    `item["id"]`, an explicit allowlist of extra keys
+    `item["id"]`, `item["expected"]`, an explicit allowlist of extra keys
     (`LONGCTX_SAFE_EXTRA_KEYS`), and an already-safe `reconstructed` dict of
     `key` / `depths` / `n_answer_tokens`. It never reads `item["prompt"]` or
     `item["prompt_tokens"]` — there is no code path here that could copy
     them into the published record, regardless of what else `item` holds.
 
+    `expected` (the gold match strings / passcodes) IS published per user
+    ruling 4a (2026-08-27, resolving the packager's own OPEN_QUESTIONS §4a):
+    it comes straight off the run's items.jsonl, no reconstruction needed.
+    This is a deliberate, separate read from the prompt/prompt_tokens
+    exclusion above — a bare 4-digit gold string is not the document text or
+    the token-id array, so publishing it does not touch the embargo.
+
     Additive, not all-or-nothing: the id-parsed `config` is always included
-    when the id matches the expected shape, then any allowlisted extras
-    present on `item` are overlaid, then the reconstructed registered
-    metadata (`key`, `depths`, `n_answer_tokens` — PREREG §11) is overlaid
-    on top.
+    when the id matches the expected shape, then `expected` (if present) is
+    added, then any allowlisted extras present on `item` are overlaid, then
+    the reconstructed registered metadata (`key`, `depths`,
+    `n_answer_tokens` — PREREG §11) is overlaid on top.
     """
     meta: dict = {"id": item["id"]}
     parsed = parse_longctx_id(item["id"])
     if parsed is not None:
         meta["config"] = parsed
+    if item.get("expected") is not None:
+        meta["expected"] = item["expected"]
     extras = {k: item[k] for k in LONGCTX_SAFE_EXTRA_KEYS if k in item}
     meta.update(extras)
     if reconstructed is not None:
@@ -532,11 +545,25 @@ def scan_for_embargoed_content(out_dir: Path, raw_longctx_items: list[dict]) -> 
     prompt text or token array appears anywhere in the output tree.
 
     The forbidden list is built ONLY from each item's `prompt` /
-    `prompt_tokens` (the embargoed fields). The reconstructed `key` /
-    `depths` / `n_answer_tokens` metadata that does get published (PREREG
-    §11 — a NATO word, a handful of floats, an int) is never added to this
-    list, so it cannot trip the scanner: this function has no way to know
-    those values even exist, let alone flag them."""
+    `prompt_tokens` (the embargoed fields) — the FULL prompt string and the
+    FULL token-id array (as JSON and as a comma-joined run), never
+    sub-fragments of either. The reconstructed `key` / `depths` /
+    `n_answer_tokens` metadata that does get published (PREREG §11 — a NATO
+    word, a handful of floats, an int) is never added to this list, so it
+    cannot trip the scanner: this function has no way to know those values
+    even exist, let alone flag them.
+
+    Ruling 4a (2026-08-27): `expected` (the gold match strings, e.g. a bare
+    4-digit passcode) IS published on longctx records, and is deliberately
+    excluded from `forbidden` too. A gold string is a short substring that
+    also happens to appear *inside* the embargoed prompt text (the needle
+    sentence literally contains it) — but the scanner only ever forbids the
+    prompt's FULL text or the token array's FULL serialization, never a bare
+    4-digit fragment of either, so publishing golds cannot make this scanner
+    false-positive against itself. If a real prompt sentence (or the full
+    token array) is ever accidentally written to the output tree, THAT full
+    string is still what trips this scanner — a short gold digit run inside
+    it is not what's being matched on."""
     forbidden: list[tuple[str, str, str]] = []
     for it in raw_longctx_items:
         prompt = it.get("prompt")
@@ -581,6 +608,14 @@ def scan_for_embargoed_content(out_dir: Path, raw_longctx_items: list[dict]) -> 
 
 
 def _check_2a_signature(longctx_combos: list[dict], run_dir: Path) -> None:
+    """Ruling 4b (2026-08-27, resolving OPEN_QUESTIONS §4b "as-is"): kept
+    exactly as it was — a heuristic, not a positive provenance check.
+
+    Heuristic pending provenance: revisit when real 2b runs exist; the
+    durable fix (corpus-pointer field written into items.jsonl at
+    generation time, ticketed in freeze-plan §10) replaces this with a
+    positive provenance check.
+    """
     for combo in longctx_combos:
         if (
             combo["variant"] == CONFIG_2A_VARIANT
