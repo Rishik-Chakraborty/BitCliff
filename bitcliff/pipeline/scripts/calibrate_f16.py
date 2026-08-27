@@ -331,7 +331,15 @@ class MeasurementStore:
 
 
 def load_and_verify_corpus(path: Path = CORPUS_PATH, expected_sha256: str = CORPUS_SHA256) -> str:
-    text = path.read_text(encoding="utf-8")
+    # NOTE: read as raw bytes and decode explicitly, NOT `Path.read_text()`.
+    # `CORPUS_MANIFEST.md` §1 registers this corpus with its original `\r\n`
+    # line endings preserved verbatim ("no other normalization"); text-mode
+    # reading applies universal-newline translation (`\r\n` -> `\n`), which
+    # silently changes the byte content and therefore the sha256 -- this
+    # was caught by a real mismatch while smoke-testing this function
+    # (`\r\n`-collapsed text hashed to 93e0c742...  instead of the
+    # registered 0a21a138...).
+    text = path.read_bytes().decode("utf-8")
     digest = __import__("hashlib").sha256(text.encode("utf-8")).hexdigest()
     if digest != expected_sha256:
         raise AssertionError(
@@ -530,6 +538,17 @@ class LongctxRunner:
             self._llm_by_ctx[n_ctx] = gen_mod.make_llm(self.f16_path, gen)
         return self._llm_by_ctx[n_ctx]
 
+    def close(self) -> None:
+        """Explicitly free every llama-cpp model handle this runner
+        created. llama-cpp-python's Metal backend can abort the process if
+        a Llama object is instead freed by __del__ during interpreter
+        shutdown (observed while smoke-testing this module); calling
+        `.close()` deterministically, before the process starts tearing
+        down, avoids that."""
+        for llm in self._llm_by_ctx.values():
+            llm.close()
+        self._llm_by_ctx.clear()
+
     def _check_tokenizer_once(self, items) -> None:
         if self.tokenizer_checked or self.aborted:
             return
@@ -615,7 +634,16 @@ class LongctxRunner:
 
 def run_longctx_calibration(f16_path: Path, hf_tokenizer, store: MeasurementStore, model_sha256: str) -> dict:
     runner = LongctxRunner(f16_path, hf_tokenizer, store, model_sha256)
+    try:
+        return _run_longctx_calibration(runner)
+    finally:
+        # Deterministic cleanup: see LongctxRunner.close's docstring for
+        # why this matters (a Metal-backend __del__-at-shutdown abort seen
+        # while smoke-testing this module).
+        runner.close()
 
+
+def _run_longctx_calibration(runner: "LongctxRunner") -> dict:
     def measure_at_4096(variant: str) -> float:
         acc = runner.measure(variant, 4096)
         if acc is None:
@@ -752,6 +780,10 @@ def run_factual_qa_calibration(f16_path: Path, store: MeasurementStore, model_sh
         store.append(record)
         print(f"    acc={acc:.3f} ({n_correct}/{len(items)}) in {wall:.1f}s")
         results[name] = acc
+
+    if llm is not None:
+        # Deterministic cleanup -- see LongctxRunner.close's docstring.
+        llm.close()
 
     selection = select_factual_qa_mix(results)
     return {"measurements": results, **selection}

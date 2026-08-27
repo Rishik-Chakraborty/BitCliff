@@ -271,6 +271,24 @@ def test_load_and_verify_corpus_accepts_matching_hash(tmp_path):
     assert cal.load_and_verify_corpus(p, expected_sha256=digest) == text
 
 
+def test_load_and_verify_corpus_preserves_crlf_line_endings(tmp_path):
+    # CORPUS_MANIFEST.md §1: the registered corpus keeps its original \r\n
+    # line endings verbatim ("no other normalization"). A naive
+    # `Path.read_text()` applies universal-newline translation (\r\n ->
+    # \n), silently changing the byte content and therefore the sha256 --
+    # this must NOT happen: reading and re-hashing must reproduce the
+    # exact registered hash of the raw bytes.
+    raw = b"line one\r\nline two\r\n"
+    p = tmp_path / "corpus.txt"
+    p.write_bytes(raw)
+    import hashlib
+
+    expected = hashlib.sha256(raw).hexdigest()
+    text = cal.load_and_verify_corpus(p, expected_sha256=expected)
+    assert text.encode("utf-8") == raw
+    assert "\r\n" in text
+
+
 # ---------------------------------------------------------------------------
 # MeasurementStore — resumability
 # ---------------------------------------------------------------------------
