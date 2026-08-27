@@ -7,13 +7,21 @@ ENFORCED IN CODE, not by convention:
 
 - `longctx_retrieval` items: the raw prompt text and the token-id prompt
   array are never read by the record-builder for that suite (see
-  `build_longctx_metadata`, which only ever looks at an explicit allowlist of
-  keys, never `"prompt"` / `"prompt_tokens"`). After every file is written, a
-  post-write scanner (`scan_for_embargoed_content`) re-reads every byte of
-  every produced file and hard-fails if any longctx item's prompt text or
-  token array shows up anywhere. Published instead: item id, whatever
-  key/depth/config metadata the run's items happen to carry (else a
-  best-effort `config` parsed from the item id), model outputs, grades, and
+  `build_longctx_metadata`, which only ever looks at `item["id"]`, an
+  explicit allowlist of extra keys, and a `reconstructed` dict of
+  already-safe fields — never `item["prompt"]` / `item["prompt_tokens"]`).
+  The registered `key` / `depths` / `n_answer_tokens` metadata (PREREG §11)
+  is not present on real run items, so it is reconstructed by rebuilding the
+  item set through the same vendored-generator path `--verify-recipe` uses
+  (tokenizer + a corpus file verified against the registered sha256) and
+  merging those three fields in by id, hard-failing
+  (`ReconstructionMismatch`) if reconstruction disagrees with the run.
+  After every file is written, a post-write scanner
+  (`scan_for_embargoed_content`) re-reads every byte of every produced file
+  and hard-fails if any longctx item's prompt text or token array shows up
+  anywhere. Published: item id, a best-effort `config` parsed from the item
+  id, any allowlisted extra keys the item happens to carry, the
+  reconstructed `key`/`depths`/`n_answer_tokens`, model outputs, grades, and
   `RECONSTRUCTION.md` (PREREG §3.1/§11).
 - `arithmetic_twins` (and anything staged under a `private/` path inside the
   run directory): the packager REFUSES outright — raises before writing
@@ -25,7 +33,14 @@ ENFORCED IN CODE, not by convention:
   full, including prompts.
 
 CLI:
-    uv run python scripts/package_dataset.py <run_dir> --out dist/dataset-<run-id>/ [--verify-recipe]
+    uv run python scripts/package_dataset.py <run_dir> --out dist/dataset-<run-id>/ \
+        [--verify-recipe] [--tokenizer-path PATH] [--corpus-path PATH]
+
+    --tokenizer-path / --corpus-path are REQUIRED if and only if the run
+    contains longctx_retrieval items (used to reconstruct registered
+    key/depths/n_answer_tokens metadata, and, with --verify-recipe, to
+    verify the reconstruction digest). Never used, and not required, for a
+    run with no longctx_retrieval items.
 """
 
 from __future__ import annotations
@@ -100,6 +115,14 @@ LONGCTX_ID_RE = re.compile(
 class EmbargoViolation(RuntimeError):
     """Raised when a run cannot be packaged (twins present) or the post-write
     scanner finds embargoed content in the produced tree."""
+
+
+class ReconstructionMismatch(RuntimeError):
+    """Raised when the item set rebuilt via the vendored generator does not
+    line up with the run's own longctx_retrieval items (by id). This is a
+    packaging error, not a warning: reconstruction disagreeing with the run
+    means the registered key/depths/n_answer_tokens metadata cannot be
+    trusted, and PREREG §11 requires it to be published."""
 
 
 # ---------------------------------------------------------------------------
@@ -186,20 +209,30 @@ def parse_longctx_id(item_id: str) -> dict | None:
     }
 
 
-def build_longctx_metadata(item: dict) -> dict:
+def build_longctx_metadata(item: dict, reconstructed: dict | None = None) -> dict:
     """PREREG §11 STRUCTURAL exclusion: this function's only inputs are
-    `item["id"]` and an explicit allowlist of extra keys
-    (`LONGCTX_SAFE_EXTRA_KEYS`). It never reads `item["prompt"]` or
+    `item["id"]`, an explicit allowlist of extra keys
+    (`LONGCTX_SAFE_EXTRA_KEYS`), and an already-safe `reconstructed` dict of
+    `key` / `depths` / `n_answer_tokens`. It never reads `item["prompt"]` or
     `item["prompt_tokens"]` — there is no code path here that could copy
     them into the published record, regardless of what else `item` holds.
+
+    Additive, not all-or-nothing: the id-parsed `config` is always included
+    when the id matches the expected shape, then any allowlisted extras
+    present on `item` are overlaid, then the reconstructed registered
+    metadata (`key`, `depths`, `n_answer_tokens` — PREREG §11) is overlaid
+    on top.
     """
     meta: dict = {"id": item["id"]}
-    extras = {k: item[k] for k in LONGCTX_SAFE_EXTRA_KEYS if k in item}
-    if extras:
-        meta.update(extras)
-    else:
-        parsed = parse_longctx_id(item["id"])
+    parsed = parse_longctx_id(item["id"])
+    if parsed is not None:
         meta["config"] = parsed
+    extras = {k: item[k] for k in LONGCTX_SAFE_EXTRA_KEYS if k in item}
+    meta.update(extras)
+    if reconstructed is not None:
+        for f in ("key", "depths", "n_answer_tokens"):
+            if reconstructed.get(f) is not None:
+                meta[f] = reconstructed[f]
     return meta
 
 
@@ -236,6 +269,7 @@ def build_suite_records(
     outputs: dict[str, list[dict]],
     grades: list[dict],
     manifest: dict,
+    longctx_reconstruction: dict[str, dict] | None = None,
 ) -> list[dict]:
     outputs_by_label = {
         label: {r["item_id"]: r for r in recs} for label, recs in outputs.items()
@@ -247,7 +281,8 @@ def build_suite_records(
     records = []
     for item in sorted(items, key=lambda it: it["id"]):
         if suite == LONGCTX_SUITE:
-            rec = build_longctx_metadata(item)
+            reconstructed = (longctx_reconstruction or {}).get(item["id"])
+            rec = build_longctx_metadata(item, reconstructed)
         else:
             rec = build_published_metadata(item)
         rec["suite"] = suite
@@ -299,6 +334,114 @@ def _longctx_entries_from_raw_items(items: list[dict]) -> list[tuple]:
         for it in items
         if it.get("suite") == LONGCTX_SUITE
     ]
+
+
+# ---------------------------------------------------------------------------
+# Longctx metadata reconstruction (key / depths / n_answer_tokens)
+#
+# PREREG §11 registers these three fields as published per-item metadata for
+# longctx_retrieval, but they are not present on real run items (only id,
+# suite, prompt, expected, prompt_tokens are). They are recovered by
+# rebuilding the item set through the vendored generator against a verified
+# corpus — the SAME reconstruction path --verify-recipe uses
+# (`_rebuild_longctx_raw_items`) — and merged in by id. A run item with no
+# matching rebuilt item is a hard failure: reconstruction disagreeing with
+# the run is a packaging error, not something to silently skip.
+# ---------------------------------------------------------------------------
+
+
+def _longctx_wrapper_id(variant: str, target_tokens: int, seed: int, index: int) -> str:
+    return f"longctx_retrieval-{variant}-t{target_tokens}-s{seed}-{index:04d}"
+
+
+def _rebuild_longctx_raw_items(
+    tokenizer_path,
+    corpus_path,
+    corpus_sha256: str,
+    n_items: int,
+    seed: int,
+    variant: str,
+    target_tokens: int,
+) -> list[dict]:
+    """Rebuild raw multivalue2 item dicts (the vendored generator's own
+    dicts, with `needle_texts` / `needle_depths` / `n_answer_tokens` —
+    richer than the `EvalItem`s `bitcliff_pipeline.suites.longctx_retrieval`
+    exposes) from a tokenizer directory and a corpus text file, verifying
+    the corpus against `corpus_sha256` first. This is the one function that
+    ever touches the real corpus text; monkeypatch this in tests to avoid
+    needing a real tokenizer/corpus on disk."""
+    corpus_text = Path(corpus_path).read_text(encoding="utf-8")
+    digest = hashlib.sha256(corpus_text.encode("utf-8")).hexdigest()
+    if digest != corpus_sha256:
+        raise ValueError(
+            f"corpus sha256 {digest} != expected {corpus_sha256}: refusing "
+            f"to reconstruct longctx metadata from an unverified corpus"
+        )
+    tokenizer = _load_tokenizer_offline(Path(tokenizer_path))
+
+    from bitcliff_pipeline.vendor import generate_multivalue2 as mv2
+
+    token_ids = tokenizer(corpus_text, add_special_tokens=False)["input_ids"]
+    # Overwrite, not merely pre-populate — see
+    # bitcliff_pipeline.suites.longctx_retrieval.build_items for why.
+    mv2._STREAM_CACHE[tokenizer.name_or_path] = token_ids
+    return mv2.build_items(tokenizer, variant, n_items, target_tokens, seed)
+
+
+def _extract_key(needle_texts: list[str]):
+    """Recover the NATO-alphabet key name(s) from raw needle texts (e.g.
+    "Tariq: 8721\\n") WITHOUT ever reading the passcode value on the same
+    line — only the substring before the colon is kept. Returns a single
+    string if every needle shares one key (multivalue2's shape), a list if
+    several distinct keys appear, or None if nothing parses."""
+    keys: list[str] = []
+    for t in needle_texts or []:
+        head = t.strip().split(":", 1)
+        if len(head) == 2 and head[0].strip():
+            name = head[0].strip()
+            if name not in keys:
+                keys.append(name)
+    if not keys:
+        return None
+    return keys[0] if len(keys) == 1 else keys
+
+
+def _reconstruct_longctx_metadata(
+    longctx_items: list[dict],
+    longctx_combos: list[dict],
+    tokenizer_path,
+    corpus_path,
+) -> dict[str, dict]:
+    reconstruction: dict[str, dict] = {}
+    for combo in longctx_combos:
+        raw_items = _rebuild_longctx_raw_items(
+            tokenizer_path,
+            corpus_path,
+            CORPUS_2B_STRIPPED_SHA256,
+            n_items=combo["n_items"],
+            seed=combo["seed"],
+            variant=combo["variant"],
+            target_tokens=combo["target_tokens"],
+        )
+        for raw in raw_items:
+            rebuilt_id = _longctx_wrapper_id(
+                combo["variant"], combo["target_tokens"], combo["seed"], raw["index"]
+            )
+            reconstruction[rebuilt_id] = {
+                "key": _extract_key(raw.get("needle_texts", [])),
+                "depths": list(raw.get("needle_depths", [])),
+                "n_answer_tokens": raw.get("n_answer_tokens"),
+            }
+
+    missing = sorted(it["id"] for it in longctx_items if it["id"] not in reconstruction)
+    if missing:
+        raise ReconstructionMismatch(
+            "longctx reconstruction disagrees with the run: no rebuilt item "
+            f"matches run item id(s) {missing!r} — refusing to package "
+            "(PREREG §11 requires key/depths/n_answer_tokens; reconstruction "
+            "mismatch is a packaging error, not a warning)"
+        )
+    return reconstruction
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +529,14 @@ def write_reconstruction_md(
 
 def scan_for_embargoed_content(out_dir: Path, raw_longctx_items: list[dict]) -> None:
     """Re-read every produced byte and hard-fail if any longctx item's
-    prompt text or token array appears anywhere in the output tree."""
+    prompt text or token array appears anywhere in the output tree.
+
+    The forbidden list is built ONLY from each item's `prompt` /
+    `prompt_tokens` (the embargoed fields). The reconstructed `key` /
+    `depths` / `n_answer_tokens` metadata that does get published (PREREG
+    §11 — a NATO word, a handful of floats, an int) is never added to this
+    list, so it cannot trip the scanner: this function has no way to know
+    those values even exist, let alone flag them."""
     forbidden: list[tuple[str, str, str]] = []
     for it in raw_longctx_items:
         prompt = it.get("prompt")
@@ -451,7 +601,16 @@ def _check_2a_signature(longctx_combos: list[dict], run_dir: Path) -> None:
             )
 
 
-def package(run_dir: Path, out_dir: Path) -> dict:
+def package(
+    run_dir: Path,
+    out_dir: Path,
+    tokenizer_path=None,
+    corpus_path=None,
+) -> dict:
+    """`tokenizer_path` / `corpus_path` are required if and only if the run
+    contains `longctx_retrieval` items (used to reconstruct the registered
+    `key`/`depths`/`n_answer_tokens` metadata — PREREG §11); a run without
+    that suite ignores both."""
     run_dir = Path(run_dir)
     out_dir = Path(out_dir)
 
@@ -491,6 +650,21 @@ def package(run_dir: Path, out_dir: Path) -> dict:
         # never leave a partial/stale package behind.
         _check_2a_signature(longctx_combos, run_dir)
 
+        if tokenizer_path is None or corpus_path is None:
+            raise ValueError(
+                f"refusing to package {run_dir}: it contains "
+                f"longctx_retrieval items, so --tokenizer-path and "
+                f"--corpus-path are required to reconstruct the registered "
+                f"key/depths/n_answer_tokens metadata (PREREG §11)"
+            )
+        # Also checked before out_dir is touched — a reconstruction mismatch
+        # must never leave a partial/stale package behind either.
+        longctx_reconstruction = _reconstruct_longctx_metadata(
+            longctx_items, longctx_combos, tokenizer_path, corpus_path
+        )
+    else:
+        longctx_reconstruction = None
+
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True)
@@ -510,7 +684,14 @@ def package(run_dir: Path, out_dir: Path) -> dict:
             )
             continue
         records = build_suite_records(
-            suite, items_for_suite, run.outputs, run.grades, run.manifest
+            suite,
+            items_for_suite,
+            run.outputs,
+            run.grades,
+            run.manifest,
+            longctx_reconstruction=(
+                longctx_reconstruction if suite == LONGCTX_SUITE else None
+            ),
         )
         write_jsonl(records, out_dir / f"{suite}.jsonl")
         suite_counts[suite] = len(records)
@@ -611,55 +792,63 @@ def _load_tokenizer_offline(tokenizer_dir: Path):
 
 
 def _verify_longctx_recipe(
-    run_dir: Path, dataset_manifest: dict, pipeline_root: Path
+    run_dir: Path,
+    dataset_manifest: dict,
+    pipeline_root: Path,
+    tokenizer_path=None,
+    corpus_path=None,
 ) -> tuple[str, str]:
-    from bitcliff_pipeline.suites import longctx_retrieval as lcr
-
     recipe = dataset_manifest.get("longctx_recipe")
     if not recipe:
         return "SKIPPED", "no longctx_recipe recorded in dataset-manifest.json"
 
-    tokenizer_dir = pipeline_root / "models" / "hf"
-    tokenizer_id = infer_tokenizer_id(load_run(run_dir).manifest) or ""
-    tokenizer_path = tokenizer_dir / tokenizer_id
+    # Reuse whatever was given to `package()` for reconstruction if present
+    # (the same reconstruction path); otherwise fall back to the same
+    # locally-cached-only auto-detection the 2a-machinery check uses.
+    if tokenizer_path is None:
+        tokenizer_id = infer_tokenizer_id(load_run(run_dir).manifest) or ""
+        tokenizer_path = pipeline_root / "models" / "hf" / tokenizer_id
+    if corpus_path is None:
+        corpus_path = pipeline_root / "corpora" / "pg1184-monte-cristo.txt"
+    tokenizer_path = Path(tokenizer_path)
+    corpus_path = Path(corpus_path)
+
     if not tokenizer_path.exists():
         return (
             "SKIPPED",
             f"tokenizer not cached locally at {tokenizer_path}; not downloading",
         )
-
-    corpus_path = pipeline_root / "corpora" / "pg1184-monte-cristo.txt"
     if not corpus_path.exists():
         return (
             "SKIPPED",
             f"2b corpus not cached locally at {corpus_path}; not downloading",
         )
-    corpus_text = corpus_path.read_text(encoding="utf-8")
-    actual_sha = hashlib.sha256(corpus_text.encode("utf-8")).hexdigest()
-    if actual_sha != recipe["corpus_sha256"]:
-        return (
-            "FAIL",
-            f"local corpus sha256 {actual_sha} != registered "
-            f"{recipe['corpus_sha256']}",
-        )
-
-    try:
-        tokenizer = _load_tokenizer_offline(tokenizer_path)
-    except Exception as exc:  # pragma: no cover - environment dependent
-        return "SKIPPED", f"could not load tokenizer offline: {exc}"
 
     entries = []
-    for combo in recipe["combos"]:
-        rebuilt = lcr.build_items(
-            tokenizer,
-            corpus_text,
-            recipe["corpus_sha256"],
-            n_items=combo["n_items"],
-            seed=combo["seed"],
-            variant=combo["variant"],
-            target_tokens=combo["target_tokens"],
-        )
-        entries += [(it.id, it.prompt_tokens, list(it.expected)) for it in rebuilt]
+    try:
+        for combo in recipe["combos"]:
+            # Same reconstruction path package() uses for key/depths/
+            # n_answer_tokens: vendored generator + tokenizer + a corpus
+            # verified against the registered sha256.
+            raw_items = _rebuild_longctx_raw_items(
+                tokenizer_path,
+                corpus_path,
+                recipe["corpus_sha256"],
+                n_items=combo["n_items"],
+                seed=combo["seed"],
+                variant=combo["variant"],
+                target_tokens=combo["target_tokens"],
+            )
+            for raw in raw_items:
+                item_id = _longctx_wrapper_id(
+                    combo["variant"], combo["target_tokens"], combo["seed"],
+                    raw["index"],
+                )
+                entries.append((item_id, raw["gen_prompt_ids"], raw["match_strings"]))
+    except ValueError as exc:
+        return "FAIL", str(exc)
+    except Exception as exc:  # pragma: no cover - environment dependent
+        return "SKIPPED", f"could not load tokenizer offline: {exc}"
 
     digest = longctx_verification_digest(entries)
     if digest == recipe["verification_digest"]:
@@ -734,7 +923,9 @@ def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:
     )
 
 
-def verify_recipe(run_dir: Path, out_dir: Path) -> tuple[str, str]:
+def verify_recipe(
+    run_dir: Path, out_dir: Path, tokenizer_path=None, corpus_path=None
+) -> tuple[str, str]:
     run_dir = Path(run_dir)
     out_dir = Path(out_dir)
     dataset_manifest = json.loads(
@@ -743,7 +934,9 @@ def verify_recipe(run_dir: Path, out_dir: Path) -> tuple[str, str]:
     pipeline_root = _default_pipeline_root(run_dir)
 
     if dataset_manifest.get("longctx_recipe"):
-        return _verify_longctx_recipe(run_dir, dataset_manifest, pipeline_root)
+        return _verify_longctx_recipe(
+            run_dir, dataset_manifest, pipeline_root, tokenizer_path, corpus_path
+        )
     return _verify_2a_machinery(pipeline_root)
 
 
@@ -753,13 +946,54 @@ def verify_recipe(run_dir: Path, out_dir: Path) -> tuple[str, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("run_dir", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--verify-recipe", action="store_true")
+    parser.add_argument(
+        "--tokenizer-path",
+        type=Path,
+        default=None,
+        help=(
+            "HF tokenizer directory (e.g. models/hf/Qwen2.5-1.5B-Instruct). "
+            "REQUIRED if the run contains longctx_retrieval items: used to "
+            "reconstruct the registered key/depths/n_answer_tokens metadata "
+            "(PREREG §11) via the vendored generator, and (with "
+            "--verify-recipe) to verify the reconstruction digest. Ignored, "
+            "and not required, for a run with no longctx_retrieval items."
+        ),
+    )
+    parser.add_argument(
+        "--corpus-path",
+        type=Path,
+        default=None,
+        help=(
+            "Local 2b corpus text file (Gutenberg PG #1184, stripped), "
+            "verified against the registered sha256 (PREREG §3.1 / "
+            "CORPUS_MANIFEST.md §1) before use. REQUIRED if the run "
+            "contains longctx_retrieval items. Never downloaded — the run "
+            "fails loudly instead of fetching anything."
+        ),
+    )
     args = parser.parse_args(argv)
 
-    stats = package(args.run_dir, args.out)
+    run_peek = load_run(args.run_dir)
+    has_longctx = any(it.get("suite") == LONGCTX_SUITE for it in run_peek.items)
+    if has_longctx and (args.tokenizer_path is None or args.corpus_path is None):
+        parser.error(
+            "run contains longctx_retrieval items: --tokenizer-path and "
+            "--corpus-path are required to reconstruct the registered "
+            "key/depths/n_answer_tokens metadata (PREREG §11)"
+        )
+
+    stats = package(
+        args.run_dir,
+        args.out,
+        tokenizer_path=args.tokenizer_path,
+        corpus_path=args.corpus_path,
+    )
     print(f"packaged {stats['run_id']} -> {stats['out_dir']}")
     for suite, count in sorted(stats["suite_record_counts"].items()):
         print(f"  {suite}: {count} items")
@@ -768,7 +1002,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  excluded: {target} ({excl['reason']})")
 
     if args.verify_recipe:
-        status, message = verify_recipe(args.run_dir, args.out)
+        status, message = verify_recipe(
+            args.run_dir,
+            args.out,
+            tokenizer_path=args.tokenizer_path,
+            corpus_path=args.corpus_path,
+        )
         print(f"verify-recipe: {status} — {message}")
         if status == "FAIL":
             return 1

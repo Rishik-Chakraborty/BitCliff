@@ -54,6 +54,11 @@ MANIFEST = {
 SENTINEL_PROMPT_TEXT = "SENTINEL_DOCUMENT_TOKEN_98efbe3c_do_not_publish"
 SENTINEL_TOKENS = [11111, 22222, 33333, 44444, 55555]
 
+# Placeholder paths for tests that monkeypatch `_rebuild_longctx_raw_items`
+# out entirely — never actually opened, since the real function never runs.
+FAKE_TOKENIZER_PATH = Path("unused-fake-tokenizer-dir")
+FAKE_CORPUS_PATH = Path("unused-fake-corpus.txt")
+
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,6 +148,37 @@ def _grades_for(items: list[dict], quant_label: str) -> list[dict]:
     ]
 
 
+def _fake_needle_texts(key: str, count: int) -> list[str]:
+    # Only the name before the colon is meant to be recoverable — the digits
+    # here stand in for a passcode value that must never surface anywhere.
+    return [f"{key}: {9000 + i}\n" for i in range(count)]
+
+
+def _install_fake_longctx_rebuild(
+    monkeypatch, key: str = "Tariq", depths=(0.1, 0.9), n_answer_tokens: int = 7
+) -> None:
+    """Monkeypatch `_rebuild_longctx_raw_items` (the one function that ever
+    touches a real tokenizer/corpus) so package()'s reconstruction path can
+    be exercised with no real tokenizer or corpus file on disk."""
+
+    def _fake_rebuild(
+        tokenizer_path, corpus_path, corpus_sha256, n_items, seed, variant, target_tokens
+    ):
+        return [
+            {
+                "index": i,
+                "needle_texts": _fake_needle_texts(key, len(depths)),
+                "needle_depths": list(depths),
+                "n_answer_tokens": n_answer_tokens,
+                "gen_prompt_ids": [1000 + i, 2000 + i, 3000 + i],
+                "match_strings": [f"{9000 + i}"],
+            }
+            for i in range(n_items)
+        ]
+
+    monkeypatch.setattr(pkg, "_rebuild_longctx_raw_items", _fake_rebuild)
+
+
 def _build_run_dir(tmp_path: Path, name: str, items: list[dict]) -> Path:
     run_dir = tmp_path / "runs" / name
     run_dir.mkdir(parents=True)
@@ -190,13 +226,20 @@ def test_private_path_in_run_dir_raises(tmp_path):
 
 
 @pytest.fixture
-def clean_run_dir(tmp_path):
+def clean_run_dir(tmp_path, monkeypatch):
+    _install_fake_longctx_rebuild(monkeypatch)
     return _build_run_dir(tmp_path, "clean-run", _items())
+
+
+def _package_clean(run_dir, out_dir):
+    return pkg.package(
+        run_dir, out_dir, tokenizer_path=FAKE_TOKENIZER_PATH, corpus_path=FAKE_CORPUS_PATH
+    )
 
 
 def test_longctx_prompt_and_tokens_absent_from_every_produced_byte(tmp_path, clean_run_dir):
     out_dir = tmp_path / "dist" / "dataset-clean-run"
-    pkg.package(clean_run_dir, out_dir)
+    _package_clean(clean_run_dir, out_dir)
 
     forbidden = [
         SENTINEL_PROMPT_TEXT,
@@ -213,7 +256,7 @@ def test_longctx_prompt_and_tokens_absent_from_every_produced_byte(tmp_path, cle
 
 def test_longctx_record_still_published_with_id_and_outputs(tmp_path, clean_run_dir):
     out_dir = tmp_path / "dist" / "dataset-clean-run"
-    pkg.package(clean_run_dir, out_dir)
+    _package_clean(clean_run_dir, out_dir)
 
     lines = (out_dir / "longctx_retrieval.jsonl").read_text().splitlines()
     assert len(lines) == 1
@@ -228,9 +271,118 @@ def test_longctx_record_still_published_with_id_and_outputs(tmp_path, clean_run_
     assert rec["rungs"]["Q4_K_M"]["sha256"] == MANIFEST["Q4_K_M"]["sha256"]
 
 
+def test_longctx_reconstruction_injects_key_depths_n_answer_tokens(tmp_path, clean_run_dir):
+    """CRITICAL fix: PREREG §11 requires key/depths/n_answer_tokens on
+    published longctx records. Real items.jsonl records don't carry them, so
+    package() reconstructs them via the vendored-generator rebuild path
+    (here, `_rebuild_longctx_raw_items` is monkeypatched by
+    `clean_run_dir` to avoid needing a real tokenizer/corpus)."""
+    out_dir = tmp_path / "dist" / "dataset-clean-run"
+    _package_clean(clean_run_dir, out_dir)
+
+    rec = json.loads((out_dir / "longctx_retrieval.jsonl").read_text().splitlines()[0])
+    assert rec["config"] == {
+        "variant": "fakevariant",
+        "target_tokens": 100,
+        "seed": 999,
+        "index": 0,
+    }
+    assert rec["key"] == "Tariq"
+    assert rec["depths"] == [0.1, 0.9]
+    assert rec["n_answer_tokens"] == 7
+    # The fake needle texts embed a stand-in passcode digit string
+    # ("9000") next to the key — it must never leak into "key".
+    assert "9000" not in json.dumps(rec["key"])
+
+
+def test_longctx_reconstruction_id_mismatch_hard_fails(tmp_path, monkeypatch):
+    """CRITICAL fix: reconstruction disagreeing with the run (e.g. the
+    rebuild returns a different index set than the run's items) must hard
+    fail, not silently skip or warn — and must not leave a partial package
+    behind."""
+
+    def _mismatched_rebuild(
+        tokenizer_path, corpus_path, corpus_sha256, n_items, seed, variant, target_tokens
+    ):
+        # Off-by-five index shift: nothing rebuilt claims index 0, which is
+        # what the run's only longctx item actually needs.
+        return [
+            {
+                "index": i + 5,
+                "needle_texts": _fake_needle_texts("Tariq", 1),
+                "needle_depths": [0.5],
+                "n_answer_tokens": 4,
+                "gen_prompt_ids": [1, 2, 3],
+                "match_strings": ["4242"],
+            }
+            for i in range(n_items)
+        ]
+
+    monkeypatch.setattr(pkg, "_rebuild_longctx_raw_items", _mismatched_rebuild)
+    run_dir = _build_run_dir(tmp_path, "mismatch-run", _items())
+    out_dir = tmp_path / "dist" / "dataset-mismatch-run"
+
+    with pytest.raises(
+        pkg.ReconstructionMismatch, match="longctx_retrieval-fakevariant-t100-s999-0000"
+    ):
+        pkg.package(
+            run_dir, out_dir, tokenizer_path=FAKE_TOKENIZER_PATH, corpus_path=FAKE_CORPUS_PATH
+        )
+
+    assert not out_dir.exists()
+
+
+def test_longctx_run_requires_tokenizer_and_corpus_path(tmp_path):
+    """CRITICAL fix: --tokenizer-path / --corpus-path (here, the keyword
+    args) are required exactly when the run contains longctx_retrieval
+    items — package() must refuse (before writing anything) rather than
+    publish records missing the registered metadata."""
+    run_dir = _build_run_dir(tmp_path, "no-recon-args", _items())
+    out_dir = tmp_path / "dist" / "dataset-no-recon-args"
+
+    with pytest.raises(ValueError, match="tokenizer"):
+        pkg.package(run_dir, out_dir)
+
+    assert not out_dir.exists()
+
+
+def test_build_longctx_metadata_is_additive_not_all_or_nothing():
+    """IMPORTANT 1 fix: config, allowlisted extras, and reconstructed
+    fields all layer together rather than one replacing the others."""
+    item = {
+        "id": "longctx_retrieval-fakevariant-t100-s999-0007",
+        "prompt": "must never appear in the result",
+        "prompt_tokens": [1, 2, 3],
+        "expected": ["9"],
+    }
+    reconstructed = {"key": "Mei", "depths": [0.3], "n_answer_tokens": 5}
+
+    meta = pkg.build_longctx_metadata(item, reconstructed)
+
+    assert meta["id"] == item["id"]
+    assert meta["config"] == {
+        "variant": "fakevariant",
+        "target_tokens": 100,
+        "seed": 999,
+        "index": 7,
+    }
+    assert meta["key"] == "Mei"
+    assert meta["depths"] == [0.3]
+    assert meta["n_answer_tokens"] == 5
+    assert "prompt" not in meta
+    assert "prompt_tokens" not in meta
+
+
+def test_extract_key_never_returns_the_passcode_digits():
+    key = pkg._extract_key(["Tariq: 8721\n", "Tariq: 6442\n"])
+    assert key == "Tariq"
+    assert "8721" not in json.dumps(key)
+    assert "6442" not in json.dumps(key)
+
+
 def test_arithmetic_and_spectacle_prompts_are_published(tmp_path, clean_run_dir):
     out_dir = tmp_path / "dist" / "dataset-clean-run"
-    pkg.package(clean_run_dir, out_dir)
+    _package_clean(clean_run_dir, out_dir)
 
     arithmetic_lines = (out_dir / "arithmetic.jsonl").read_text().splitlines()
     assert len(arithmetic_lines) == 2
@@ -248,7 +400,7 @@ def test_arithmetic_and_spectacle_prompts_are_published(tmp_path, clean_run_dir)
 
 def test_retired_retrieval_suite_excluded(tmp_path, clean_run_dir):
     out_dir = tmp_path / "dist" / "dataset-clean-run"
-    stats = pkg.package(clean_run_dir, out_dir)
+    stats = _package_clean(clean_run_dir, out_dir)
 
     assert not (out_dir / "retrieval.jsonl").exists()
     assert "retrieval" not in stats["suite_record_counts"]
@@ -259,7 +411,7 @@ def test_retired_retrieval_suite_excluded(tmp_path, clean_run_dir):
 
 def test_manifest_counts_and_exclusions_correct(tmp_path, clean_run_dir):
     out_dir = tmp_path / "dist" / "dataset-clean-run"
-    pkg.package(clean_run_dir, out_dir)
+    _package_clean(clean_run_dir, out_dir)
 
     manifest = json.loads((out_dir / "dataset-manifest.json").read_text())
     assert manifest["suite_record_counts"] == {
@@ -280,8 +432,8 @@ def test_manifest_counts_and_exclusions_correct(tmp_path, clean_run_dir):
 def test_deterministic_double_run_byte_identical(tmp_path, clean_run_dir):
     out_dir_1 = tmp_path / "dist" / "dataset-run-1"
     out_dir_2 = tmp_path / "dist" / "dataset-run-2"
-    pkg.package(clean_run_dir, out_dir_1)
-    pkg.package(clean_run_dir, out_dir_2)
+    _package_clean(clean_run_dir, out_dir_1)
+    _package_clean(clean_run_dir, out_dir_2)
 
     files_1 = sorted(p.relative_to(out_dir_1) for p in out_dir_1.rglob("*") if p.is_file())
     files_2 = sorted(p.relative_to(out_dir_2) for p in out_dir_2.rglob("*") if p.is_file())

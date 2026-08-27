@@ -289,5 +289,7 @@ for all suites, with these exclusions:
 
    Pre-0B ticket: verify llama-cpp create_completion populates finish_reason='length' on truncation (the token path's truncated flag depends on it) before any confirmatory run.
 
+   Pre-0B ticket: record corpus_sha256 (and suite config) in each run's manifest.json so dataset packaging can positively identify 2a vs 2b runs instead of the seed-signature heuristic (OPEN_QUESTIONS §4b).
+
 **Not in this plan:** anything from Phase 0B onward (confirmatory runs, site,
 launch) — those keep their own plans.
