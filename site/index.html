@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BitCliff Playground — Qwen2.5-1.5B pilot</title>
+<meta name="description" content="Watch a quantized LLM lose its mind as you drag the bits out. Pilot playground for BitCliff.">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-row">
+    <a class="wordmark" href="#/ladder/" title="BitCliff">Bit<span class="wordmark-accent">Cliff</span></a>
+
+    <nav class="model-tabs" aria-label="Model">
+      <button class="model-tab is-active" type="button" aria-current="page">
+        Qwen2.5-1.5B-Instruct
+      </button>
+    </nav>
+
+    <nav class="view-toggle" aria-label="View">
+      <button class="view-tab" data-view="ladder" type="button">Ladder</button>
+      <button class="view-tab" data-view="ab" type="button">A/B</button>
+    </nav>
+
+    <button class="copy-link-btn" type="button" id="copy-link-btn">
+      <span class="copy-link-icon" aria-hidden="true">&#128279;</span> Copy link
+    </button>
+  </div>
+</header>
+
+<div class="banners">
+  <div class="banner banner-disclaimer" role="note">
+    <strong>Exploratory pilot data</strong> — for demonstration; not the registered measurements.
+  </div>
+  <div class="banner banner-browse-only" role="note">
+    Qwen2.5-1.5B-Instruct — browse-only, precomputed outputs. Live prompt box is a future phase; this build is a static site over the pilot-0a fixtures.
+  </div>
+</div>
+
+<main id="app" class="app">
+  <!-- rendered by app.js -->
+  <p class="loading">Loading fixtures&hellip;</p>
+</main>
+
+<footer class="site-footer">
+  <p>
+    Data: <code>bitcliff/pipeline/runs/pilot-0a</code> &middot; Qwen2.5-1.5B-Instruct &middot;
+    deterministic decoding (seed 42, temp 0, top_k 1) &middot;
+    exploratory pilot, thrown away at the freeze per the pre-registration.
+  </p>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
