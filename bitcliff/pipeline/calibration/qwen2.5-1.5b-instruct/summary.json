@@ -1,0 +1,15 @@
+{
+  "f16_path": "models/f16/Qwen2.5-1.5B-Instruct-f16.gguf",
+  "f16_sha256": "954b449288dd7989c3ddc193666c88d1bb43857c1a2468d04e422b47cc234fe4",
+  "factual_qa": {
+    "chosen": "M3",
+    "in_band": false,
+    "measurements": {
+      "M1": 0.114,
+      "M2": 0.112,
+      "M3": 0.11
+    },
+    "note": "no candidate mix landed in [0.6, 0.85]; falling back to M3 per \u00a77, disclosing out-of-band F16 accuracy 0.11"
+  },
+  "model_id": "qwen2.5-1.5b-instruct"
+}
