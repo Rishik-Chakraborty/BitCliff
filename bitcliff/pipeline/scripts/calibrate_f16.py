@@ -68,7 +68,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -342,38 +341,157 @@ def load_and_verify_corpus(path: Path = CORPUS_PATH, expected_sha256: str = CORP
     return text
 
 
+def _load_fetch_wikidata_aliases_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "fetch_wikidata_aliases", FETCH_ALIASES_SCRIPT
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _fetch_aliases_resilient(
+    fwa, qids: list[str], max_retries: int = 8, base_sleep: float = 2.0
+) -> tuple[dict[str, list[str]], int]:
+    """Batch-fetch aliases exactly like `fwa.fetch_aliases`, using its own
+    `entities_url`/`_get_json`/`parse_entities_response`/`chunk` helpers
+    unmodified, but with exponential backoff on transient HTTP errors
+    (429 Too Many Requests in particular -- the plain `fwa.fetch_aliases`
+    has no retry and dies on the first one, which this deliberately wide
+    841-QID union run hits reliably)."""
+    import urllib.error
+
+    aliases: dict[str, list[str]] = {}
+    n_missing = 0
+    batches = fwa.chunk(qids, fwa.BATCH_SIZE)
+    for i, batch in enumerate(batches):
+        url = fwa.entities_url(batch)
+        for attempt in range(max_retries):
+            try:
+                data = fwa._get_json(url)
+                break
+            except urllib.error.HTTPError as e:
+                if attempt == max_retries - 1:
+                    raise
+                sleep_s = base_sleep * (2 ** attempt)
+                print(
+                    f"  batch {i + 1}/{len(batches)}: {e} -- retrying in {sleep_s:.0f}s "
+                    f"(attempt {attempt + 1}/{max_retries})",
+                    file=sys.stderr,
+                )
+                time.sleep(sleep_s)
+        batch_aliases = fwa.parse_entities_response(data)
+        aliases.update(batch_aliases)
+        n_missing += len(batch) - len(batch_aliases)
+        print(f"  batch {i + 1}/{len(batches)}: {len(batch)} ids -> {len(batch_aliases)} resolved", file=sys.stderr)
+        if i < len(batches) - 1:
+            time.sleep(fwa.SLEEP_SECONDS)
+    return aliases, n_missing
+
+
 def ensure_alias_mapping(
     n_items: int = FACTUAL_QA_N_ITEMS,
     seed: int = FACTUAL_QA_SEED,
     out_path: Path = ALIAS_MAPPING_PATH_SEED2718,
+    mixes: tuple[tuple[str, tuple[float, ...] | None], ...] = (
+        ("M1", None), ("M2", M2_WEIGHTS), ("M3", M3_WEIGHTS),
+    ),
 ) -> Path:
     """PREREG §3.4 branch (b), reparameterized by seed per the overnight
     work order: build the Wikidata alias-augmentation mapping for the
-    confirmatory-seed record draw via the SAME mechanical, output-blind
-    machinery already used (and committed) for the characterization seed
-    7411 -- `scripts/fetch_wikidata_aliases.py`, invoked as a subprocess so
-    this module never re-implements (or risks drifting from) its fetch/
-    parse/write logic. Idempotent: does nothing if `out_path` already
-    exists. MUST be called before any factual_qa generation for the
-    confirmatory seed (output-blind rule)."""
+    confirmatory-seed record draw, via the SAME mechanical, output-blind
+    fetch/parse machinery already used (and committed) for the
+    characterization seed 7411 -- `scripts/fetch_wikidata_aliases.py`'s
+    `fetch_aliases`/`parse_entities_response`, loaded and called directly
+    (not subclassed or reimplemented) so this never drifts from that
+    module's logic. Idempotent: does nothing if `out_path` already exists.
+    MUST be called before any factual_qa generation for the confirmatory
+    seed (output-blind rule).
+
+    **Why this covers the UNION of all three §7 mixes, not just one draw**
+    (a widening of `fetch_wikidata_aliases.py`'s own single-draw
+    `build_mapping`, discovered while building this harness): §7's mixes
+    change the PER-DECILE DRAW COUNT (`weights` -> `_apportion_counts`
+    -> `takes`), and `picked_records` draws each decile with
+    `rng.sample(decile, take)` against one shared, sequentially-advancing
+    `random.Random(seed)` -- a different `take` for decile i changes how
+    much of that shared RNG stream decile i consumes, which shifts every
+    later decile's draw too. So M1/M2/M3 at the SAME seed pick materially
+    DIFFERENT 500-record subsets (measured: only ~120-142 of M2's/M3's
+    ~450/444 unique object QIDs overlap with M1's). Building the mapping
+    for only one mix (as the seed-7411 precedent does, since that draw is
+    never re-mixed) would leave most of M2's and M3's items unaugmented.
+    This function instead unions `picked_records(seed=seed, weights=w)`
+    over every registered mix `w` before fetching -- still one uniform
+    rule ("fetch every sampled record's object entity's English label +
+    aliases"), still zero per-item selection, still run and committed
+    before any model output is read; only the SET of QIDs handed to that
+    rule is widened to match what this calibration actually grades.
+    """
     if out_path.exists():
         return out_path
-    subprocess.run(
-        [
-            sys.executable,
-            str(FETCH_ALIASES_SCRIPT),
-            "--n-items",
-            str(n_items),
-            "--seed",
-            str(seed),
-            "--out",
-            str(out_path),
-        ],
-        check=True,
-        cwd=str(REPO_ROOT),
+
+    fwa = _load_fetch_wikidata_aliases_module()
+
+    from datasets import load_dataset
+
+    print(f"loading akariasai/PopQA test split (for alias mapping, seed={seed})...", file=sys.stderr)
+    ds = load_dataset("akariasai/PopQA", split="test")
+
+    qids: set[str] = set()
+    per_mix_counts: dict[str, int] = {}
+    for name, weights in mixes:
+        picked = factual_qa.picked_records(ds, n_items, seed, weights=weights)
+        mix_qids = {factual_qa.object_qid(r) for r in picked}
+        per_mix_counts[name] = len(mix_qids)
+        qids |= mix_qids
+    qids_sorted = sorted(qids)
+    print(
+        f"seed={seed}: union of {[name for name, _ in mixes]} draws -> "
+        f"{len(qids_sorted)} unique object QIDs (per-mix: {per_mix_counts})",
+        file=sys.stderr,
     )
-    if not out_path.exists():
-        raise RuntimeError(f"fetch_wikidata_aliases.py did not produce {out_path}")
+
+    aliases, n_missing = _fetch_aliases_resilient(fwa, qids_sorted)
+    n_with_aliases = len(aliases)
+    n_aliases_total = sum(len(v) for v in aliases.values())
+    n_aliases_mean = round(n_aliases_total / n_with_aliases, 3) if n_with_aliases else 0.0
+
+    header = {
+        "retrieval_date": datetime.date.today().isoformat(),
+        "rule": fwa.AUGMENTATION_RULE,
+        "endpoint": (
+            f"{fwa.WIKIDATA_API}?action=wbgetentities&ids=...&props=aliases|labels"
+            f"&languages=en&format=json"
+        ),
+        "batch_size": fwa.BATCH_SIZE,
+        "n_items_sampled": n_items,
+        "seed": seed,
+        "n_qids": len(qids_sorted),
+        "n_qids_resolved": n_with_aliases,
+        "n_qids_missing": n_missing,
+        "n_aliases_total": n_aliases_total,
+        "n_aliases_mean_per_qid": n_aliases_mean,
+        "mixes_unioned": [name for name, _ in mixes],
+        "per_mix_qid_counts": per_mix_counts,
+        "note": (
+            "Widened from a single-draw mapping (the seed-7411 precedent) to "
+            "the UNION of picked_records(seed, weights=w) over every "
+            "registered §7 mix: different mixes draw materially different "
+            "record subsets at the same seed (different per-decile take "
+            "counts shift the shared RNG stream). See "
+            "scripts/calibrate_f16.py::ensure_alias_mapping docstring."
+        ),
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps({"_meta": header, "aliases": aliases}, indent=2, sort_keys=True) + "\n")
+    print(
+        f"wrote {out_path} ({n_with_aliases}/{len(qids_sorted)} QIDs resolved, "
+        f"{n_aliases_total} aliases total)",
+        file=sys.stderr,
+    )
     return out_path
 
 
