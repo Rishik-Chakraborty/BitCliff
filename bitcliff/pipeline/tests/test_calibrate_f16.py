@@ -163,6 +163,80 @@ def test_calibrate_ladder_is_deterministic():
 
 
 # ---------------------------------------------------------------------------
+# _run_longctx_calibration — the orchestration around calibrate_ladder,
+# exercised with a fake runner (only needs .measure(variant, target_tokens)
+# -> float|None and .abort_reason; no real model/tokenizer/corpus).
+# ---------------------------------------------------------------------------
+
+
+class _FakeLongctxRunner:
+    def __init__(self, acc_by_variant_and_t):
+        self.acc_by_variant_and_t = acc_by_variant_and_t
+        self.abort_reason = None
+        self.calls = []
+
+    def measure(self, variant, target_tokens):
+        self.calls.append((variant, target_tokens))
+        return self.acc_by_variant_and_t.get((variant, target_tokens))
+
+
+def test_run_longctx_calibration_falls_through_to_8192_when_whole_4096_ladder_too_easy():
+    # Real scenario observed on qwen2.5-7b-instruct: every t=4096 variant
+    # the binary search touches (up to and including the ladder's hardest
+    # entry) scores above the band -- nothing in-band at 4096 at all. §7:
+    # "the search runs at target_tokens 4096 first, then 8192" -- this
+    # must not silently give up; it must search the full ladder at 8192.
+    acc = {}
+    for v in LADDER:
+        acc[(v, 4096)] = 0.99  # too easy everywhere at 4096
+    # At 8192 the task gets harder; multivalue4 (hardest) lands in-band.
+    for v in LADDER:
+        acc[(v, 8192)] = 0.95
+    acc[("multivalue4", 8192)] = 0.70
+
+    runner = _FakeLongctxRunner(acc)
+    result = cal._run_longctx_calibration(runner)
+
+    assert result["aborted"] is False
+    assert result["search_4096"]["chosen"] is None
+    assert result["chosen_variant"] == "multivalue4"
+    assert result["chosen_target_tokens"] == 8192
+    assert result["search_8192_full_ladder"]["chosen"] == "multivalue4"
+
+
+def test_run_longctx_calibration_stays_none_when_nothing_in_band_at_either_target():
+    acc = {(v, 4096): 0.99 for v in LADDER}
+    acc.update({(v, 8192): 0.95 for v in LADDER})  # still too easy everywhere
+
+    runner = _FakeLongctxRunner(acc)
+    result = cal._run_longctx_calibration(runner)
+
+    assert result["chosen_variant"] is None
+    assert result["chosen_target_tokens"] is None
+
+
+def test_run_longctx_calibration_normal_path_when_4096_finds_hardest_in_band():
+    # Sanity check that the ordinary (4096-succeeds) path is untouched by
+    # the new fallback: hardest-in-band found directly at 4096, same
+    # variant out-of-band-low at 8192 -> 4096 stands.
+    acc_by_variant = {
+        "single": 0.98, "multikey4": 0.95, "multikey8": 0.90, "multikey12": 0.87,
+        "multivalue2": 0.80, "multiquery2": 0.70, "multiquery3": 0.62,
+        "multivalue3": 0.50, "multiquery4": 0.30, "multivalue4": 0.10,
+    }
+    acc = {(v, 4096): a for v, a in acc_by_variant.items()}
+    # multiquery3 (the hardest-in-band-at-4096 variant) at 8192:
+    acc[("multiquery3", 8192)] = 0.20  # out of band -> 4096 should stand
+
+    runner = _FakeLongctxRunner(acc)
+    result = cal._run_longctx_calibration(runner)
+
+    assert "search_8192_full_ladder" not in result
+    assert result["chosen_variant"] == "multiquery3"
+    assert result["chosen_target_tokens"] == 4096
+
+
+# ---------------------------------------------------------------------------
 # choose_target_tokens — the 4096-vs-8192 tie-break.
 # ---------------------------------------------------------------------------
 

@@ -672,8 +672,24 @@ def _run_longctx_calibration(runner: "LongctxRunner") -> dict:
 
     hardest = search_4096["chosen"]
     if hardest is None:
-        result["chosen_variant"] = None
-        result["chosen_target_tokens"] = None
+        # §7: "the search runs at target_tokens 4096 first, then 8192" --
+        # if NOTHING on the ladder is in-band at 4096 (every variant,
+        # including the hardest, scored above the band -- too easy even at
+        # the ladder's end), that is not the end of the search: run the
+        # SAME full ladder search at t=8192, since a longer document can
+        # itself make retrieval harder. (Observed for real: qwen2.5-7b-
+        # instruct scored >=0.98 on every measured t=4096 variant up to
+        # and including multivalue4.)
+        def measure_at_8192_full(variant: str) -> float:
+            acc = runner.measure(variant, 8192)
+            if acc is None:
+                raise TokenizerMismatchAbort(runner.abort_reason or "tokenizer mismatch")
+            return acc
+
+        search_8192_full = calibrate_ladder(LONGCTX_LADDER, measure_at_8192_full)
+        result["search_8192_full_ladder"] = search_8192_full
+        result["chosen_variant"] = search_8192_full["chosen"]
+        result["chosen_target_tokens"] = 8192 if search_8192_full["chosen"] is not None else None
         return result
 
     acc_4096 = search_4096["measurements"][hardest]
