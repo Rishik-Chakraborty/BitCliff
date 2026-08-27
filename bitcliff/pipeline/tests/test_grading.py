@@ -31,10 +31,12 @@ def test_detect_loop_false_on_normal_text():
     assert not detect_loop("")
 
 
-def test_grade_record_retrieval_correct():
-    item = EvalItem("retrieval-1-000", "retrieval", "codes?", ("1234", "5678"))
+def test_grade_record_longctx_retrieval_correct():
+    item = EvalItem("longctx_retrieval-1-000", "longctx_retrieval", "codes?", ("1234", "5678"))
     g = grade_record({item.id: item}, record(item, "They are 1234 and 5678."))
-    assert g == GradeResult("retrieval-1-000", "retrieval", "Q4_K_M", "correct", False, False)
+    assert g == GradeResult(
+        "longctx_retrieval-1-000", "longctx_retrieval", "Q4_K_M", "correct", False, False
+    )
 
 
 def test_grade_record_truncation_is_separate_flag():
@@ -52,7 +54,7 @@ def test_grade_record_spectacle_unscored():
 
 def test_grades_jsonl_roundtrip(tmp_path):
     grades = [
-        GradeResult("a", "retrieval", "Q8_0", "correct", False, False),
+        GradeResult("a", "longctx_retrieval", "Q8_0", "correct", False, False),
         GradeResult("b", "arithmetic", "Q2_K", "wrong", True, True),
     ]
     path = tmp_path / "grades.jsonl"

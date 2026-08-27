@@ -14,16 +14,32 @@ from .report import add_retention, aggregate, plot_retention, write_csv, write_j
 
 
 def build_items(config: LadderConfig, base_dir: Path) -> list[EvalItem]:
-    from .suites import arithmetic, retrieval, spectacle
+    # longctx_retrieval items are NOT built here: that suite needs a real
+    # tokenizer and a verified corpus, and exposes its own
+    # `longctx_retrieval.build_items(tokenizer, corpus_text, corpus_sha256,
+    # ...)` builder for run configs that wire those in.
+    from .suites import arithmetic, arithmetic_twins, factual_qa, spectacle
 
     items: list[EvalItem] = []
     suites = config.suites
-    if "retrieval" in suites:
-        s = suites["retrieval"]
-        items += retrieval.generate_items(s["n_items"], s["n_pairs"], s["seed"])
     if "arithmetic" in suites:
         s = suites["arithmetic"]
         items += arithmetic.load_gsm8k_items(s["n_items"], s["seed"])
+    if "arithmetic_twins" in suites:
+        # config block: `arithmetic_twins: {seed: 1301}` — n is fixed at all
+        # 47 template pairs (94 items) by PREREG §3.3, so only the seed is
+        # configurable.
+        items += arithmetic_twins.load_pair_items(suites["arithmetic_twins"]["seed"])
+    if "factual_qa" in suites:
+        s = suites["factual_qa"]
+        alias_augmentation_path = (
+            base_dir / s["alias_augmentation_path"]
+            if s.get("alias_augmentation_path")
+            else None
+        )
+        items += factual_qa.load_popqa_items(
+            s["n_items"], s["seed"], alias_augmentation_path=alias_augmentation_path
+        )
     if "spectacle" in suites:
         items += spectacle.load_items(base_dir / suites["spectacle"]["path"])
     return items
@@ -65,6 +81,11 @@ def run_pipeline(
         items_path.write_text(
             "".join(json.dumps(dataclasses.asdict(i)) + "\n" for i in items)
         )
+        max_tokens_by_suite = {
+            suite: scfg["max_tokens"]
+            for suite, scfg in config.suites.items()
+            if isinstance(scfg, dict) and "max_tokens" in scfg
+        }
         for label, path in paths.items():
             out_path = run_dir / "outputs" / f"{label}.jsonl"
             if out_path.exists():
@@ -73,13 +94,22 @@ def run_pipeline(
             print(f"generating {label} ({len(items)} items)...")
             llm = llm_factory(path, config.generation)
             records = gen_mod.run_items(
-                llm, items, label, manifest[label]["sha256"], config.generation
+                llm, items, label, manifest[label]["sha256"], config.generation,
+                max_tokens_by_suite,
             )
             gen_mod.write_records(records, out_path)
 
     if stage in ("grade", "all"):
         items = [
-            EvalItem(**{**d, "expected": tuple(d["expected"]) if d["expected"] else None})
+            EvalItem(
+                **{
+                    **d,
+                    "expected": tuple(d["expected"]) if d["expected"] else None,
+                    "prompt_tokens": (
+                        tuple(d["prompt_tokens"]) if d.get("prompt_tokens") else None
+                    ),
+                }
+            )
             for d in map(json.loads, (run_dir / "items.jsonl").read_text().splitlines())
         ]
         items_by_id = {i.id: i for i in items}
@@ -108,7 +138,8 @@ def run_pipeline(
 
     if stage in ("report", "all"):
         grades = read_grades(run_dir / "grades.jsonl")
-        rows = add_retention(aggregate(grades))
+        spectacle_labels = frozenset(q.label for q in config.quants if q.spectacle_only)
+        rows = add_retention(aggregate(grades, spectacle_only_labels=spectacle_labels))
         write_csv(rows, run_dir / "results.csv")
         write_json(rows, run_dir / "results.json")
         ladder_order = ["F16"] + [q.label for q in config.quants]

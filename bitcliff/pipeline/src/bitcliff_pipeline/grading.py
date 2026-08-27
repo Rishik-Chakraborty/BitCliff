@@ -5,12 +5,16 @@ from pathlib import Path
 
 from .generate import OutputRecord
 from .items import EvalItem
-from .suites import arithmetic, retrieval, spectacle
+from .suites import arithmetic, factual_qa, longctx_retrieval, spectacle
 
 GRADERS = {
-    "retrieval": retrieval.grade,
+    "longctx_retrieval": longctx_retrieval.grade,
     "arithmetic": arithmetic.grade,
+    # PREREG §3.3: twins are graded by the identical §3.2 rule — same
+    # function object, deliberately not a copy.
+    "arithmetic_twins": arithmetic.grade,
     "spectacle": spectacle.grade,
+    "factual_qa": factual_qa.grade,
 }
 
 

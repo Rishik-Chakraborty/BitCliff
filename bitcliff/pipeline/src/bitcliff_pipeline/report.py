@@ -6,7 +6,7 @@ from pathlib import Path
 from .grading import GradeResult
 
 
-def aggregate(grades: list[GradeResult]) -> list[dict]:
+def aggregate(grades: list[GradeResult], spectacle_only_labels: frozenset[str] = frozenset()) -> list[dict]:
     groups: dict[tuple[str, str], list[GradeResult]] = defaultdict(list)
     for g in grades:
         if g.state != "unscored":
@@ -27,6 +27,7 @@ def aggregate(grades: list[GradeResult]) -> list[dict]:
                 "truncated": sum(1 for g in gs if g.truncated),
                 "loops": sum(1 for g in gs if g.loop),
                 "accuracy": (correct + 0.5 * partial) / n,
+                "spectacle_only": quant_label in spectacle_only_labels,
             }
         )
     return rows
@@ -59,6 +60,10 @@ def write_json(rows: list[dict], path: Path) -> None:
 
 
 def plot_retention(rows: list[dict], ladder_order: list[str], path: Path) -> None:
+    """
+    Plot retention vs quant level. Spectacle-only rungs are marked with a "*" suffix
+    on their x-axis tick labels, and a footnote is added to the xlabel.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
@@ -67,11 +72,30 @@ def plot_retention(rows: list[dict], ladder_order: list[str], path: Path) -> Non
     path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8, 5))
     suites = sorted({r["suite"] for r in rows})
+
+    # Determine which labels are spectacle_only
+    spectacle_only_set = {
+        r["quant_label"] for r in rows if r.get("spectacle_only", False)
+    }
+
     for suite in suites:
         by_label = {r["quant_label"]: r["retention"] for r in rows if r["suite"] == suite}
         ys = [by_label.get(label) for label in ladder_order]
         ax.plot(ladder_order, ys, marker="o", label=suite)
-    ax.set_xlabel("quant level (exploratory pilot — numbers are thrown away)")
+
+    # Create x-axis labels with "*" suffix for spectacle_only rungs
+    x_labels = [
+        f"{label}*" if label in spectacle_only_set else label
+        for label in ladder_order
+    ]
+    ax.set_xticks(range(len(ladder_order)))
+    ax.set_xticklabels(x_labels)
+
+    # Add footnote to xlabel if there are spectacle_only rungs
+    xlabel = "quant level (exploratory pilot — numbers are thrown away)"
+    if spectacle_only_set:
+        xlabel += "\n* spectacle-only rung — excluded from reference tables"
+    ax.set_xlabel(xlabel)
     ax.set_ylabel("retention vs F16")
     ax.set_ylim(bottom=0)
     ax.legend()

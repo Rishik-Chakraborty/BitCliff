@@ -287,5 +287,7 @@ for all suites, with these exclusions:
    registered rule (F16-only, local), its amendment is appended and stamped,
    and 0B confirmatory begins per aws-ops.
 
+   Pre-0B ticket: verify llama-cpp create_completion populates finish_reason='length' on truncation (the token path's truncated flag depends on it) before any confirmatory run.
+
 **Not in this plan:** anything from Phase 0B onward (confirmatory runs, site,
 launch) — those keep their own plans.

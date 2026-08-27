@@ -40,7 +40,9 @@ def run_items(
     quant_label: str,
     model_sha256: str,
     gen: GenSettings,
+    max_tokens_by_suite: dict[str, int] | None = None,
 ) -> list[OutputRecord]:
+    max_tokens_by_suite = max_tokens_by_suite or {}
     try:
         llama_cpp_version = importlib.metadata.version("llama-cpp-python")
     except importlib.metadata.PackageNotFoundError:
@@ -51,14 +53,27 @@ def run_items(
     )
     records = []
     for item in items:
-        out = llm.create_chat_completion(
-            messages=[{"role": "user", "content": item.prompt}],
-            max_tokens=gen.max_tokens,
-            temperature=gen.temperature,
-            top_k=gen.top_k,
-            seed=gen.seed,
-        )
-        choice = out["choices"][0]
+        budget = max_tokens_by_suite.get(item.suite, gen.max_tokens)
+        if item.prompt_tokens is not None:
+            out = llm.create_completion(
+                prompt=list(item.prompt_tokens),
+                max_tokens=budget,
+                temperature=gen.temperature,
+                top_k=gen.top_k,
+                seed=gen.seed,
+            )
+            choice = out["choices"][0]
+            text = choice["text"]
+        else:
+            out = llm.create_chat_completion(
+                messages=[{"role": "user", "content": item.prompt}],
+                max_tokens=budget,
+                temperature=gen.temperature,
+                top_k=gen.top_k,
+                seed=gen.seed,
+            )
+            choice = out["choices"][0]
+            text = choice["message"]["content"]
         records.append(
             OutputRecord(
                 item_id=item.id,
@@ -66,9 +81,9 @@ def run_items(
                 quant_label=quant_label,
                 model_sha256=model_sha256,
                 prompt=item.prompt,
-                text=choice["message"]["content"],
+                text=text,
                 finish_reason=choice.get("finish_reason") or "stop",
-                gen_settings=dataclasses.asdict(gen),
+                gen_settings={**dataclasses.asdict(gen), "max_tokens_effective": budget},
                 machine=machine,
             )
         )

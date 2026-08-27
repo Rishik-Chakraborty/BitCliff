@@ -1,0 +1,14 @@
+model_id: qwen2.5-1.5b-instruct
+hf_repo: bartowski/Qwen2.5-1.5B-Instruct-GGUF
+f16_path: models/f16/Qwen2.5-1.5B-Instruct-f16.gguf
+quants:
+  - {label: Q4_K_M, filename: Qwen2.5-1.5B-Instruct-Q4_K_M.gguf, uploader: bartowski, imatrix: true}
+  - {label: Q2_K,   filename: Qwen2.5-1.5B-Instruct-Q2_K.gguf,   uploader: bartowski, imatrix: true}
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 640          # generous budget; the runbook checks F16 never hits it (spec §6)
+  n_ctx: 4096
+suites:
+  factual_qa: {n_items: 500, seed: 7411, max_tokens: 64, alias_augmentation_path: data/popqa_wikidata_aliases_seed7411.json}

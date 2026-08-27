@@ -1,0 +1,2148 @@
+{
+  "_meta": {
+    "batch_size": 50,
+    "endpoint": "https://www.wikidata.org/w/api.php?action=wbgetentities&ids=...&props=aliases|labels&languages=en&format=json",
+    "n_aliases_mean_per_qid": 2.892,
+    "n_aliases_total": 1264,
+    "n_items_sampled": 500,
+    "n_qids": 437,
+    "n_qids_missing": 0,
+    "n_qids_resolved": 437,
+    "retrieval_date": "2026-08-26",
+    "rule": "English label + English aliases of the object entity, fetched for every sampled record, output-blind.",
+    "seed": 7411
+  },
+  "aliases": {
+    "Q1029497": [
+      "Elizabeth Bear",
+      "Sarah Bear Elizabeth Wishnevsky",
+      "Sarah Wishnevsky"
+    ],
+    "Q10307893": [
+      "John Shiban"
+    ],
+    "Q103114": [
+      "Michel Houellebecq"
+    ],
+    "Q1042": [
+      "Republic of Seychelles",
+      "SEY",
+      "Seychelles",
+      "sc"
+    ],
+    "Q1044478": [
+      "shmup",
+      "shoot 'em up",
+      "shoot 'em up video games",
+      "shoot em up",
+      "stg"
+    ],
+    "Q1054574": [
+      "romance film",
+      "romantic film"
+    ],
+    "Q1066407": [
+      "Charles Richard Webb",
+      "Charles Webb"
+    ],
+    "Q1086291": [
+      "Christophe Beck"
+    ],
+    "Q10922": [
+      "HC punk",
+      "extreme punk",
+      "hXc",
+      "hardcore",
+      "hardcore punk",
+      "hardcore punk rock",
+      "hardcore rock",
+      "heavy punk",
+      "speed music"
+    ],
+    "Q11063": [
+      "astronomer"
+    ],
+    "Q1134356": [
+      "David Alexander Macaulay",
+      "David Macaulay"
+    ],
+    "Q1134799": [
+      "Elizabeth \"Liz\" Sarnoff",
+      "Elizabeth Sarnoff",
+      "Liz Sarnoff"
+    ],
+    "Q1136331": [
+      "electro jazz",
+      "future jazz",
+      "jazztronica",
+      "nu jazz",
+      "nu-jazz"
+    ],
+    "Q11366": [
+      "alt rock",
+      "alt-rock",
+      "alternative rock"
+    ],
+    "Q11399": [
+      "rock",
+      "rock music"
+    ],
+    "Q11401": [
+      "disco rap",
+      "hip hop",
+      "hip-hop",
+      "rap",
+      "rap music"
+    ],
+    "Q11415883": [
+      "Hiroshi Mukai",
+      "Kan Mukai",
+      "Mukai Kan"
+    ],
+    "Q1142926": [
+      "Impfondo",
+      "impfondo city"
+    ],
+    "Q1143118": [
+      "Interactive eBooks",
+      "interactive adventure",
+      "interactive book",
+      "interactive fiction"
+    ],
+    "Q1156039": [
+      "S. Shankar",
+      "Shankar",
+      "Shankar Shanmugam"
+    ],
+    "Q1174460": [
+      "David Benson French",
+      "David French"
+    ],
+    "Q1174676": [
+      "David Hare",
+      "Sir David Hare"
+    ],
+    "Q1176593": [
+      "David Seltzer"
+    ],
+    "Q11853913": [
+      "Barry Cook"
+    ],
+    "Q1189206": [
+      "ARTS",
+      "Aeon of Strife",
+      "Arena Real-Time Strategy",
+      "MOBA",
+      "action real-time strategy",
+      "hero brawler",
+      "multiplayer online battle arena",
+      "multiplayer online battle arena video game",
+      "team brawler"
+    ],
+    "Q1190876": [
+      "Bromsgrove"
+    ],
+    "Q1195859": [
+      "Nobuyuki Fukumoto"
+    ],
+    "Q1203": [
+      "John Lennon"
+    ],
+    "Q12233": [
+      "Santander",
+      "Santander, Spain"
+    ],
+    "Q123351": [
+      "Maurice Joseph Micklewhite",
+      "Maurice Joseph Micklewhite, Jr.",
+      "Michael Caine",
+      "Sir Michael Caine",
+      "Sir Michael Caine, CBE"
+    ],
+    "Q1236442": [
+      "Wesley Strick"
+    ],
+    "Q123829": [
+      "Dzhordzh Gershvin",
+      "George Gershwin",
+      "George Jacob Gershwin",
+      "Gershwin",
+      "Jacob Bruskin Gershowitz",
+      "Jacob Gershvin",
+      "Jacob Gershwine"
+    ],
+    "Q124527": [
+      "James Grover Thurber",
+      "James Thurber"
+    ],
+    "Q124721": [
+      "Andr\u00e9 Jobin",
+      "Job"
+    ],
+    "Q1253831": [
+      "Julian Gilbey",
+      "Julian Sebastian Gilbey"
+    ],
+    "Q1260861": [
+      "tactical shooter"
+    ],
+    "Q127330": [
+      "Frank Zappa"
+    ],
+    "Q1277467": [
+      "Eugene Pinchback Toomer",
+      "Jean Toomer"
+    ],
+    "Q1281119": [
+      "Owen Wister"
+    ],
+    "Q1283017": [
+      "Eddie \"Cleanhead\" Vinson",
+      "Eddie Cleanhead Vinson",
+      "Eddie L. Vinson",
+      "Eddie Vinson"
+    ],
+    "Q128746": [
+      "I. Berlin",
+      "Irving Berlin",
+      "Israel Balin",
+      "Israel Baline",
+      "Israel Isidore Baline"
+    ],
+    "Q1299": [
+      "Beatals",
+      "John, Paul, George, and Ringo",
+      "The Beatles",
+      "The Beetles",
+      "The Lads from Liverpool",
+      "The Silver Beatles",
+      "The Silver Beetles"
+    ],
+    "Q131578": [
+      "J Pop",
+      "J-pop",
+      "Japanese pop",
+      "Japanese popular music",
+      "Jei poppu",
+      "jeipoppu",
+      "jpop"
+    ],
+    "Q1342183": [
+      "Fridrikh Ermler",
+      "Fridrikh Markovich Ermler"
+    ],
+    "Q1350636": [
+      "Joseph Pevney"
+    ],
+    "Q1356427": [
+      "Ernest Lehman",
+      "Ernest Paul Lehman"
+    ],
+    "Q13582652": [
+      "civil engineer",
+      "civil engineers"
+    ],
+    "Q1379849": [
+      "Church of Finland",
+      "Evangelical Lutheran Church of Finland",
+      "Lutheran Church of Finland"
+    ],
+    "Q1379958": [
+      "CCM",
+      "contemporary Christian music",
+      "inspirational music"
+    ],
+    "Q1382872": [
+      "Russel Crouse"
+    ],
+    "Q1387851": [
+      "Kay Gunnar Leopold Pollak",
+      "Kay Pollak"
+    ],
+    "Q139121": [
+      "Flying Lotus",
+      "Steven D. Bingley-Ellison",
+      "Steven Ellison"
+    ],
+    "Q1398367": [
+      "Alex Winter",
+      "Alexander Ross Winter"
+    ],
+    "Q1406447": [
+      "Mark David Protosevich",
+      "Mark Protosevich"
+    ],
+    "Q141673": [
+      "Jack Conway",
+      "Jack Ryan Conway"
+    ],
+    "Q142": [
+      "France",
+      "French Republic"
+    ],
+    "Q1421616": [
+      "Martha Mills Noxon",
+      "Marti Noxon"
+    ],
+    "Q14274": [
+      "Aarau",
+      "Aarau AG",
+      "city of Aarau"
+    ],
+    "Q1455": [
+      "field hockey",
+      "hockey",
+      "outdoor hockey"
+    ],
+    "Q145609": [
+      "Anne Hyde",
+      "Anne, Duchess of York"
+    ],
+    "Q148": [
+      "China PR",
+      "Communist China",
+      "P.R.C.",
+      "PR China",
+      "People's Republic of China",
+      "Red China",
+      "The PRC",
+      "cn",
+      "the People's Republic of China"
+    ],
+    "Q1490": [
+      "Edo",
+      "Jedo",
+      "Tokei",
+      "Tokio",
+      "Tokyo",
+      "Tokyo (Japan)",
+      "Tokyo Metropolis",
+      "Tokyo Metropolitan prefecture",
+      "Tokyo Prefecture",
+      "Tokyo, Japan",
+      "Tokyo-to",
+      "T\u00f4ky\u00f4",
+      "T\u00f4ky\u00f4-to",
+      "T\u014dky\u014d-to",
+      "Yedo"
+    ],
+    "Q1501413": [
+      "Gene Nelson",
+      "Leander Eugene Berg"
+    ],
+    "Q15099": [
+      "Asti province",
+      "Province of Asti",
+      "provincia di Asti"
+    ],
+    "Q15121": [
+      "Milan province",
+      "Milano province",
+      "province of Milan",
+      "provincia di Milano"
+    ],
+    "Q153579": [
+      "Stephen Sondheim"
+    ],
+    "Q154556": [
+      "Karl-Heinz Stockhausen",
+      "Karlheinz Stockhausen"
+    ],
+    "Q157148": [
+      "M.Gen.",
+      "MG",
+      "Maj.Gen.",
+      "Major general",
+      "major general",
+      "major-general",
+      "two-star general"
+    ],
+    "Q157443": [
+      "comedy film",
+      "comedy movie"
+    ],
+    "Q159": [
+      "RF",
+      "RU",
+      "RUS",
+      "Russia",
+      "Russian Federation"
+    ],
+    "Q159347": [
+      "King of Cool",
+      "Steve McQueen",
+      "Terrence Stephen McQueen"
+    ],
+    "Q15964676": [
+      "Vikas Bahl"
+    ],
+    "Q16": [
+      "CA",
+      "CAN",
+      "Canada"
+    ],
+    "Q16213443": [
+      "Chris Bender"
+    ],
+    "Q16216022": [
+      "Harish Raj"
+    ],
+    "Q1626388": [
+      "Karey Kirkpatrick"
+    ],
+    "Q163798": [
+      "Thrichur",
+      "Thrissivaperur",
+      "Thrissur",
+      "Thrissur, Kerala"
+    ],
+    "Q1645179": [
+      "Vera Caspary",
+      "Vera Louise Caspary"
+    ],
+    "Q1646482": [
+      "Lin-Manuel Miranda"
+    ],
+    "Q164674": [
+      "Stephen Poliakoff"
+    ],
+    "Q16567": [
+      "Arch City",
+      "Cbus",
+      "Columbus",
+      "Columbus, OH",
+      "Cowtown",
+      "Indie Art Capital",
+      "Kolumbus",
+      "The Biggest Small Town in America",
+      "The Discovery City"
+    ],
+    "Q1659739": [
+      "Alistair MacLeod"
+    ],
+    "Q167821": [
+      "Cameron Kay",
+      "Edgar Box",
+      "Eugene Luther Gore Vidal",
+      "Eugene Luther Vidal",
+      "Eugene Vidal",
+      "Gor Vidal",
+      "Gore Vidal",
+      "Katherine Everard"
+    ],
+    "Q1685876": [
+      "John Kander"
+    ],
+    "Q17": [
+      "Iapan",
+      "Iapon",
+      "Japan",
+      "Land of Rising Sun",
+      "Land of the Rising Sun",
+      "Nihon-koku",
+      "Nippon-koku",
+      "State of Japan"
+    ],
+    "Q1702628": [
+      "Brazilian Catholic Apostolic Church"
+    ],
+    "Q1706646": [
+      "Joseph Bologna"
+    ],
+    "Q172140": [
+      "Michael Crichton"
+    ],
+    "Q172203": [
+      "Philip III of France"
+    ],
+    "Q1750696": [
+      "Rex Ingram"
+    ],
+    "Q1754": [
+      "STHLM",
+      "Sthlm",
+      "Stockholm"
+    ],
+    "Q17859740": [
+      "Stephen Beresford"
+    ],
+    "Q183": [
+      "BRD",
+      "DE",
+      "DEU",
+      "FRG",
+      "Federal Republic of Germany",
+      "Germany"
+    ],
+    "Q183167": [
+      "G. K. C.",
+      "G. K. Chesterton",
+      "G.K. Chesterton",
+      "Gilbert Chesterton",
+      "Gilbert K. Chesterton",
+      "Gilbert Keith Chesterton"
+    ],
+    "Q185421": [
+      "Takashi Miike"
+    ],
+    "Q185928": [
+      "Enrico Nicola Mancini",
+      "Henry Mancini",
+      "Henry Nicola Mancini"
+    ],
+    "Q186472": [
+      "folk rock"
+    ],
+    "Q186485": [
+      "Billy Crystal",
+      "William Edward Crystal"
+    ],
+    "Q188459": [],
+    "Q188626": [
+      "SY",
+      "Sonic Youth"
+    ],
+    "Q188761": [
+      "Vestal Virgin",
+      "Vestal Virgins",
+      "vestal virgin",
+      "vestals"
+    ],
+    "Q190827": [
+      "Augustodunum",
+      "Autun",
+      "Bibracte"
+    ],
+    "Q191037": [
+      "Jim Henson"
+    ],
+    "Q191716": [
+      "Eugene Wesley Roddenberry",
+      "Gene Roddenberry"
+    ],
+    "Q192762": [
+      "Darren Aronofsky"
+    ],
+    "Q194436": [
+      "Jules Emile Frederic Massenet",
+      "Jules Massenet",
+      "Jules \u00c9mile Fr\u00e9d\u00e9ric Massenet"
+    ],
+    "Q195029": [
+      "Elmer Clifton",
+      "Elmer Clifton Forsyth"
+    ],
+    "Q196616": [
+      "Tarusa"
+    ],
+    "Q1981093": [
+      "Simon Armitage",
+      "Simon Robert Armitage"
+    ],
+    "Q20": [
+      "Kingdom of Norway",
+      "Norway"
+    ],
+    "Q200092": [
+      "horror film",
+      "horror movie"
+    ],
+    "Q2020488": [
+      "Bapsi Sidhwa"
+    ],
+    "Q202148": [
+      "Burt",
+      "Burt Reynolds",
+      "Burton Leon Reynolds, Jr.",
+      "Burton Milo Reynolds Jr."
+    ],
+    "Q205139": [
+      "Carl August Nielsen",
+      "Carl Nielsen"
+    ],
+    "Q208494": [
+      "industrial metal"
+    ],
+    "Q211098": [
+      "Reid G. Hoffman",
+      "Reid Garrett Hoffman",
+      "Reid Hoffman"
+    ],
+    "Q2117249": [
+      "Mathoura",
+      "Mathoura, New South Wales",
+      "Mathoura, New South Wales, Australia"
+    ],
+    "Q212984": [
+      "New Plymouth",
+      "New Plymouth, New Zealand"
+    ],
+    "Q214127": [
+      "genre painting",
+      "petit genre"
+    ],
+    "Q215": [
+      "Republic of Slovenia",
+      "Slovenia",
+      "Slovenija",
+      "si",
+      "slo",
+      "svn"
+    ],
+    "Q217037": [],
+    "Q219060": [
+      "PSE",
+      "Palestine",
+      "Palestinian Authority",
+      "Palestinian National Authority",
+      "State of Palestine"
+    ],
+    "Q219420": [
+      "Edward Albee",
+      "Edward Franklin Albee III"
+    ],
+    "Q2200": [
+      "City of Tuguegarao",
+      "Tuguegarao",
+      "Tuguegarao City",
+      "Tuguegarao, Cagayan"
+    ],
+    "Q223": [
+      "GL",
+      "GRL",
+      "Greenland",
+      "Greenlandia",
+      "Groenland",
+      "Kalaallit Nunaat"
+    ],
+    "Q2235128": [
+      "Tamura Yumi",
+      "Yumi Tamura"
+    ],
+    "Q224": [
+      "CRO",
+      "Croatia",
+      "HR",
+      "HRV",
+      "RH",
+      "Republic of Croatia"
+    ],
+    "Q225456": [
+      "Dirk Alan Shafer",
+      "Dirk Shafer"
+    ],
+    "Q2279877": [
+      "Hiroshi Takahashi",
+      "Takahashi Hiroshi"
+    ],
+    "Q228801": [
+      "Colleen Margaretta McCullough",
+      "Colleen McCullough"
+    ],
+    "Q229232": [
+      "Gloria Josephine Mae Swanson",
+      "Gloria Josephine May Swanson",
+      "Gloria Mae Swanson",
+      "Gloria May Josephine Svensson",
+      "Gloria Swanson",
+      "Josephine Swenson"
+    ],
+    "Q232273": [
+      "Isabel Coixet"
+    ],
+    "Q23436": [
+      "Athens of the North",
+      "Auld Reekie",
+      "City of Edinburgh",
+      "Edina",
+      "Edinburgh",
+      "Edinburgh, Scotland",
+      "Modern Athens"
+    ],
+    "Q2347152": [
+      "Mahesh Bhatt"
+    ],
+    "Q235555": [
+      "Nancy Jane Meyers",
+      "Nancy Meyers"
+    ],
+    "Q236630": [
+      "Marcel Pagnol"
+    ],
+    "Q238378": [
+      "Rhonda Byrne"
+    ],
+    "Q23848": [
+      "Dan Savio",
+      "Ennio Morricone",
+      "Leo Nichols"
+    ],
+    "Q238819": [
+      "Chou Chieh-lun",
+      "Jay Chou",
+      "President Chou",
+      "Zhou Jielun"
+    ],
+    "Q238970": [
+      "Banana Yoshimoto",
+      "Yoshimoto Banana"
+    ],
+    "Q239": [
+      "Brussels",
+      "Brussels (municipality)",
+      "Brussels City",
+      "City of Brussels"
+    ],
+    "Q23916": [
+      "ADV",
+      "AVG",
+      "Adventure",
+      "adventure game",
+      "adventure video game"
+    ],
+    "Q2395333": [
+      "Adam Horowitz"
+    ],
+    "Q2456797": [
+      "Sagisu Shiro",
+      "Sagisu Shiroh",
+      "Sagisu Shirou",
+      "Sagisu Shir\u014d",
+      "Shiro Sagisu",
+      "Shiroh Sagisu",
+      "Shirou Sagisu",
+      "Shirow Sagisu",
+      "Shir\u014d Sagisu"
+    ],
+    "Q24639": [
+      "City of Vancouver",
+      "Vancouver",
+      "Vancouver, BC",
+      "Vancouver, British Columbia"
+    ],
+    "Q2476978": [
+      "Yoshishige Yoshida"
+    ],
+    "Q251144": [
+      "Brian Theodore Tyler",
+      "Brian Tyler",
+      "Madsonik"
+    ],
+    "Q25161": [
+      "Roald Dahl",
+      "Wing Commander Roald Dahl"
+    ],
+    "Q25191": [],
+    "Q252": [
+      "Indonesia",
+      "Republic of Indonesia",
+      "id"
+    ],
+    "Q2532326": [
+      "Weston",
+      "Weston, WV",
+      "Weston, West Virginia"
+    ],
+    "Q25351": [
+      "Christian Mommsen",
+      "T. Mommsen",
+      "Theodor Mommsen",
+      "Theodore Mommsen"
+    ],
+    "Q2576503": [],
+    "Q2599": [
+      "Ian Iachimoe",
+      "James McCartney",
+      "Macca",
+      "Paul McCartney",
+      "Paul Ramon"
+    ],
+    "Q262102": [
+      "Debra Hill"
+    ],
+    "Q2643": [
+      "Carl Harrison",
+      "George Harrison",
+      "George O'Hara",
+      "George O'Hara Smith",
+      "George O'Hara-Smith",
+      "Nelson Wilbury",
+      "Spike Wilbury"
+    ],
+    "Q267524": [
+      "Gregory Hoblit",
+      "Gregory King Hoblit"
+    ],
+    "Q2679036": [
+      "Donald Douglas Harington",
+      "Donald Harington"
+    ],
+    "Q269": [
+      "Binkath",
+      "Chach",
+      "Choch",
+      "Shash",
+      "Shosh",
+      "Tashkand",
+      "Tashkent",
+      "Toshkent"
+    ],
+    "Q269692": [
+      "Barry Lee Levinson",
+      "Barry Levinson"
+    ],
+    "Q2708222": [
+      "Tarzana",
+      "Tarzana, CA",
+      "Tarzana, California",
+      "Tarzana, Los Angeles"
+    ],
+    "Q272203": [
+      "George Ivan Morrison",
+      "George Morrison",
+      "Ivan Morrison",
+      "Sir George Ivan Morrison",
+      "Sir George Morrison",
+      "Van Morrison",
+      "Van the Man"
+    ],
+    "Q273514": [
+      "Nabopolassar",
+      "\ud808\udc2d\ud808\udf28\ud808\ude28\ud808\udf08"
+    ],
+    "Q2736": [
+      "association football",
+      "association soccer",
+      "foot ball",
+      "football",
+      "footie",
+      "footy",
+      "futbol",
+      "futebol",
+      "soccer"
+    ],
+    "Q278816": [
+      "A J Quinnell",
+      "A. J. Quinnell",
+      "A.J. Quinnel",
+      "A.J. Quinnell",
+      "AJ Quinnell",
+      "Philip Nicholson"
+    ],
+    "Q28389": [
+      "scenarist",
+      "screen writer",
+      "screenplay writer",
+      "screenwriter",
+      "script writer",
+      "scriptwriter",
+      "writer"
+    ],
+    "Q284560": [
+      "Juan Manuel Puig Delledonne",
+      "Manuel Puig"
+    ],
+    "Q285769": [
+      "Clifton Ko",
+      "Clifton Ko Chi-Sum",
+      "Gao Zhisen",
+      "Ko Chi-Sum"
+    ],
+    "Q285856": [
+      "Bart Freundlich",
+      "Bartholomew Freundlich"
+    ],
+    "Q29": [
+      "Kingdom of Spain",
+      "Spain"
+    ],
+    "Q295542": [
+      "Paul Stanley",
+      "Stanley Bert Eisen",
+      "Stanley Eisen",
+      "Stanley Harvey Eisen"
+    ],
+    "Q2960275": [
+      "Charles Strouse"
+    ],
+    "Q298905": [
+      "Claude Beri Langmann",
+      "Claude Berri",
+      "Claude Berry",
+      "Claude Langmann"
+    ],
+    "Q299673": [
+      "Consort Liang",
+      "Empress Gonghuai",
+      "Liang Shi(Wife of Liu Da)"
+    ],
+    "Q30": [
+      "Merica",
+      "Murica",
+      "U. S.",
+      "U. S. A.",
+      "U.S. of America",
+      "US of A",
+      "US of America",
+      "United States",
+      "United States of America",
+      "the States",
+      "the U.S.",
+      "the U.S. of A",
+      "the U.S. of America",
+      "the U.S.A.",
+      "the US",
+      "the US of A",
+      "the US of America",
+      "the USA",
+      "the United States",
+      "the United States of America"
+    ],
+    "Q3001": [
+      "Paramaribo",
+      "Parbo"
+    ],
+    "Q302743": [
+      "Basu Bhattacharya"
+    ],
+    "Q302943": [
+      "Aaron Zigman"
+    ],
+    "Q3037185": [
+      "Dorothy Scarborough",
+      "Emily Dorothy Scarborough"
+    ],
+    "Q3061320": [
+      "Evan Goldberg"
+    ],
+    "Q3071": [
+      "punk",
+      "punk rock",
+      "punk rock music"
+    ],
+    "Q309709": [
+      "Thomas Arne",
+      "Thomas Augustine Arne",
+      "Thomas Augustus Arne"
+    ],
+    "Q309950": [
+      "Imamura Shohei",
+      "Shohei Imamura",
+      "Sh\u00f4hei Imamura"
+    ],
+    "Q3099599": [
+      "Gavin O'Connor"
+    ],
+    "Q3101208": [
+      "Masoud Kimiaei",
+      "Masoud Kimiai"
+    ],
+    "Q310556": [
+      "Damon Laurence Lindelof",
+      "Damon Lindelof"
+    ],
+    "Q311263": [
+      "Edmond Dantes",
+      "John Hughes",
+      "John Hughes Jr.",
+      "John Hughes, Jr."
+    ],
+    "Q312472": [
+      "Tinto Brass"
+    ],
+    "Q313092": [
+      "Trevor Charles Horn",
+      "Trevor Horn"
+    ],
+    "Q313540": [
+      "John Powell"
+    ],
+    "Q3136362": [
+      "Hiroshi Kawaguchi"
+    ],
+    "Q315062": [
+      "Bille August"
+    ],
+    "Q315374": [
+      "Michael Cacoyannis"
+    ],
+    "Q315750": [
+      "Brad Falchuk",
+      "Bradley Douglas Falchuk"
+    ],
+    "Q315756": [
+      "Mike Leigh"
+    ],
+    "Q315929": [
+      "Hormizd III"
+    ],
+    "Q316850": [
+      "Bob Ezrin",
+      "Robert Alan Ezrin"
+    ],
+    "Q3177645": [
+      "Jessica Bendinger"
+    ],
+    "Q31820": [
+      "Bill D'Elia"
+    ],
+    "Q3182435": [
+      "Manny Coto",
+      "Manuel Hector Coto"
+    ],
+    "Q318292": [
+      "Roger Corman",
+      "Roger William Corman"
+    ],
+    "Q318475": [
+      "Randy Newman"
+    ],
+    "Q319996": [
+      "Thomas Newman",
+      "Tom Newman"
+    ],
+    "Q3206": [
+      "State of WA",
+      "State of Western Australia",
+      "W. Aust.",
+      "W.A.",
+      "WA",
+      "Western Australia",
+      "Western Oz"
+    ],
+    "Q321660": [
+      "Gay, John",
+      "John Gay"
+    ],
+    "Q32661": [
+      "Jane Goldman",
+      "Jane Loretta Anne Goldman"
+    ],
+    "Q3267059": [
+      "Luke Davies"
+    ],
+    "Q3267592": [
+      "automobile magazine",
+      "automotive magazine",
+      "car magazine"
+    ],
+    "Q3282637": [
+      "film producer",
+      "motion picture producer",
+      "movie producer",
+      "producer"
+    ],
+    "Q3290385": [
+      "Marek Kanievska"
+    ],
+    "Q3295016": [
+      "Marshall Chess"
+    ],
+    "Q3336290": [
+      "Nat Cohen"
+    ],
+    "Q3350953": [
+      "Sandip Ray"
+    ],
+    "Q336059": [
+      "sci-fi TV",
+      "sci-fi television",
+      "sci-fi television show",
+      "science fiction TV",
+      "science fiction on television",
+      "science fiction television",
+      "science fiction television program",
+      "science fiction television show"
+    ],
+    "Q3372224": [
+      "Ingela Birgitta Forsman",
+      "Ingela Forsman",
+      "Pling"
+    ],
+    "Q33999": [
+      "actor",
+      "actors",
+      "actress",
+      "actresses",
+      "movie actress",
+      "movie actresses"
+    ],
+    "Q34": [
+      "Kingdom of Sweden",
+      "Sweden",
+      "Swedish Kingdom",
+      "se"
+    ],
+    "Q340": [
+      "City of Montreal",
+      "Montreal",
+      "Montreal, Canada",
+      "Montreal, Quebec",
+      "Montreal/Tiohtia:ke",
+      "Tiohtia:ke/Montreal",
+      "Ville de Montreal",
+      "Ville de Montr\u00e9al"
+    ],
+    "Q34404": [
+      "Crescent City",
+      "New Orleans",
+      "The Big Easy"
+    ],
+    "Q3446323": [
+      "Ch\u00e9n Z\u01d0qi\u0101n",
+      "Royston Tan",
+      "Tan Ji-khiam",
+      "T\u00e2n J\u00ed-khiam",
+      "\u9648\u5b50\u8c26"
+    ],
+    "Q346327": [
+      "Ada Township",
+      "Ada Township, MI",
+      "Ada Township, Michigan",
+      "Ada, MI",
+      "Ada, Michigan"
+    ],
+    "Q350422": [
+      "Walter Hill"
+    ],
+    "Q351503": [
+      "Gnaeus Domitius Ahenobarbus"
+    ],
+    "Q351547": [
+      "Bernard Malamud"
+    ],
+    "Q35171": [
+      "Grover Cleveland",
+      "Grover Cleveland Jr.",
+      "President Cleveland",
+      "S. Grover Cleveland",
+      "Stephen G. Cleveland",
+      "Stephen Grover Cleveland",
+      "Stephen Grover Cleveland Jr."
+    ],
+    "Q352725": [
+      "Richard Brinsley Butler Sheridan",
+      "Richard Brinsley Sheridan"
+    ],
+    "Q3536381": [
+      "Gautham Menon",
+      "Gautham Vasudev Menon"
+    ],
+    "Q3595234": [
+      "Ranjith",
+      "Ranjith Bala Krishnan Menon",
+      "Ranjith Balakrishnan"
+    ],
+    "Q36": [
+      "Poland",
+      "Republic of Poland"
+    ],
+    "Q3609": [
+      "bicycle road cycling",
+      "bicycle road race",
+      "cycle race",
+      "road bicycle race",
+      "road bicycle racing",
+      "road bike racing",
+      "road cycle racing",
+      "road cycling race"
+    ],
+    "Q3631402": [
+      "S-J",
+      "Shankar Jaikishan",
+      "Shankar-Jaikishan",
+      "Shankar\u2013Jaikishan",
+      "S\u2013J"
+    ],
+    "Q365726": [
+      "Nigel Cole"
+    ],
+    "Q36647": [
+      "Corcaigh",
+      "Cork",
+      "Cork City",
+      "Cork Liberties",
+      "Corke",
+      "Corke Lib.",
+      "Corke Liberties",
+      "Corke Libts."
+    ],
+    "Q366777": [
+      "Stone C. Gossard",
+      "Stone Carpenter Gossard",
+      "Stone Gossard"
+    ],
+    "Q36834": [
+      "composed by",
+      "composer",
+      "music by",
+      "music composed by",
+      "music composer"
+    ],
+    "Q369195": [
+      "Sam Mercer"
+    ],
+    "Q37067": [
+      "Andronicus II",
+      "Andronicus II Palaeologus",
+      "Andronikos II Palaiologos"
+    ],
+    "Q37073": [
+      "pop",
+      "pop music"
+    ],
+    "Q3772": [
+      "Quentin Tarantino"
+    ],
+    "Q37951": [
+      "Sapporo",
+      "sat poro pet"
+    ],
+    "Q379520": [
+      "Yu Hua"
+    ],
+    "Q38757": [
+      "Bert Brecht",
+      "Bertholt Brecht",
+      "Bertold Brecht",
+      "Bertolt Brecht",
+      "Bertolt Breht",
+      "Bertol\u02b9d Brekht",
+      "Bertol\u02b9t Brekht",
+      "Ber\u016dt\u02bbolt\u02bb\u016d B\u016drehit\u02bb\u016d",
+      "B\u016drehit\u02bb\u016d",
+      "Eugen Berthold Friedrich Brecht",
+      "Mpertolt Mprecht",
+      "Pei-t\u02bbo-erh-t\u02bbe Pu-lai-hsi-t\u02bbe",
+      "Pert\u014dl Pirekc\u1e6d",
+      "Pert\u014dl\u1e6d Pirekc\u1e6d",
+      "Per\u1e6d\u014dl\u1e6d Pire\u1e63\u1e6d",
+      "Pu-lai-hsi-t\u02bbe"
+    ],
+    "Q38848": [
+      "heavy metal",
+      "heavy metal music"
+    ],
+    "Q3915": [
+      "Analamanga",
+      "Antananarivo",
+      "Iarivo",
+      "Tananarive"
+    ],
+    "Q39792": [
+      "Jack Nicholson",
+      "John Nicholson"
+    ],
+    "Q4019959": [
+      "Rich Christiano"
+    ],
+    "Q4030": [
+      "Duke Elington",
+      "Duke Ellington",
+      "Edward Kennedy \"Duke\" Ellington",
+      "Mood Ellington"
+    ],
+    "Q404817": [
+      "Shangqiu"
+    ],
+    "Q406": [
+      "Istanbul"
+    ],
+    "Q408": [
+      "'Straya",
+      "Aussieland",
+      "Australia",
+      "Commonwealth of Australia",
+      "Down Under",
+      "New Holland",
+      "New Hollandia",
+      "Nova Hollandia",
+      "Oz",
+      "Stralia",
+      "Straya",
+      "Stria",
+      "The Commonwealth of Australia"
+    ],
+    "Q4115712": [
+      "Kauen",
+      "Kaunas",
+      "Kovna",
+      "Kovne",
+      "Kovno",
+      "Kowno"
+    ],
+    "Q41323": [
+      "American football",
+      "American rules football",
+      "football",
+      "gridiron football"
+    ],
+    "Q41428": [
+      "BR-RJ",
+      "Estado do Rio de Janeiro",
+      "RJ",
+      "Rio de Janeiro",
+      "Rio de Janeiro (state)",
+      "Rio de Janeiro State",
+      "State of Rio de Janeiro"
+    ],
+    "Q41466": [
+      "hockey",
+      "ice hockey"
+    ],
+    "Q420041": [
+      "Lynn Shelton"
+    ],
+    "Q421471": [
+      "Aksel Hennie"
+    ],
+    "Q42308": [
+      "Ch\u00e1rkiv",
+      "Harkov",
+      "Khar'kov",
+      "Kharkiv",
+      "Kharkoff",
+      "Kharkov"
+    ],
+    "Q4235": [
+      "Ashley O",
+      "Hannah Montana",
+      "Miley Cyrus",
+      "Miley Cyrus Love",
+      "Miley R. Cyrus",
+      "Miley Ray Hemsworth",
+      "Smiley Miley"
+    ],
+    "Q426360": [
+      "Tripp County",
+      "Tripp County, SD",
+      "Tripp County, South Dakota"
+    ],
+    "Q42973": [
+      "architect",
+      "building architects"
+    ],
+    "Q432": [
+      "Islam",
+      "Islamic religion",
+      "Mohammedanism",
+      "Muslim religion",
+      "al-\u2019isl\u0101m",
+      "religion of the Muslims"
+    ],
+    "Q43203": [
+      "Clint Eastwood",
+      "Clinton \"Clint\" Eastwood, Jr.",
+      "Clinton Eastwood",
+      "Clinton Eastwood Jr.",
+      "Clinton Eastwood, Jr."
+    ],
+    "Q432727": [
+      "Duchess Marie Eleonore of Cleves",
+      "Marie Eleonore of Cleves"
+    ],
+    "Q433913": [
+      "Jennifer Michael Hecht"
+    ],
+    "Q435126": [
+      "Georgia Byng",
+      "Georgia Chadwick",
+      "Georgia Mary Caroline Byng",
+      "Georgia Mary Caroline Chadwick",
+      "Lady Georgia Byng",
+      "Lady Georgia Chadwick",
+      "Lady Georgia Mary Caroline Byng",
+      "Lady Georgia Mary Caroline Chadwick"
+    ],
+    "Q437267": [
+      "Chris Carter",
+      "Christopher Carl Carter"
+    ],
+    "Q437589": [
+      "Svatopluk I"
+    ],
+    "Q439292": [
+      "Francine Rivers",
+      "Francine Sandra Rivers"
+    ],
+    "Q4394767": [
+      "Bradnor Buckner",
+      "Ed Earl Repp",
+      "Edward Earl Repp"
+    ],
+    "Q44131": [
+      "Werner Herzog",
+      "Werner Herzog Stipeti\u0107"
+    ],
+    "Q44221": [
+      "Sean Penn"
+    ],
+    "Q44414": [
+      "Randolph Parker",
+      "Randolph Severn Parker",
+      "Randolph Severn Parker III",
+      "Trey Parker"
+    ],
+    "Q447240": [
+      "Elinor Glyn",
+      "Elinor Sutherland"
+    ],
+    "Q4567898": [
+      "Tao Lin"
+    ],
+    "Q456862": [
+      "Amber Benson"
+    ],
+    "Q460765": [
+      "Lesli Linka Glatter"
+    ],
+    "Q4610556": [
+      "model",
+      "poser",
+      "sitter"
+    ],
+    "Q46120": [
+      "William Alfred \"Willy\" Fowler",
+      "William Alfred Fowler",
+      "William Fowler"
+    ],
+    "Q463455": [
+      "American Baptist Churches USA",
+      "American Baptist Convention",
+      "Northern Baptist Convention"
+    ],
+    "Q46491": [
+      "Osiris"
+    ],
+    "Q4678352": [
+      "Adado"
+    ],
+    "Q469357": [
+      "Massy Tadjedin"
+    ],
+    "Q4714370": [
+      "Aleena Gibson",
+      "Anna-Lena Gibson, born H\u00f6gdahl"
+    ],
+    "Q474195": [
+      "Predoi",
+      "Prettau"
+    ],
+    "Q47426": [
+      "Milton Friedman",
+      "Milton Galbraith Friedman"
+    ],
+    "Q4756623": [
+      "Andrew Clements",
+      "Andrew Elborn Clements",
+      "Andrew Elburn Clements"
+    ],
+    "Q4762939": [
+      "Angelo Pizzo"
+    ],
+    "Q4799057": [
+      "Arthur Herzog, Jr."
+    ],
+    "Q48247": [
+      "Jofra",
+      "Jufra"
+    ],
+    "Q483118": [
+      "Ben Affleck",
+      "Ben Affleck-Boldt",
+      "Ben Geza Affleck",
+      "Ben Geza Affleck-Boldt",
+      "Ben G\u00e9za Affleck",
+      "Ben G\u00e9za Affleck-Boldt",
+      "Benjami Geza Affleck",
+      "Benjami G\u00e9za Affleck",
+      "Benjamin Affleck-Boldt",
+      "Benjamin Geza Affleck-Boldt"
+    ],
+    "Q4838100": [
+      "Baburaj",
+      "M S Baburaj",
+      "Mohammad Sabir Baburaj"
+    ],
+    "Q484686": [
+      "Kwak Jae-yong"
+    ],
+    "Q487069": [
+      "Mikael Salomon"
+    ],
+    "Q49243": [
+      "City of Riverside",
+      "Riverside",
+      "Riverside, CA",
+      "Riverside, California"
+    ],
+    "Q495234": [
+      "Gregory County",
+      "Gregory County, SD",
+      "Gregory County, South Dakota"
+    ],
+    "Q495577": [
+      "G-Dragon",
+      "GD",
+      "GD of Big Bang",
+      "Kwon Ji-yong"
+    ],
+    "Q4992193": [
+      "Kristian Levring"
+    ],
+    "Q500150": [],
+    "Q5010538": [
+      "Ravi Kinagi"
+    ],
+    "Q50182": [
+      "Ira Sachs"
+    ],
+    "Q503997": [
+      "David Benioff",
+      "David Benioff Friedman",
+      "David Friedman"
+    ],
+    "Q5043163": [
+      "Carma Hinton"
+    ],
+    "Q5044979": [
+      "Caroline Benn",
+      "Caroline Middleton Benn",
+      "Caroline Middleton DeCamp",
+      "Caroline Middleton DeCamp Benn",
+      "Viscountess Stansgate"
+    ],
+    "Q504627": [
+      "Barbet Schroeder"
+    ],
+    "Q506779": [
+      "Franklin County",
+      "Franklin County, IN",
+      "Franklin County, Indiana"
+    ],
+    "Q508333": [
+      "Robert Duncan McNeil",
+      "Robert Duncan McNeill"
+    ],
+    "Q5090832": [
+      "Chan Kwok-Fu",
+      "Chen Guo Fu",
+      "Chen Kuo-Fu",
+      "Kuo-Fu Chen"
+    ],
+    "Q509794": [
+      "David Kyle Logan",
+      "David Logan"
+    ],
+    "Q5112009": [
+      "Christopher Bulis"
+    ],
+    "Q513657": [
+      "Carol O'Brien Sobieski",
+      "Carol Sobieski"
+    ],
+    "Q514305": [
+      "Suelette Dreyfus"
+    ],
+    "Q51476": [
+      "Charles Albert Browning",
+      "Tod Browning"
+    ],
+    "Q51581": [
+      "Howard Hawks",
+      "Howard Winchester Hawks"
+    ],
+    "Q520001": [
+      "Sam Riley",
+      "Samuel Peter W. Riley"
+    ],
+    "Q526989": [
+      "Mei Lanfang"
+    ],
+    "Q5292980": [
+      "Don Le",
+      "Don Pham Le"
+    ],
+    "Q53011": [
+      "Dario Argento"
+    ],
+    "Q530150": [
+      "Ang Duang",
+      "Ang Duong",
+      "N\u1eb7c \u00d4ng Giun",
+      "N\u1eb7c \u00d4ng \u0110\u00f4n",
+      "Preah Hirak Rama Thipadei Ang Duong",
+      "Preah Raja Samdach Preah Hariraksha Rama Suriya Maha Isvara Adipati"
+    ],
+    "Q53028": [
+      "Giuliano Montaldo"
+    ],
+    "Q5308381": [
+      "Paul Andrew Williams"
+    ],
+    "Q531759": [
+      "Peter Mayle"
+    ],
+    "Q532263": [
+      "Ching Siu-tung",
+      "Siu-Tung Ching"
+    ],
+    "Q532336": [
+      "Sarah Dessen"
+    ],
+    "Q534599": [
+      "Conanight",
+      "Damon Francis Knight",
+      "Damon Knight",
+      "Stuart Fleming"
+    ],
+    "Q537057": [
+      "Jeff Abbott"
+    ],
+    "Q545381": [
+      "Rex Beach",
+      "Rex E. Beach",
+      "Rex Ellingwood Beach"
+    ],
+    "Q551678": [
+      "Frederick Loewe",
+      "Friedrich L\u00f6we"
+    ],
+    "Q55211": [
+      "Mohsen Makhmalbaf"
+    ],
+    "Q55258": [
+      "Stephen Frears"
+    ],
+    "Q55411": [
+      "Ernst Wilhelm Wenders",
+      "Vimu Vendasu",
+      "Vimu Vend\u00e2su",
+      "Wim Wenders"
+    ],
+    "Q55420": [
+      "Alfred Zinnemann",
+      "Fred Zinnemann"
+    ],
+    "Q55438": [
+      "Mario Bava"
+    ],
+    "Q5548271": [
+      "Georgina Lowe"
+    ],
+    "Q555092": [
+      "Jasper Joseph Inman Kane",
+      "Joseph Kane"
+    ],
+    "Q5593289": [
+      "Graham Streeter"
+    ],
+    "Q5603": [
+      "Andrej Varchol",
+      "Andrej Warhol",
+      "Andrew Warhol",
+      "Andrew Warhola",
+      "Andy Warhol",
+      "Drella"
+    ],
+    "Q5606541": [
+      "Gregg Hale"
+    ],
+    "Q56093": [
+      "Blake Edwards",
+      "William Crump"
+    ],
+    "Q5672147": [
+      "Harry S. Webb",
+      "Harry Webb"
+    ],
+    "Q57244": [
+      "Paul Hindemith"
+    ],
+    "Q5729871": [
+      "Henry Ware Eliot"
+    ],
+    "Q575268": [
+      "Watseka",
+      "Watseka, IL",
+      "Watseka, Illinois"
+    ],
+    "Q584105": [
+      "music game",
+      "music video game"
+    ],
+    "Q5849": [
+      "rugby",
+      "rugby union"
+    ],
+    "Q598929": [
+      "new musick",
+      "post-punk"
+    ],
+    "Q60": [
+      "Capital of the World",
+      "Center of the Universe",
+      "City of New York",
+      "Empire City",
+      "N. Y., N. Y.",
+      "NY City",
+      "NY, NY",
+      "New York (NY)",
+      "New York (city)",
+      "New York City",
+      "New York City (NYC)",
+      "New York City, NY",
+      "New York City, New York",
+      "New York City, New York, United States",
+      "New York City, USA",
+      "New York City, United States",
+      "New York City, United States of America",
+      "New York, N.Y.",
+      "New York, NY",
+      "New York, New York, USA",
+      "city of New York",
+      "the five boroughs"
+    ],
+    "Q6010": [
+      "MCing",
+      "emceeing",
+      "flowing",
+      "rap",
+      "rap music",
+      "rapping",
+      "rhyming",
+      "spitting"
+    ],
+    "Q60100": [
+      "Roland Emmerich"
+    ],
+    "Q6078": [
+      "Brickhard",
+      "Dre",
+      "The Mechanic"
+    ],
+    "Q610877": [
+      "Dutch Renaissance architecture",
+      "Northern Renaissance"
+    ],
+    "Q6111464": [
+      "Jack Burditt"
+    ],
+    "Q61347": [
+      "Uwe Boll"
+    ],
+    "Q6143871": [
+      "James Swallow"
+    ],
+    "Q621490": [
+      "Bob Balaban",
+      "Robert Elmer \"Bob\" Balaban",
+      "Robert Elmer Balaban"
+    ],
+    "Q629088": [
+      "Calabasas"
+    ],
+    "Q631369": [
+      "Chris Claremont",
+      "Christopher S. Claremont"
+    ],
+    "Q6318053": [
+      "Justin C Richards",
+      "Justin Richards"
+    ],
+    "Q633": [
+      "Godfather of Grunge",
+      "Neil Percival Kenneth Robert Ragland Young",
+      "Neil Percival Young",
+      "Neil Young",
+      "Shakey"
+    ],
+    "Q63534": [
+      "Theodore Eustace",
+      "Theodore Eustace, Count Palatine of Sulzbach"
+    ],
+    "Q6423963": [
+      "Anglican Church",
+      "Anglicanism"
+    ],
+    "Q644917": [
+      "Rozz Williams"
+    ],
+    "Q6499321": [
+      "Laura Poitras"
+    ],
+    "Q6523747": [
+      "Leo Friedman"
+    ],
+    "Q653159": [
+      "Graham King"
+    ],
+    "Q653645": [
+      "Ari Folman"
+    ],
+    "Q6558727": [
+      "Lise Mayer",
+      "Lise Meyer"
+    ],
+    "Q668": [
+      "Al Hind",
+      "Bharat Ganarajya",
+      "Bharata",
+      "Bharatvarsh",
+      "Hindoostan",
+      "Hindustan",
+      "India",
+      "Indostan",
+      "Republic of India",
+      "Tenjiku",
+      "Tianzhu"
+    ],
+    "Q668049": [
+      "Johann Albrecht I Herzog von Mecklenburg",
+      "John Albert I, Duke of Mecklenburg"
+    ],
+    "Q6749421": [
+      "Mani Sharma",
+      "Yanamandra Venkata Subrahmanya Sharma"
+    ],
+    "Q6790861": [
+      "Matthew Lessner"
+    ],
+    "Q6893613": [
+      "Mohan Raman"
+    ],
+    "Q6894703": [
+      "Moira Buffini"
+    ],
+    "Q69843": [
+      "Kurt Neumann"
+    ],
+    "Q711682": [
+      "Dick Clement"
+    ],
+    "Q713066": [
+      "Tim Van Patten",
+      "Timothy \"Tim\" Van Patten",
+      "Van Patten"
+    ],
+    "Q714960": [
+      "Gouverneur Morris",
+      "Gouverneur Morris I",
+      "Governor Morris"
+    ],
+    "Q7149971": [
+      "Paul Cornell",
+      "Paul Douglas Cornell"
+    ],
+    "Q715805": [
+      "Upper West Region"
+    ],
+    "Q718": [
+      "Western chess",
+      "chess",
+      "chess game",
+      "international chess",
+      "modern European chess"
+    ],
+    "Q7180471": [
+      "Phani Majmudar",
+      "Phani Majumdar"
+    ],
+    "Q720893": [],
+    "Q722135": [
+      "Thomas Peter Shadyac",
+      "Tom Shadyac"
+    ],
+    "Q72334": [
+      "Chloe Anthony Wofford",
+      "Chloe Anthony Wofford Morrison",
+      "Chloe Anthony Wofford-Morrison",
+      "Chloe Ardelia Wofford",
+      "Toni Morrison"
+    ],
+    "Q723738": [
+      "James Cruze"
+    ],
+    "Q724100": [
+      "Peter Medak",
+      "P\u00e9ter Med\u00e1k"
+    ],
+    "Q724172": [
+      "Nuri Bilge Ceylan"
+    ],
+    "Q726206": [
+      "Eric Edward Whitacre",
+      "Eric Whitacre"
+    ],
+    "Q728230": [
+      "Geilo"
+    ],
+    "Q7295860": [
+      "Ratnakar Matkari",
+      "Ratnakar Ramkrushna Matkari",
+      "Veteran Marathi"
+    ],
+    "Q7340163": [],
+    "Q735458": [
+      "He Hongshen",
+      "Ho Hung Sun",
+      "Ho Hung-sun",
+      "Stanley Ho",
+      "Stanley Ho Hung Sun",
+      "Stanley Ho Hung-sun",
+      "\u4f55\u9d3b\u71ca",
+      "\u4f55\u9e3f\u71ca"
+    ],
+    "Q7417923": [
+      "Sangeeth Sivan"
+    ],
+    "Q742632": [
+      "Douglas J. Preston",
+      "Douglas Jerome Preston",
+      "Douglas Preston"
+    ],
+    "Q746098": [
+      "Ernmas"
+    ],
+    "Q749224": [
+      "Villavicencio",
+      "Villavo"
+    ],
+    "Q7505912": [
+      "Shyam"
+    ],
+    "Q76997": [
+      "Moses Mendelssohn"
+    ],
+    "Q7735": [
+      "competitive diving",
+      "diving"
+    ],
+    "Q7844679": [
+      "Akella Naga Srinivasa Sarma",
+      "Akella Naga Srinivasa Sharma",
+      "Trivikram Srinivas"
+    ],
+    "Q785552": [
+      "Erik Rutan"
+    ],
+    "Q793895": [
+      "Lincoln Child"
+    ],
+    "Q794": [
+      "IRI",
+      "Iran",
+      "Islamic Rep. Iran",
+      "Islamic Republic of Iran",
+      "ir"
+    ],
+    "Q80837": [
+      "simple supernaturalism",
+      "supernatural",
+      "supernatural world"
+    ],
+    "Q82032": [
+      "Christopher John Reuel Tolkien",
+      "Christopher Reuel Tolkien",
+      "Christopher Tolkien"
+    ],
+    "Q822146": [
+      "lyric writer",
+      "lyricist",
+      "song lyricist"
+    ],
+    "Q822401": [
+      "Bernard Edwards"
+    ],
+    "Q8253": [
+      "fiction",
+      "fiction form",
+      "fictional",
+      "fictional art form",
+      "imaginary art genre",
+      "imaginary genre"
+    ],
+    "Q827371": [
+      "Albert Haanstra",
+      "Bert Haanstra"
+    ],
+    "Q82955": [
+      "pol",
+      "polit.",
+      "political figure",
+      "political leader",
+      "politician"
+    ],
+    "Q831354": [
+      "smooth jazz",
+      "soft jazz"
+    ],
+    "Q83270": [
+      "hard rock",
+      "heavy rock"
+    ],
+    "Q8341": [
+      "jas",
+      "jass",
+      "jaz",
+      "jazz",
+      "jazz music",
+      "jazzy"
+    ],
+    "Q83440": [
+      "country",
+      "country & western",
+      "country and western",
+      "country music"
+    ],
+    "Q847": [
+      "lawn tennis",
+      "lawntennis",
+      "tennis"
+    ],
+    "Q859369": [
+      "comedic drama",
+      "comedy drama",
+      "comedy-drama",
+      "dramatic comedy",
+      "dramedy",
+      "seriocomedy",
+      "tragicomedy"
+    ],
+    "Q860626": [
+      "rom-com",
+      "romantic comedy",
+      "romcom",
+      "romedy"
+    ],
+    "Q862286": [
+      "Bill Mason",
+      "William Mason"
+    ],
+    "Q8733": [
+      "Ch'ing China",
+      "Ch'ing Empire",
+      "Ch'ing dynasty",
+      "Chinese-Tartar empire",
+      "Empire of the Great Qing",
+      "Great Ching dynasty",
+      "Great Pure dynasty",
+      "Great Qing",
+      "Great Qing Empire",
+      "Great Qing state",
+      "Great Tsing dynasty",
+      "Manchu China",
+      "Manchu Tartar dynasty",
+      "Manchu dynasty",
+      "Manchu empire",
+      "Qing China",
+      "Qing Empire",
+      "Qing dynasty",
+      "Ta Tsing Empire",
+      "Ta-tsing dynasty",
+      "Tai Ching Ti Kuo",
+      "Tai-tsing dynasty",
+      "Tartar Chinese Empire",
+      "Tartar-Manchu dynasty",
+      "Tsing dynasty"
+    ],
+    "Q882": [
+      "Charles Chaplin Jr.",
+      "Charles Spencer Chaplin Jr.",
+      "Charlie Chaplin",
+      "Charlie Chaplin Jr.",
+      "Sir Charles Chaplin",
+      "Sir Charlie Chaplin",
+      "The Tramp"
+    ],
+    "Q883179": [
+      "black action film",
+      "black exploitation film",
+      "blacksploitation film",
+      "blaxploitation film"
+    ],
+    "Q8877": [
+      "Steven Spielberg"
+    ],
+    "Q89255": [
+      "Rudolf Meinert"
+    ],
+    "Q909": [
+      "Borges",
+      "Chorche Louis Borches",
+      "Horhe Luis Borhes",
+      "J. L. Borges",
+      "Jorge Francisco Isidoro Luis Borges",
+      "Jorge Luis Borges",
+      "Jorge Luis Borges Acevedo",
+      "Khorkhe Luyis Borkhes"
+    ],
+    "Q925178": [
+      "Mario Bonnard"
+    ],
+    "Q93188": [
+      "Errol Flynn",
+      "Errol Leslie Thomson Flynn"
+    ],
+    "Q93204": [
+      "documentary",
+      "documentary film",
+      "documentary movie",
+      "factual film",
+      "film documentary",
+      "motion picture documentary"
+    ],
+    "Q936089": [
+      "Metin Erksan",
+      "\u0130smail Metin Erksan"
+    ],
+    "Q9387": [
+      "Max Weber"
+    ],
+    "Q940958": [
+      "Geoff Ryman"
+    ],
+    "Q943374": [
+      "Javhlant",
+      "Javkhlant",
+      "Ouliassoutai",
+      "Uliassutai",
+      "Uliastai",
+      "Uliastay",
+      "Uliyasutai"
+    ],
+    "Q948543": [
+      "Prachya Pinkaew"
+    ],
+    "Q951250": [
+      "Jerome Burke",
+      "Seabury Grandin Quinn",
+      "Seabury Quinn"
+    ],
+    "Q9592": [
+      "Catholic Church",
+      "Roman Apostolic Catholic Church",
+      "Roman Catholic Church",
+      "Roman Rite Catholic Church"
+    ],
+    "Q96": [
+      "MXN",
+      "Mexican Republic",
+      "Mexican United States",
+      "Mexico",
+      "US of M",
+      "United Mexican States",
+      "United States of Mexico",
+      "mx"
+    ],
+    "Q968730": [
+      "industrial rock"
+    ],
+    "Q971738": [
+      "Rupert Wainwright"
+    ],
+    "Q996478": [
+      "Guarenas"
+    ]
+  }
+}

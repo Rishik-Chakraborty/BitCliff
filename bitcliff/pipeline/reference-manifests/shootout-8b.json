@@ -1,0 +1,96 @@
+{
+  "scope": "8B only, Q4_K_M + Q3_K_M only (ruling 5)",
+  "repos": [
+    {
+      "requested_repo": "unsloth/Meta-Llama-3.1-8B-Instruct-GGUF",
+      "repo": "unsloth/Llama-3.1-8B-Instruct-GGUF",
+      "revision_sha": "600b0020115fd6b17f0752848fe7b5a1be686bcd",
+      "retrieved_at": "2026-08-26T20:09:24.901325+00:00",
+      "uploader": "unsloth",
+      "imatrix": false,
+      "quant_filter": [
+        "Q4_K_M",
+        "Q3_K_M"
+      ],
+      "gguf_files": [
+        {
+          "path": "Llama-3.1-8B-Instruct-Q3_K_M.gguf",
+          "size_bytes": 4018922880,
+          "sha256": "71daf40611ec04009c25d81764dc242abcc2d991c801a60f58c19ad856c500fd",
+          "uploader": "unsloth",
+          "imatrix": false
+        },
+        {
+          "path": "Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+          "size_bytes": 4920739200,
+          "sha256": "b3bdbf23b47d7e6bb791c99b206deb169cd5a96362a9e3399028df2faacdc506",
+          "uploader": "unsloth",
+          "imatrix": false
+        }
+      ],
+      "gguf_file_count": 2,
+      "total_gguf_files_in_repo": 25,
+      "substitution_note": "'unsloth/Meta-Llama-3.1-8B-Instruct-GGUF' did not resolve (non-200 on GET https://huggingface.co/api/models/unsloth/Meta-Llama-3.1-8B-Instruct-GGUF). Auto-substituted with 'unsloth/Llama-3.1-8B-Instruct-GGUF' (same org, shortest matching name)."
+    },
+    {
+      "requested_repo": "mradermacher/Meta-Llama-3.1-8B-Instruct-GGUF",
+      "repo": "mradermacher/Meta-Llama-3.1-8B-Instruct-GGUF",
+      "revision_sha": "2dc2468402f8a982228a15d7c296d86f7c2b84ff",
+      "retrieved_at": "2026-08-26T20:09:25.257480+00:00",
+      "uploader": "mradermacher",
+      "imatrix": false,
+      "quant_filter": [
+        "Q4_K_M",
+        "Q3_K_M"
+      ],
+      "gguf_files": [
+        {
+          "path": "Meta-Llama-3.1-8B-Instruct.Q3_K_M.gguf",
+          "size_bytes": 4018918816,
+          "sha256": "c442867e159491ce63159ba45794926ef3a3afaf5f40c91c05a824d8f36faa8e",
+          "uploader": "mradermacher",
+          "imatrix": false
+        },
+        {
+          "path": "Meta-Llama-3.1-8B-Instruct.Q4_K_M.gguf",
+          "size_bytes": 4920735136,
+          "sha256": "56e1a31ac6e5037174344ac2153c33d873f301f2a312ef2619775190aade51c7",
+          "uploader": "mradermacher",
+          "imatrix": false
+        }
+      ],
+      "gguf_file_count": 2,
+      "total_gguf_files_in_repo": 15
+    },
+    {
+      "requested_repo": "mradermacher/Meta-Llama-3.1-8B-Instruct-i1-GGUF",
+      "repo": "mradermacher/Meta-Llama-3.1-8B-Instruct-i1-GGUF",
+      "revision_sha": "15a6b2be4570af9886c5cde164ddc8f41b4d7520",
+      "retrieved_at": "2026-08-26T20:09:25.628554+00:00",
+      "uploader": "mradermacher",
+      "imatrix": true,
+      "quant_filter": [
+        "Q4_K_M",
+        "Q3_K_M"
+      ],
+      "gguf_files": [
+        {
+          "path": "Meta-Llama-3.1-8B-Instruct.i1-Q3_K_M.gguf",
+          "size_bytes": 4018919072,
+          "sha256": "2571f9e6218ffb56904b6b90a0ebf208956435d725f6c1b2390e049e0b8bf34e",
+          "uploader": "mradermacher",
+          "imatrix": true
+        },
+        {
+          "path": "Meta-Llama-3.1-8B-Instruct.i1-Q4_K_M.gguf",
+          "size_bytes": 4920735392,
+          "sha256": "85465a58bf902b8fe36e1e719fd1ddc23305110a6b19233f10560dfd1180f77a",
+          "uploader": "mradermacher",
+          "imatrix": true
+        }
+      ],
+      "gguf_file_count": 2,
+      "total_gguf_files_in_repo": 21
+    }
+  ]
+}
