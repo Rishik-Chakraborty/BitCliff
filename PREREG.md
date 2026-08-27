@@ -787,5 +787,5 @@ Per binding ruling 2026-08-26 (ruling 4):
    same way. Amendments fill registered slots; they never alter registered
    rules.
 
-PREREG commit: `[TO BE FILLED AT F4]`
-OpenTimestamps proof: `[TO BE FILLED AT F4]`
+PREREG commit: `5e6882b7a10c5e4670052855380e8646911db5f3` (the no-ff merge of `freeze-prep` into `main`; filled by the follow-up commit, since the freeze commit's hash cannot appear inside itself)
+OpenTimestamps proof: `freeze/freeze-commit-hash.txt.ots` (receipt over `freeze/freeze-commit-hash.txt` containing `5e6882b7a10c5e4670052855380e8646911db5f3`; submitted to 4 calendar servers 2026-08-26, pending Bitcoin attestation — run `ots upgrade` after ~a day to embed the final proof)
