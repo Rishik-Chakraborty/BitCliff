@@ -11,5 +11,36 @@
     },
     "note": "no candidate mix landed in [0.6, 0.85]; falling back to M3 per \u00a77, disclosing out-of-band F16 accuracy 0.11"
   },
+  "longctx_retrieval": {
+    "aborted": false,
+    "acc_at_4096": 0.6458333333333334,
+    "acc_at_8192_same_variant": 0.75,
+    "chosen_target_tokens": 8192,
+    "chosen_target_tokens_before_8192_probe": 8192,
+    "chosen_variant": "multivalue4",
+    "probe_8192": {
+      "multivalue4": 0.75
+    },
+    "provisional_note": "provisional (pending 2b n/seed registration \u2014 OPEN_QUESTIONS \u00a72)",
+    "search_4096": {
+      "chosen": "multivalue4",
+      "measurements": {
+        "multikey12": 0.96875,
+        "multikey4": 0.9791666666666666,
+        "multikey8": 0.9895833333333334,
+        "multiquery2": 0.9895833333333334,
+        "multiquery3": 0.9895833333333334,
+        "multiquery4": 0.9583333333333334,
+        "multivalue2": 0.8333333333333334,
+        "multivalue3": 0.9166666666666666,
+        "multivalue4": 0.6458333333333334,
+        "single": 1.0
+      },
+      "method": "linear-fallback",
+      "notes": [
+        "monotonicity violated while measuring 'multivalue3' (acc=0.9166666666666666); falling back to a linear walk"
+      ]
+    }
+  },
   "model_id": "qwen2.5-1.5b-instruct"
 }
