@@ -688,8 +688,41 @@ def _run_longctx_calibration(runner: "LongctxRunner") -> dict:
 
         search_8192_full = calibrate_ladder(LONGCTX_LADDER, measure_at_8192_full)
         result["search_8192_full_ladder"] = search_8192_full
-        result["chosen_variant"] = search_8192_full["chosen"]
-        result["chosen_target_tokens"] = 8192 if search_8192_full["chosen"] is not None else None
+        if search_8192_full["chosen"] is not None:
+            result["chosen_variant"] = search_8192_full["chosen"]
+            result["chosen_target_tokens"] = 8192
+            return result
+
+        # Nothing in-band anywhere in the registered candidate space
+        # (variant ladder x target_tokens in {4096, 8192}). §7 registers a
+        # fallback for factual_qa's out-of-band case (M3 + disclosure) but
+        # NONE for longctx -- this is a genuine registration gap, not a
+        # decision this harness can make on its own (OPEN_QUESTIONS.md
+        # §5). Record the terminal state gracefully instead of picking a
+        # setting or crashing.
+        result["chosen_variant"] = None
+        result["chosen_target_tokens"] = None
+        hardest_setting_variant = LONGCTX_LADDER[-1]
+        hardest_accuracy = search_8192_full["measurements"].get(hardest_setting_variant)
+        if hardest_accuracy is None:
+            # Defensive: the binary search always reaches the ladder's last
+            # entry when every measurement is "too easy" (see this
+            # function's comment above), but measure it directly if for
+            # any reason it wasn't touched.
+            hardest_accuracy = runner.measure(hardest_setting_variant, 8192)
+        if hardest_accuracy is not None and hardest_accuracy > BAND_HIGH:
+            result["terminal_state"] = "above_band_everywhere"
+            result["hardest_setting"] = {
+                "variant": hardest_setting_variant, "target_tokens": 8192,
+            }
+            result["hardest_accuracy"] = hardest_accuracy
+            result["note"] = (
+                "Entire registered candidate space (variant ladder x "
+                "target_tokens in {4096, 8192}) scored above the "
+                f"[{BAND_LOW}, {BAND_HIGH}] band; §7 registers no longctx "
+                "fallback for this terminal state (only factual_qa has "
+                "one). Not decided here -- see OPEN_QUESTIONS.md §5."
+            )
         return result
 
     acc_4096 = search_4096["measurements"][hardest]

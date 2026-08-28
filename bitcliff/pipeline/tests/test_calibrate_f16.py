@@ -215,6 +215,42 @@ def test_run_longctx_calibration_stays_none_when_nothing_in_band_at_either_targe
     assert result["chosen_target_tokens"] is None
 
 
+def test_run_longctx_calibration_records_above_band_everywhere_terminal_state():
+    # Real scenario hit on qwen2.5-7b-instruct: every setting in the
+    # registered candidate space, including the hardest
+    # (multivalue4 @ 8192), scores above 0.85. §7 has no longctx fallback
+    # for this (unlike factual_qa's M3 rule) -- must record a clean
+    # terminal state, not crash or silently pick a setting.
+    acc = {(v, 4096): 0.99 for v in LADDER}
+    acc.update({(v, 8192): 1.0 for v in LADDER})
+
+    runner = _FakeLongctxRunner(acc)
+    result = cal._run_longctx_calibration(runner)
+
+    assert result["chosen_variant"] is None
+    assert result["chosen_target_tokens"] is None
+    assert result["terminal_state"] == "above_band_everywhere"
+    assert result["hardest_setting"] == {"variant": "multivalue4", "target_tokens": 8192}
+    assert result["hardest_accuracy"] == 1.0
+    assert "OPEN_QUESTIONS" in result["note"]
+
+
+def test_run_longctx_calibration_no_terminal_state_label_when_below_band_not_above():
+    # Nothing in-band, but the hardest setting is BELOW the band, not
+    # above it -- this is a different (already-handled-elsewhere-in-
+    # principle) situation and must NOT be mislabeled
+    # "above_band_everywhere".
+    acc = {(v, 4096): 0.99 for v in LADDER}
+    acc.update({(v, 8192): 0.99 for v in LADDER})
+    acc[("multivalue4", 8192)] = 0.10  # hardest setting: below band, not above
+
+    runner = _FakeLongctxRunner(acc)
+    result = cal._run_longctx_calibration(runner)
+
+    assert result["chosen_variant"] is None
+    assert "terminal_state" not in result
+
+
 def test_run_longctx_calibration_normal_path_when_4096_finds_hardest_in_band():
     # Sanity check that the ordinary (4096-succeeds) path is untouched by
     # the new fallback: hardest-in-band found directly at 4096, same
