@@ -156,3 +156,6 @@ NOT decided. **Your options:**
 (c) something else.
 Note the same question will likely arise for Llama-8B (also an 8B-class
 model); its measurements will tell.
+
+**Update 2026-08-28:** Llama-8B measured — same terminal state (hardest
+setting 0.9896); the §5 decision covers both 8B-class models.
