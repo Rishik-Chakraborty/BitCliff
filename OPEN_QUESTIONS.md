@@ -133,3 +133,26 @@ instead key off something else (e.g., a corpus pointer recorded alongside
 blocker: `runs/pilot-0a` (packaged for real, task 3) has no
 `longctx_retrieval` items at all, so this path was not exercised on real
 data.
+
+## 5. 7B longctx: the ENTIRE registered knob space is above band — §7 has no longctx fallback (2026-08-27)
+
+Measured (F16, registered n=96/seed 2024, Gutenberg 2b corpus): the 7B scores
+0.99-1.0 on every setting tried, including the hardest registered setting
+(multivalue4 @ target_tokens 8192 = 1.00). Easier variants are implied at
+ceiling a fortiori. No setting in the registered candidate space (variant
+ladder x t∈{4096, 8192}) lands in [0.6, 0.85]. §7 registers a fallback for
+factual_qa (M3 + disclosure) but NONE for longctx out-of-band-high — the
+calibration script had no rule to apply and crashed at this terminal state
+(patched to record the state gracefully instead; no measurements lost).
+
+NOT decided. **Your options:**
+(a) amendment registering the longctx analogue of the M3 rule: run the 7B at
+    the hardest registered setting (multivalue4 @ 8192) with the out-of-band
+    F16 value disclosed — symmetrical with factual_qa's registered fallback;
+(b) amendment extending the registered candidate space (e.g. target_tokens
+    16384, or N>4 variants) — a bigger change: it touches a registered
+    total-order/candidate set that §7 lists as non-amendable, so it needs
+    the same disclosed-gap treatment as the 2b n/seed fix;
+(c) something else.
+Note the same question will likely arise for Llama-8B (also an 8B-class
+model); its measurements will tell.
