@@ -358,6 +358,78 @@ def test_m3_weights_step_shape_favors_popular_half():
 
 
 # ---------------------------------------------------------------------------
+# mix_qid_sets / mix_overlap_report — make the cross-mix QID-overlap
+# numbers cited in AMENDMENT_DRAFT.md §B / OPEN_QUESTIONS.md §3
+# independently checkable (also exercised for real via
+# `--print-mix-overlap`, which needs network -- these tests are pure,
+# synthetic-data, no network).
+# ---------------------------------------------------------------------------
+
+
+def _popqa_record(i, pop, qid):
+    import json as _json
+
+    return {
+        "question": f"Q{i}",
+        "possible_answers": _json.dumps([f"answer-{i}"]),
+        "s_pop": pop,
+        "o_uri": f"http://www.wikidata.org/entity/{qid}",
+    }
+
+
+def _synthetic_popqa_records(n=200):
+    # Enough records, spread across deciles, with distinct QIDs per record
+    # so per-mix draw-count differences actually change which QIDs a mix
+    # picks up (mirrors the real dataset's behavior enough to exercise the
+    # overlap machinery deterministically).
+    return [_popqa_record(i, pop=i, qid=f"Q{i}") for i in range(n)]
+
+
+def test_mix_qid_sets_returns_one_set_per_mix():
+    records = _synthetic_popqa_records()
+    sets = cal.mix_qid_sets(records, n_items=30, seed=7)
+    assert set(sets) == {"M1", "M2", "M3"}
+    assert all(isinstance(s, frozenset) for s in sets.values())
+    assert all(len(s) == 30 for s in sets.values())  # one QID per record here
+
+
+def test_mix_qid_sets_deterministic():
+    records = _synthetic_popqa_records()
+    a = cal.mix_qid_sets(records, n_items=30, seed=7)
+    b = cal.mix_qid_sets(records, n_items=30, seed=7)
+    assert a == b
+
+
+def test_mix_overlap_report_sizes_and_union():
+    qid_sets = {
+        "M1": frozenset({"Q1", "Q2", "Q3"}),
+        "M2": frozenset({"Q2", "Q3", "Q4"}),
+        "M3": frozenset({"Q3", "Q4", "Q5"}),
+    }
+    report = cal.mix_overlap_report(qid_sets)
+    assert report["sizes"] == {"M1": 3, "M2": 3, "M3": 3}
+    assert report["pairwise_overlap"] == {"M1&M2": 2, "M1&M3": 1, "M2&M3": 2}
+    assert report["union_size"] == 5  # Q1..Q5
+
+
+def test_mix_overlap_report_empty_input():
+    assert cal.mix_overlap_report({}) == {"sizes": {}, "pairwise_overlap": {}, "union_size": 0}
+
+
+def test_mix_overlap_report_reflects_real_measured_seed2718_shape():
+    # Not the real 500-item/841-QID numbers (those need network + the real
+    # PopQA split -- see `--print-mix-overlap` for that), but locks the
+    # qualitative shape actually observed: mixes overlap PARTIALLY, not
+    # fully and not disjointly, because different per-decile draw counts
+    # shift the shared RNG stream (OPEN_QUESTIONS.md §3).
+    records = _synthetic_popqa_records()
+    qid_sets = cal.mix_qid_sets(records, n_items=30, seed=2718)
+    report = cal.mix_overlap_report(qid_sets)
+    for pair, overlap in report["pairwise_overlap"].items():
+        assert 0 < overlap < 30, f"{pair} overlap {overlap} should be partial, not 0 or full"
+
+
+# ---------------------------------------------------------------------------
 # Corpus verification
 # ---------------------------------------------------------------------------
 

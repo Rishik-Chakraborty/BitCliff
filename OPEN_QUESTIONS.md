@@ -65,10 +65,15 @@ each popularity decile with `rng.sample(decile, take)` against ONE shared,
 sequentially-advancing `random.Random(seed)`, and different mixes (M1
 uniform / M2 / M3) apportion a different `take` per decile — which shifts
 how much of the shared RNG stream each decile consumes, and therefore shifts
-every later decile's draw too. Measured at seed=2718, n=500: M1, M2, and M3
-each draw 500 records with ~444-450 unique object QIDs, but only
-120/450 of M2's QIDs and 142/444 of M3's QIDs overlap with M1's. A mapping
-built for the M1 draw alone (mirroring the seed-7411 precedent literally)
+every later decile's draw too. At seed=2718, n=500, M1/M2/M3 each draw 500
+records with ~444-450 unique object QIDs, only partially overlapping
+between mixes — reproducible via
+`uv run python scripts/calibrate_f16.py --print-mix-overlap` (no model
+needed), which prints exact sizes/pairwise-overlap/union counts computed
+by the pure `mix_qid_sets`/`mix_overlap_report` functions (currently:
+sizes 444/450/444, pairwise overlaps M1&M2=120, M1&M3=142, M2&M3=347,
+union=841). A mapping built for the M1 draw alone (mirroring the seed-7411
+precedent literally)
 would leave roughly two-thirds of M2's and M3's sampled items unaugmented —
 not comparable to how augmentation was characterized (round 3, §3.4) or to
 the M1 measurement within the same calibration run.

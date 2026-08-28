@@ -42,11 +42,25 @@ in its own right rather than folded silently into the per-model knob
 amendment below.
 
 **Consequence.** Every longctx measurement this session produced under
-n=96/seed=2024 is the real calibration data, not provisional; the
-`provisional_note` field inside the raw `measurements.jsonl` records
-predates this resolution and is left as accurate provenance of when each
-line was written, rather than rewritten. Item-set hashes below are
-therefore unblocked and included.
+n=96/seed=2024 is the real calibration data, not provisional. Item-set
+hashes below are therefore unblocked and included.
+
+**Correction on the `provisional_note` field.** An earlier draft of this
+section claimed that field's presence in the raw `measurements.jsonl`
+records was accurate provenance of *when* each line was written relative
+to this ruling. That claim is **false** and is retracted here: the note
+is a static string `scripts/calibrate_f16.py` writes unconditionally into
+every longctx record, with no time-awareness of this resolution at all.
+It is temporally accurate only for the qwen2.5-1.5b-instruct measurements
+and the qwen2.5-7b-instruct measurements taken before this ruling landed;
+llama-3.1-8b-instruct's entire longctx set (timestamped 2026-08-28) and
+part of qwen2.5-7b-instruct's t=8192 batch **postdate** the 2026-08-27
+ruling yet still carry the stale "provisional (pending 2b n/seed
+registration...)" text, because the field was never rewritten after the
+ruling. It is retained as-written (not edited after the fact) rather than
+corrected, but it must **not** be read as reliable real-time provenance —
+each record's own `timestamp` field is the reliable source for when a
+measurement actually ran.
 
 ---
 
@@ -66,9 +80,21 @@ sequentially-advancing `random.Random(seed)`; the three registered mixes
 (M1/M2/M3) apportion a different `take` per decile, which shifts how
 much of that shared RNG stream each decile consumes and therefore which
 SPECIFIC records every later decile draws too — not merely their
-proportions. Measured at seed=2718, n=500: M1, M2, and M3 each draw 500
-records with 444, 450, and 444 unique object QIDs respectively, but only
-120/450 of M2's and 142/444 of M3's QIDs overlap with M1's.
+proportions. At seed=2718, n=500, M1/M2/M3 each draw 500 records with
+444/450/444 unique object QIDs respectively — only partial overlap
+between mixes, not the same set redistributed. These counts are
+**independently reproducible**, not merely asserted here: run
+`uv run python scripts/calibrate_f16.py --print-mix-overlap` (no model
+needed, network access to load `akariasai/PopQA` only) — it calls
+`mix_qid_sets`/`mix_overlap_report` (pure, deterministic given the
+dataset) and prints exactly:
+```json
+{
+  "sizes": {"M1": 444, "M2": 450, "M3": 444},
+  "pairwise_overlap": {"M1&M2": 120, "M1&M3": 142, "M2&M3": 347},
+  "union_size": 841
+}
+```
 
 **Resolution (approved by user ruling during this session):**
 `scripts/calibrate_f16.py::ensure_alias_mapping` unions
@@ -129,6 +155,12 @@ the full ladder:
 Hardest in-band at t=4096: multivalue4 (0.646). Same variant at t=8192:
 0.750, still in-band → 8192 wins the tie (§7); no harder variant exists
 past multivalue4 on the registered ladder.
+
+**[USER-CONFIRM] tie-break interpretation:** both t values are in-band
+for multivalue4 (0.646 at 4096, 0.750 at 8192); 8192 was chosen per §7's
+"ties broken toward the larger `target_tokens`" — a defensible but
+interpretive reading of "ties" (both in-band, not both equal). Confirm
+this reading at review.
 
 **Chosen: variant=multivalue4, target_tokens=8192, F16 accuracy=0.750.**
 Item-set sha256: `ed18db130e4a035eef4bd581a8c53c7a17daf63085499d9123497991bd257f9c`.

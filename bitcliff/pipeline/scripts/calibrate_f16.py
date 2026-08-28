@@ -360,6 +360,49 @@ def _load_fetch_wikidata_aliases_module():
     return module
 
 
+def mix_qid_sets(
+    ds, n_items: int, seed: int,
+    mixes: tuple[tuple[str, tuple[float, ...] | None], ...] = (
+        ("M1", None), ("M2", M2_WEIGHTS), ("M3", M3_WEIGHTS),
+    ),
+) -> dict[str, frozenset[str]]:
+    """The per-mix object-QID sets drawn by `factual_qa.picked_records`
+    at (`n_items`, `seed`) for each registered mix -- the basis for
+    `ensure_alias_mapping`'s union-of-mixes fetch set AND for
+    `mix_overlap_report`'s verifiable cross-mix overlap numbers (see that
+    function and `--print-mix-overlap`). `ds` is a PopQA-shaped record
+    iterable (a real `datasets` split, or any list of dict-like records
+    with `o_uri`/`s_pop` -- this function does no I/O itself)."""
+    return {
+        name: frozenset(
+            factual_qa.object_qid(r)
+            for r in factual_qa.picked_records(ds, n_items, seed, weights=weights)
+        )
+        for name, weights in mixes
+    }
+
+
+def mix_overlap_report(qid_sets: dict[str, frozenset[str]]) -> dict:
+    """Pure: per-mix sizes, every pairwise overlap count, and the union
+    size, given precomputed per-mix QID sets (`mix_qid_sets`). This is
+    what makes the cross-mix overlap numbers in
+    `OPEN_QUESTIONS.md` §3 / `AMENDMENT_DRAFT.md` §B checkable rather than
+    asserted-in-prose: re-run `mix_qid_sets` at the same (n_items, seed)
+    -- deterministic, no network needed, `factual_qa.picked_records` is
+    pure given `ds` -- and this reproduces the exact counts. Exposed via
+    `--print-mix-overlap` on the CLI.
+    """
+    names = list(qid_sets)
+    sizes = {name: len(qid_sets[name]) for name in names}
+    pairwise_overlap = {
+        f"{names[i]}&{names[j]}": len(qid_sets[names[i]] & qid_sets[names[j]])
+        for i in range(len(names))
+        for j in range(i + 1, len(names))
+    }
+    union_size = len(set().union(*qid_sets.values())) if qid_sets else 0
+    return {"sizes": sizes, "pairwise_overlap": pairwise_overlap, "union_size": union_size}
+
+
 def _fetch_aliases_resilient(
     fwa, qids: list[str], max_retries: int = 8, base_sleep: float = 2.0
 ) -> tuple[dict[str, list[str]], int]:
@@ -448,14 +491,9 @@ def ensure_alias_mapping(
     print(f"loading akariasai/PopQA test split (for alias mapping, seed={seed})...", file=sys.stderr)
     ds = load_dataset("akariasai/PopQA", split="test")
 
-    qids: set[str] = set()
-    per_mix_counts: dict[str, int] = {}
-    for name, weights in mixes:
-        picked = factual_qa.picked_records(ds, n_items, seed, weights=weights)
-        mix_qids = {factual_qa.object_qid(r) for r in picked}
-        per_mix_counts[name] = len(mix_qids)
-        qids |= mix_qids
-    qids_sorted = sorted(qids)
+    qid_sets = mix_qid_sets(ds, n_items, seed, mixes)
+    per_mix_counts = {name: len(qid_sets[name]) for name in qid_sets}
+    qids_sorted = sorted(set().union(*qid_sets.values())) if qid_sets else []
     print(
         f"seed={seed}: union of {[name for name, _ in mixes]} draws -> "
         f"{len(qids_sorted)} unique object QIDs (per-mix: {per_mix_counts})",
@@ -845,12 +883,41 @@ def run_factual_qa_calibration(f16_path: Path, store: MeasurementStore, model_sh
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--model-id", required=True)
-    ap.add_argument("--f16", required=True, type=Path)
-    ap.add_argument("--hf-tokenizer", required=True, type=Path)
+    ap.add_argument("--model-id", required=False)
+    ap.add_argument("--f16", required=False, type=Path)
+    ap.add_argument("--hf-tokenizer", required=False, type=Path)
     ap.add_argument("--suite", choices=["longctx", "factual_qa", "both"], default="both")
-    ap.add_argument("--out", required=True, type=Path)
+    ap.add_argument("--out", required=False, type=Path)
+    ap.add_argument(
+        "--print-mix-overlap", action="store_true",
+        help=(
+            "Print per-mix factual_qa object-QID counts and every pairwise "
+            "overlap (M1/M2/M3, at --seed/--n-items, default the registered "
+            "confirmatory values) and exit. No model needed -- this is what "
+            "makes AMENDMENT_DRAFT.md §B's / OPEN_QUESTIONS.md §3's overlap "
+            "numbers independently checkable rather than asserted-in-prose."
+        ),
+    )
+    ap.add_argument("--seed", type=int, default=FACTUAL_QA_SEED, help="only used with --print-mix-overlap")
+    ap.add_argument("--n-items", type=int, default=FACTUAL_QA_N_ITEMS, help="only used with --print-mix-overlap")
     args = ap.parse_args()
+
+    if args.print_mix_overlap:
+        from datasets import load_dataset
+
+        print(f"loading akariasai/PopQA test split (seed={args.seed}, n_items={args.n_items})...", file=sys.stderr)
+        ds = load_dataset("akariasai/PopQA", split="test")
+        qid_sets = mix_qid_sets(ds, args.n_items, args.seed)
+        print(json.dumps(mix_overlap_report(qid_sets), indent=2, sort_keys=True))
+        return
+
+    missing = [
+        name for name, val in
+        [("--model-id", args.model_id), ("--f16", args.f16), ("--hf-tokenizer", args.hf_tokenizer), ("--out", args.out)]
+        if val is None
+    ]
+    if missing:
+        ap.error(f"the following arguments are required: {', '.join(missing)}")
 
     out_dir = args.out
     out_dir.mkdir(parents=True, exist_ok=True)
