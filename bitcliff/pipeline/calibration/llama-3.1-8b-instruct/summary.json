@@ -1,0 +1,15 @@
+{
+  "f16_path": "models/f16/Llama-3.1-8B-Instruct-f16.gguf",
+  "f16_sha256": "139c255d857940bc945b2a3242fbbb2641b59191d79413bcad9b74fa1784c7b0",
+  "factual_qa": {
+    "chosen": "M3",
+    "in_band": false,
+    "measurements": {
+      "M1": 0.248,
+      "M2": 0.33,
+      "M3": 0.314
+    },
+    "note": "no candidate mix landed in [0.6, 0.85]; falling back to M3 per \u00a77, disclosing out-of-band F16 accuracy 0.314"
+  },
+  "model_id": "llama-3.1-8b-instruct"
+}
