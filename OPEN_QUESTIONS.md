@@ -164,3 +164,6 @@ model); its measurements will tell.
 
 **Update 2026-08-28:** Llama-8B measured — same terminal state (hardest
 setting 0.9896); the §5 decision covers both 8B-class models.
+
+**RESOLVED 2026-08-28 (user):** option (a) — M3-analogue longctx
+fallback registered via the amendment; t=16384 extension rejected.

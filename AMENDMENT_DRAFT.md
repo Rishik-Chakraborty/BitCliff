@@ -64,6 +64,48 @@ measurement actually ran.
 
 ---
 
+## A2. Registration-gap fix: `longctx_retrieval` out-of-band-high fallback (dated 2026-08-28)
+
+**What §7 omitted.** §7 registers a fallback for `factual_qa`'s
+out-of-band case ("If no candidate lands in-band, the suite runs at M3
+and the out-of-band F16 value is disclosed in the amendment") but
+registers **none** for `longctx_retrieval`. When qwen2.5-7b-instruct's
+and llama-3.1-8b-instruct's calibration runs found every setting in the
+registered candidate space (variant ladder × `target_tokens` ∈ {4096,
+8192}) scoring above the [0.6, 0.85] band — including the hardest
+registered setting — the harness had no registered rule to apply and
+this was logged as a genuine gap, `OPEN_QUESTIONS.md` §5.
+
+**What was done, and when.** On **2026-08-28**, by user ruling, option
+(a) from §5 was chosen: **the registered rule (stated verbatim, as
+ruled)** is —
+
+> "when no longctx setting in the registered candidate space lands in
+> [0.6, 0.85], the suite runs at the hardest registered setting
+> (multivalue4 @ target_tokens 8192) and the out-of-band F16 accuracy is
+> disclosed — the exact analogue of the factual_qa M3 rule."
+
+This is a disclosed gap fix, not a §7 knob-setting amendment, for the
+same reason as §A above: §7's amendment scope covers only the per-model
+knob *settings* chosen from an already-registered fallback; here no
+fallback existed to choose from; registering the fallback rule itself is
+a different, and larger, kind of change, disclosed here in its own
+right.
+
+**Consequence, disclosed:** equivalence bounds near a ~1.0 baseline are
+weaker — longctx cells for these models can resolve Damaged vs not, but
+tight equivalence claims may be limited.
+
+**Alternative considered and rejected.** Extending the candidate space
+(e.g. `target_tokens` 16384) was considered and **REJECTED** by the user
+ruling — the registered candidate set stands.
+
+Applied in §C below: qwen2.5-7b-instruct and llama-3.1-8b-instruct both
+now have a chosen longctx setting (multivalue4 @ 8192) under this rule,
+with their disclosed out-of-band F16 accuracies.
+
+---
+
 ## B. Disclosure: factual_qa alias-augmentation mapping widened to the union of M1/M2/M3 (seed 2718)
 
 PREREG §3.4 branch (b)'s augmentation rule ("English label + English
@@ -156,11 +198,8 @@ Hardest in-band at t=4096: multivalue4 (0.646). Same variant at t=8192:
 0.750, still in-band → 8192 wins the tie (§7); no harder variant exists
 past multivalue4 on the registered ladder.
 
-**[USER-CONFIRM] tie-break interpretation:** both t values are in-band
-for multivalue4 (0.646 at 4096, 0.750 at 8192); 8192 was chosen per §7's
-"ties broken toward the larger `target_tokens`" — a defensible but
-interpretive reading of "ties" (both in-band, not both equal). Confirm
-this reading at review.
+**Tie-break interpretation — confirmed by user 2026-08-28:** both t
+in-band for multivalue4; t=8192 per the registered tie-break.
 
 **Chosen: variant=multivalue4, target_tokens=8192, F16 accuracy=0.750.**
 Item-set sha256: `ed18db130e4a035eef4bd581a8c53c7a17daf63085499d9123497991bd257f9c`.
@@ -179,10 +218,13 @@ in-band even at the ladder's end. Per the registered "4096 first, then
 multivalue2/multivalue3/multiquery4/multivalue4 all 1.000 — **still
 nothing in-band anywhere in the registered candidate space.**
 
-**Chosen: none. Terminal state: `above_band_everywhere`** — hardest
-setting (multivalue4 @ 8192) F16 accuracy = 1.000, disclosed. §7
-registers no longctx fallback for this state (unlike factual_qa's M3
-rule). **Not decided here — see `OPEN_QUESTIONS.md` §5.**
+Terminal state at measurement time: `above_band_everywhere`. Per §A2's
+registered fallback (user ruling, 2026-08-28), the suite runs at the
+hardest registered setting with the out-of-band value disclosed.
+
+**Chosen: variant=multivalue4, target_tokens=8192, F16 accuracy=1.000
+(out-of-band-high, disclosed).** Item-set sha256:
+`ed18db130e4a035eef4bd581a8c53c7a17daf63085499d9123497991bd257f9c`.
 
 ### llama-3.1-8b-instruct
 
@@ -196,10 +238,14 @@ Item-set sha256 (M3): `2e53ca0e73e9cbdd5d7bac672857ba918ff7b74d2405ddf62f37aa9a6
 again at t=8192: multivalue2 0.990, multivalue3 1.000, multiquery4
 0.990, multivalue4 (hardest) 0.990 — **still nothing in-band.**
 
-**Chosen: none. Terminal state: `above_band_everywhere`** — hardest
-setting (multivalue4 @ 8192) F16 accuracy = 0.9896, disclosed. Same
-unresolved state as the 7B; `OPEN_QUESTIONS.md` §5 now covers both
-8B-class models and its resolution applies to both.
+Terminal state at measurement time: `above_band_everywhere` (same as the
+7B). Per §A2's registered fallback (user ruling, 2026-08-28), the suite
+runs at the hardest registered setting with the out-of-band value
+disclosed.
+
+**Chosen: variant=multivalue4, target_tokens=8192, F16 accuracy=0.9896
+(out-of-band-high, disclosed).** Item-set sha256:
+`9973be4a98d860e84f8002be91a80b2808a371466c0f60d6a2f073e79ad59bff`.
 
 ---
 
@@ -208,8 +254,8 @@ unresolved state as the 7B; `OPEN_QUESTIONS.md` §5 now covers both
 | model | factual_qa mix | factual_qa F16 acc | in-band? | longctx variant | longctx t | longctx F16 acc | in-band? |
 |---|---|---|---|---|---|---|---|
 | qwen2.5-1.5b-instruct | M3 | 0.110 | no (disclosed) | multivalue4 | 8192 | 0.750 | **yes** |
-| qwen2.5-7b-instruct | M3 | 0.192 | no (disclosed) | — (`above_band_everywhere`) | — | 1.000 (hardest) | no — no setting exists in-band |
-| llama-3.1-8b-instruct | M3 | 0.314 | no (disclosed) | — (`above_band_everywhere`) | — | 0.9896 (hardest) | no — no setting exists in-band |
+| qwen2.5-7b-instruct | M3 | 0.192 | no (disclosed) | multivalue4 (§A2 fallback) | 8192 | 1.000 | no (disclosed, out-of-band-high) |
+| llama-3.1-8b-instruct | M3 | 0.314 | no (disclosed) | multivalue4 (§A2 fallback) | 8192 | 0.9896 | no (disclosed, out-of-band-high) |
 
 **Only the 1.5B has a fully in-band configuration for both suites** (and
 only for longctx — its own factual_qa also falls back to M3
@@ -218,8 +264,10 @@ out-of-band). Both reference models (7B, 8B-class) score above the
 space, and below/near it (never above 0.33) on every registered
 factual_qa mix — the opposite pattern from longctx. This asymmetry (one
 suite saturates high, the other stays low, for the same larger models)
-is itself worth carrying into the methodology writeup, independent of
-how `OPEN_QUESTIONS.md` §5 is resolved.
+is itself worth carrying into the methodology writeup. Per §A2,
+equivalence bounds near a ~1.0 baseline are weaker for the 7B's and
+Llama-8B's longctx cells — they can resolve Damaged vs not, but tight
+equivalence claims may be limited.
 
 ---
 
@@ -227,12 +275,11 @@ how `OPEN_QUESTIONS.md` §5 is resolved.
 
 - Does not modify PREREG.md.
 - Is not OpenTimestamps-stamped.
-- Does not resolve `OPEN_QUESTIONS.md` §5 (7B/Llama-8B longctx
-  above-band-everywhere) — that requires a user decision on the options
-  listed there (registering a longctx analogue of the M3
-  disclose-and-run fallback; extending the registered candidate space;
-  or something else) before a longctx setting can be chosen for either
-  reference model.
+- Does not extend the registered longctx candidate set — a
+  `target_tokens` 16384 (or similar) extension was considered and
+  REJECTED by the user ruling that resolved `OPEN_QUESTIONS.md` §5 (§A2
+  above); the registered candidate set (the fixed variant ladder ×
+  `target_tokens` ∈ {4096, 8192}) stands unchanged.
 - Does not change any registered seed, n, candidate set, or total order
-  (§A above is a gap-fill of a value PREREG never stated, not a change
-  to a registered one).
+  (§A and §A2 above are gap-fills of a value/rule PREREG never stated,
+  not changes to a registered one).
