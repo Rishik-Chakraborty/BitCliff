@@ -11,5 +11,44 @@
     },
     "note": "no candidate mix landed in [0.6, 0.85]; falling back to M3 per \u00a77, disclosing out-of-band F16 accuracy 0.192"
   },
+  "longctx_retrieval": {
+    "aborted": false,
+    "chosen_target_tokens": null,
+    "chosen_variant": null,
+    "hardest_accuracy": 1.0,
+    "hardest_setting": {
+      "target_tokens": 8192,
+      "variant": "multivalue4"
+    },
+    "note": "Entire registered candidate space (variant ladder x target_tokens in {4096, 8192}) scored above the [0.6, 0.85] band; \u00a77 registers no longctx fallback for this terminal state (only factual_qa has one). Not decided here -- see OPEN_QUESTIONS.md \u00a75.",
+    "provisional_note": "provisional (pending 2b n/seed registration \u2014 OPEN_QUESTIONS \u00a72)",
+    "search_4096": {
+      "chosen": null,
+      "measurements": {
+        "multiquery4": 1.0,
+        "multivalue2": 1.0,
+        "multivalue3": 1.0,
+        "multivalue4": 0.9895833333333334
+      },
+      "method": "binary",
+      "notes": [
+        "no in-band entry found by binary search"
+      ]
+    },
+    "search_8192_full_ladder": {
+      "chosen": null,
+      "measurements": {
+        "multiquery4": 1.0,
+        "multivalue2": 1.0,
+        "multivalue3": 1.0,
+        "multivalue4": 1.0
+      },
+      "method": "binary",
+      "notes": [
+        "no in-band entry found by binary search"
+      ]
+    },
+    "terminal_state": "above_band_everywhere"
+  },
   "model_id": "qwen2.5-7b-instruct"
 }
