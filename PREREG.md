@@ -801,8 +801,8 @@ approval ("stamp it", 2026-08-29). Committed and OpenTimestamps-stamped like
 the original; this amendment's own commit hash and receipt are recorded by
 the follow-up commit (the hash cannot appear inside its own commit):
 
-Amendment 1 commit: `[TO BE FILLED post-stamp]`
-Amendment 1 OpenTimestamps proof: `[TO BE FILLED post-stamp]`
+Amendment 1 commit: `00a1228ca6df39ddb5971e87920d4d0b78913cf5` (filled by the follow-up commit)
+Amendment 1 OpenTimestamps proof: `freeze/amendment1-commit-hash.txt.ots` (receipt over `freeze/amendment1-commit-hash.txt` containing `00a1228ca6df39ddb5971e87920d4d0b78913cf5`; submitted to 4 calendar servers 2026-08-29, pending Bitcoin attestation — run `ots upgrade` after ~a day)
 
 Produced by: `bitcliff/pipeline/scripts/calibrate_f16.py` (task 1a, this
 overnight session). Full measurement provenance:

@@ -1,7 +1,6 @@
 # AMENDMENT DRAFT — PREREG §7 difficulty calibration
 
-**Status: DRAFT, for user review. Not appended to PREREG.md. Not
-committed as a stamped amendment. Not OpenTimestamps-stamped.** This file
+**Status: SUPERSEDED — stamped into PREREG.md as Amendment 1 on 2026-08-29 (commit `00a1228ca6df39ddb5971e87920d4d0b78913cf5`, receipt `freeze/amendment1-commit-hash.txt.ots`). This file is the reviewed draft, retained as history; PREREG.md's Amendment 1 is the registered text.** This file
 exists so the exact amendment text can be reviewed before it is copied
 into PREREG.md's `[AMENDMENT SLOT — difficulty calibration, appended and
 stamped at F4+]` (§7) and stamped per §15.

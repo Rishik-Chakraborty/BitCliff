@@ -148,3 +148,4 @@ diagnostic curiosities, not deployment recommendations.
 
 The PREREG commit hash will be recorded here at F4 (OpenTimestamps-stamped):
 PREREG commit: 5e6882b7a10c5e4670052855380e8646911db5f3 (OpenTimestamps receipt: freeze/freeze-commit-hash.txt.ots; recorded in the follow-up commit after the stamp)
+Amendment 1 commit: 00a1228ca6df39ddb5971e87920d4d0b78913cf5 (OpenTimestamps receipt: freeze/amendment1-commit-hash.txt.ots; recorded in the follow-up commit after the stamp)
