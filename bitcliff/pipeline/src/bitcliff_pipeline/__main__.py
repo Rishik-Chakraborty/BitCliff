@@ -140,10 +140,23 @@ def run_pipeline(
         # items, in id order). Reuses `longctx_retrieval.assert_tokenizer_
         # match` / `llama_tokenize_callable` -- the same mechanism
         # `calibrate_f16.py` already implements -- never a reimplemented
-        # copy. Runs once per run_pipeline invocation (one model, one
-        # tokenizer shared across every quant rung), against whichever
-        # llama-cpp handle is loaded first.
-        tokenizer_gate_checked = longctx_cfg is None
+        # copy.
+        #
+        # PREREG §4: "a quant level is a file, not a label" -- a run config
+        # can point several labels at distinct files from distinct
+        # uploaders (the shootout matrix, P3), and there is no guarantee
+        # every GGUF's bundled tokenizer agrees with the HF one just
+        # because one sibling file already passed. So this gates EVERY
+        # newly-loaded llama-cpp handle, keyed by that file's manifest
+        # sha256 (file identity, not label identity -- two labels pointing
+        # at the same bytes are checked once, correctly). Because of the
+        # skip-if-output-exists short-circuit below, which file gets a
+        # fresh llama-cpp handle "first" in a given invocation is
+        # resume-dependent; per-file (not "first-overall") gating makes
+        # that moot -- every file that actually gets loaded and generates
+        # in THIS invocation is checked before its own first generation,
+        # regardless of invocation order or prior partial runs.
+        checked_tokenizer_shas: set[str] = set()
         if longctx_cfg is not None:
             from .suites import longctx_retrieval
 
@@ -163,13 +176,15 @@ def run_pipeline(
             print(f"generating {label} ({len(items)} items)...")
             llm = llm_factory(path, config.generation)
             gen_mod.assert_truncation_finish_reason(llm)
-            if not tokenizer_gate_checked:
-                longctx_retrieval.assert_tokenizer_match(
-                    longctx_hf_tokenizer,
-                    longctx_retrieval.llama_tokenize_callable(llm),
-                    longctx_sample,
-                )
-                tokenizer_gate_checked = True
+            if longctx_cfg is not None:
+                file_sha256 = manifest[label]["sha256"]
+                if file_sha256 not in checked_tokenizer_shas:
+                    longctx_retrieval.assert_tokenizer_match(
+                        longctx_hf_tokenizer,
+                        longctx_retrieval.llama_tokenize_callable(llm),
+                        longctx_sample,
+                    )
+                    checked_tokenizer_shas.add(file_sha256)
             records = gen_mod.run_items(
                 llm, items, label, manifest[label]["sha256"], config.generation,
                 max_tokens_by_suite,

@@ -465,8 +465,52 @@ def test_generate_stage_aborts_on_tokenizer_mismatch(tmp_path, monkeypatch):
         )
 
     run = runs_dir / "longctx-mismatch-test"
-    # the gate aborts before the first rung's generation ever writes output
+    # F16 is the first file gated in this invocation (paths.items() yields
+    # F16 first, see models.resolve_all) and its fake tokenizer mismatches
+    # here, so the gate fires on it before any output is written for any
+    # file this run would otherwise generate -- not because F16 is special,
+    # just because it happens to be first in this run's file order.
     assert not (run / "outputs" / "F16.jsonl").exists()
+    assert not (run / "outputs" / "Q4_K_M.jsonl").exists()
+
+
+def test_generate_stage_gates_second_file_even_after_first_files_gate_passed(tmp_path, monkeypatch):
+    """Review finding (P1 follow-up): a once-per-invocation boolean gate
+    would check only the first-loaded GGUF's tokenizer and let every other
+    file in the same run_pipeline call generate unchecked. PREREG §4 ("a
+    quant level is a file, not a label") means each file needs its own
+    check: F16's fake tokenizer matches here (its gate passes, it
+    generates), but the SECOND rung (Q4_K_M) uses a fake llm whose
+    tokenizer diverges -- the per-file gate must still catch that and abort
+    before Q4_K_M's generation, even though some other file in this same
+    run already passed the gate.
+    """
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+
+    cfg = _longctx_config(tmp_path, make_config(tmp_path))
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    def llm_factory(path, gen):
+        if path == cfg.f16_path:
+            return LongctxFakeLlm(hf_tokenizer)  # agrees with the HF tokenizer -> gate passes
+        return MismatchingLongctxFakeLlm(hf_tokenizer)  # Q4_K_M's GGUF tokenizer diverges
+
+    with pytest.raises(AssertionError, match="tokenizer mismatch"):
+        run_pipeline(
+            cfg, run_id="longctx-second-rung-mismatch-test", models_dir=models_dir, runs_dir=runs_dir,
+            stage="all", llm_factory=llm_factory, base_dir=tmp_path,
+        )
+
+    run = runs_dir / "longctx-second-rung-mismatch-test"
+    # F16's own gate passed, so F16 generated successfully...
+    assert (run / "outputs" / "F16.jsonl").exists()
+    # ...but Q4_K_M's gate must still fire on Q4_K_M's own (mismatching)
+    # tokenizer and abort before Q4_K_M ever generates.
     assert not (run / "outputs" / "Q4_K_M.jsonl").exists()
 
 
