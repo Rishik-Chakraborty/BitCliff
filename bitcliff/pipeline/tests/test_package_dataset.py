@@ -193,6 +193,40 @@ def _build_run_dir(tmp_path: Path, name: str, items: list[dict]) -> Path:
     return run_dir
 
 
+LONGCTX_2B_ITEMS = [
+    {
+        "id": "arithmetic-3141-000",
+        "suite": "arithmetic",
+        "prompt": "2+2?",
+        "expected": ["4"],
+    },
+    {
+        "id": "longctx_retrieval-multivalue4-t8192-s2024-0000",
+        "suite": "longctx_retrieval",
+        "prompt": "What is the secret passcode?",
+        "expected": ["9999"],
+        "prompt_tokens": [1, 2, 3],
+    },
+]
+
+
+def _build_longctx_run_dir(tmp_path, name, corpus_sha256=..., items=None):
+    """Run dir whose manifest carries a _run_config block. corpus_sha256:
+    Ellipsis sentinel = omit the longctx suite config entirely (legacy,
+    no provenance); a str = record it."""
+    run_dir = _build_run_dir(tmp_path, name, items or LONGCTX_2B_ITEMS)
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    longctx_cfg = {"variant": "multivalue4", "target_tokens": 8192, "seed": 2024}
+    if corpus_sha256 is not ...:
+        longctx_cfg["corpus_sha256"] = corpus_sha256
+    manifest["_run_config"] = {
+        "model_id": "test-model",
+        "suites": {"longctx_retrieval": longctx_cfg},
+    }
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
+    return run_dir
+
+
 # ---------------------------------------------------------------------------
 # Twins refusal
 # ---------------------------------------------------------------------------
@@ -228,7 +262,22 @@ def test_private_path_in_run_dir_raises(tmp_path):
 @pytest.fixture
 def clean_run_dir(tmp_path, monkeypatch):
     _install_fake_longctx_rebuild(monkeypatch)
-    return _build_run_dir(tmp_path, "clean-run", _items())
+    run_dir = _build_run_dir(tmp_path, "clean-run", _items())
+    # Add corpus provenance to the manifest for the new positive check.
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    manifest["_run_config"] = {
+        "model_id": "test-model",
+        "suites": {
+            "longctx_retrieval": {
+                "variant": "fakevariant",
+                "target_tokens": 100,
+                "seed": 999,
+                "corpus_sha256": pkg.CORPUS_2B_STRIPPED_SHA256,
+            }
+        },
+    }
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
+    return run_dir
 
 
 def _package_clean(run_dir, out_dir):
@@ -365,6 +414,20 @@ def test_longctx_reconstruction_id_mismatch_hard_fails(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pkg, "_rebuild_longctx_raw_items", _mismatched_rebuild)
     run_dir = _build_run_dir(tmp_path, "mismatch-run", _items())
+    # Add corpus provenance to the manifest for the positive check.
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    manifest["_run_config"] = {
+        "model_id": "test-model",
+        "suites": {
+            "longctx_retrieval": {
+                "variant": "fakevariant",
+                "target_tokens": 100,
+                "seed": 999,
+                "corpus_sha256": pkg.CORPUS_2B_STRIPPED_SHA256,
+            }
+        },
+    }
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
     out_dir = tmp_path / "dist" / "dataset-mismatch-run"
 
     with pytest.raises(
@@ -383,6 +446,20 @@ def test_longctx_run_requires_tokenizer_and_corpus_path(tmp_path):
     items — package() must refuse (before writing anything) rather than
     publish records missing the registered metadata."""
     run_dir = _build_run_dir(tmp_path, "no-recon-args", _items())
+    # Add corpus provenance to the manifest for the positive check.
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    manifest["_run_config"] = {
+        "model_id": "test-model",
+        "suites": {
+            "longctx_retrieval": {
+                "variant": "fakevariant",
+                "target_tokens": 100,
+                "seed": 999,
+                "corpus_sha256": pkg.CORPUS_2B_STRIPPED_SHA256,
+            }
+        },
+    }
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
     out_dir = tmp_path / "dist" / "dataset-no-recon-args"
 
     with pytest.raises(ValueError, match="tokenizer"):
@@ -495,30 +572,67 @@ def test_deterministic_double_run_byte_identical(tmp_path, clean_run_dir):
         )
 
 
-def test_2a_signature_run_is_refused(tmp_path):
-    items = _items()[:1]  # keep retired suite out of the way, arbitrary base
-    items = [
-        {
-            "id": "arithmetic-3141-000",
-            "suite": "arithmetic",
-            "prompt": "2+2?",
-            "expected": ["4"],
-        },
-        {
-            "id": "longctx_retrieval-multivalue2-t4096-s2024-0000",
-            "suite": "longctx_retrieval",
-            "prompt": "What is the secret passcode?",
-            "expected": ["9999"],
-            "prompt_tokens": [1, 2, 3],
-        },
-    ]
-    run_dir = _build_run_dir(tmp_path, "config-2a-shaped", items)
-    out_dir = tmp_path / "dist" / "dataset-config-2a-shaped"
+def test_longctx_run_without_recorded_provenance_is_refused(tmp_path):
+    run_dir = _build_longctx_run_dir(tmp_path, "no-provenance")  # omits corpus_sha256
+    out_dir = tmp_path / "dist" / "dataset-no-provenance"
+    with pytest.raises(pkg.EmbargoViolation, match="no corpus provenance"):
+        pkg.package(run_dir, out_dir)
+    assert not out_dir.exists()
 
+
+def test_longctx_run_without_run_config_at_all_is_refused(tmp_path):
+    # A legacy manifest with no _run_config key: same refusal path.
+    run_dir = _build_run_dir(tmp_path, "legacy", LONGCTX_2B_ITEMS)
+    out_dir = tmp_path / "dist" / "dataset-legacy"
+    with pytest.raises(pkg.EmbargoViolation, match="no corpus provenance"):
+        pkg.package(run_dir, out_dir)
+    assert not out_dir.exists()
+
+
+def test_longctx_run_with_2a_corpus_hash_is_refused(tmp_path):
+    run_dir = _build_longctx_run_dir(
+        tmp_path, "twoa-corpus", corpus_sha256=pkg.CORPUS_2A_SHA256
+    )
+    out_dir = tmp_path / "dist" / "dataset-twoa-corpus"
     with pytest.raises(pkg.EmbargoViolation, match="config 2a"):
         pkg.package(run_dir, out_dir)
-
     assert not out_dir.exists()
+
+
+def test_longctx_run_with_unknown_corpus_hash_is_refused(tmp_path):
+    run_dir = _build_longctx_run_dir(
+        tmp_path, "unknown-corpus", corpus_sha256="ab" * 32
+    )
+    out_dir = tmp_path / "dist" / "dataset-unknown-corpus"
+    with pytest.raises(pkg.EmbargoViolation, match="unrecognized corpus"):
+        pkg.package(run_dir, out_dir)
+    assert not out_dir.exists()
+
+
+def test_2a_shaped_ids_with_registered_2b_corpus_hash_are_not_refused(tmp_path, monkeypatch):
+    """The exact case the old heuristic got wrong (OPEN_QUESTIONS §4b): 2b
+    now shares 2a's registered n=96/seed=2024 (PREREG Amendment 1 §A), so a
+    2b run's item ids can look 2a-shaped. Positive provenance must let it
+    through the provenance gate (the call may still fail LATER for missing
+    tokenizer/corpus paths — assert on the error type to prove the
+    provenance check itself passed)."""
+    _install_fake_longctx_rebuild(monkeypatch)
+    items = [
+        dict(LONGCTX_2B_ITEMS[0]),
+        {
+            **LONGCTX_2B_ITEMS[1],
+            "id": "longctx_retrieval-multivalue2-t4096-s2024-0000",
+        },
+    ]
+    run_dir = _build_longctx_run_dir(
+        tmp_path, "twob-provenance",
+        corpus_sha256=pkg.CORPUS_2B_STRIPPED_SHA256, items=items,
+    )
+    out_dir = tmp_path / "dist" / "dataset-twob-provenance"
+    # Provenance gate passes; the next gate (tokenizer/corpus paths required
+    # for longctx reconstruction) raises ValueError, NOT EmbargoViolation.
+    with pytest.raises(ValueError, match="tokenizer-path"):
+        pkg.package(run_dir, out_dir)
 
 
 def test_no_run_writes_no_output_on_twins_even_if_out_dir_preexists(tmp_path):

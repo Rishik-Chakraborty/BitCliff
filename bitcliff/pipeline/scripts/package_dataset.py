@@ -5,26 +5,29 @@ Builds the registered public dataset from a run directory (`items.jsonl`,
 `grades.jsonl`, `outputs/*.jsonl`, `manifest.json`) with embargo exclusions
 ENFORCED IN CODE, not by convention:
 
-- `longctx_retrieval` items: the raw prompt text and the token-id prompt
-  array are never read by the record-builder for that suite (see
-  `build_longctx_metadata`, which only ever looks at `item["id"]`,
-  `item["expected"]`, an explicit allowlist of extra keys, and a
-  `reconstructed` dict of already-safe fields — never `item["prompt"]` /
-  `item["prompt_tokens"]`). The registered `key` / `depths` /
-  `n_answer_tokens` metadata (PREREG §11) is not present on real run items,
-  so it is reconstructed by rebuilding the item set through the same
-  vendored-generator path `--verify-recipe` uses (tokenizer + a corpus file
-  verified against the registered sha256) and merging those three fields in
-  by id, hard-failing (`ReconstructionMismatch`) if reconstruction disagrees
-  with the run. After every file is written, a post-write scanner
-  (`scan_for_embargoed_content`) re-reads every byte of every produced file
-  and hard-fails if any longctx item's prompt text or token array shows up
-  anywhere; the gold match strings (`expected`) are published per user
-  ruling 4a and are deliberately outside the scanner's forbidden list (a
-  bare 4-digit gold is not prompt/token-array leakage even though it also
-  appears inside the excluded prompt text). Published: item id, `expected`,
-  a best-effort `config` parsed from the item id, any allowlisted extra
-  keys the item happens to carry, the reconstructed
+- `longctx_retrieval` items: before packaging, a positive corpus-provenance
+  check requires the manifest's `_run_config.suites.longctx_retrieval.corpus_sha256`
+  to match the registered 2b corpus (PG-1184 stripped); 2a's corpus is
+  refused outright (PREREG §3.1, pre-0B ticket). The raw prompt text and
+  the token-id prompt array are never read by the record-builder for that
+  suite (see `build_longctx_metadata`, which only ever looks at
+  `item["id"]`, `item["expected"]`, an explicit allowlist of extra keys,
+  and a `reconstructed` dict of already-safe fields — never
+  `item["prompt"]` / `item["prompt_tokens"]`). The registered `key` /
+  `depths` / `n_answer_tokens` metadata (PREREG §11) is not present on real
+  run items, so it is reconstructed by rebuilding the item set through the
+  same vendored-generator path `--verify-recipe` uses (tokenizer + a corpus
+  file verified against the registered sha256) and merging those three
+  fields in by id, hard-failing (`ReconstructionMismatch`) if
+  reconstruction disagrees with the run. After every file is written, a
+  post-write scanner (`scan_for_embargoed_content`) re-reads every byte of
+  every produced file and hard-fails if any longctx item's prompt text or
+  token array shows up anywhere; the gold match strings (`expected`) are
+  published per user ruling 4a and are deliberately outside the scanner's
+  forbidden list (a bare 4-digit gold is not prompt/token-array leakage
+  even though it also appears inside the excluded prompt text). Published:
+  item id, `expected`, a best-effort `config` parsed from the item id, any
+  allowlisted extra keys the item happens to carry, the reconstructed
   `key`/`depths`/`n_answer_tokens`, model outputs, grades, and
   `RECONSTRUCTION.md` (PREREG §3.1/§11).
 - `arithmetic_twins` (and anything staged under a `private/` path inside the
@@ -93,15 +96,13 @@ LONGCTX_SAFE_EXTRA_KEYS = (
     "n_answer_tokens",
 )
 
-# PREREG §3.1 config 2a's exact signature (Qwen2.5-1.5B tokenizer, variant
-# multivalue2, target_tokens 4096, seed 2024). §3.1 registers 2a's prompts as
-# "never displayed on the site and never published; outputs and statistics
-# only." The packager cannot see a run's corpus pointer (items.jsonl carries
-# no corpus field), so this signature match is a conservative heuristic
-# refusal, not a certain one — see OPEN_QUESTIONS.md.
-CONFIG_2A_VARIANT = "multivalue2"
-CONFIG_2A_SEED = 2024
-CONFIG_2A_TARGET_TOKENS = 4096
+# Registered corpus hashes for the two longctx configurations (PREREG §3.1).
+# 2a (PG-essays): prompts are "never displayed on the site and never
+# published; outputs and statistics only" — any run recording this corpus is
+# refused. 2b (PG-1184 stripped) is the only publishable longctx corpus.
+CORPUS_2A_SHA256 = (
+    "b6135331a3132d08cb84262870ae8f9d9acb6bae4cd7f0278926a64c38f9329e"
+)
 
 # 2b corpus pointer, PREREG §3.1 / CORPUS_MANIFEST.md §1.
 CORPUS_2B_URL = "https://www.gutenberg.org/cache/epub/1184/pg1184.txt"
@@ -140,6 +141,7 @@ class RunData:
     items: list[dict]
     grades: list[dict]
     outputs: dict[str, list[dict]] = field(default_factory=dict)
+    run_config: dict | None = None
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -156,6 +158,7 @@ def _read_jsonl(path: Path) -> list[dict]:
 def load_run(run_dir: Path) -> RunData:
     manifest_path = run_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    run_config = manifest.pop("_run_config", None)
     items = _read_jsonl(run_dir / "items.jsonl")
     grades = _read_jsonl(run_dir / "grades.jsonl")
     outputs: dict[str, list[dict]] = {}
@@ -163,7 +166,7 @@ def load_run(run_dir: Path) -> RunData:
     if outputs_dir.exists():
         for p in sorted(outputs_dir.glob("*.jsonl")):
             outputs[p.stem] = _read_jsonl(p)
-    return RunData(manifest=manifest, items=items, grades=grades, outputs=outputs)
+    return RunData(manifest=manifest, items=items, grades=grades, outputs=outputs, run_config=run_config)
 
 
 # ---------------------------------------------------------------------------
@@ -607,33 +610,44 @@ def scan_for_embargoed_content(out_dir: Path, raw_longctx_items: list[dict]) -> 
 # ---------------------------------------------------------------------------
 
 
-def _check_2a_signature(longctx_combos: list[dict], run_dir: Path) -> None:
-    """Ruling 4b (2026-08-27, resolving OPEN_QUESTIONS §4b "as-is"): kept
-    exactly as it was — a heuristic, not a positive provenance check.
-
-    Heuristic pending provenance: revisit when real 2b runs exist; the
-    durable fix (corpus-pointer field written into items.jsonl at
-    generation time, ticketed in freeze-plan §10) replaces this with a
-    positive provenance check.
-    """
-    for combo in longctx_combos:
-        if (
-            combo["variant"] == CONFIG_2A_VARIANT
-            and combo["seed"] == CONFIG_2A_SEED
-            and combo["target_tokens"] == CONFIG_2A_TARGET_TOKENS
-        ):
-            raise EmbargoViolation(
-                f"refusing to package {run_dir}: longctx_retrieval items "
-                f"match PREREG §3.1 config 2a's exact signature "
-                f"(variant={CONFIG_2A_VARIANT!r}, seed={CONFIG_2A_SEED}, "
-                f"target_tokens={CONFIG_2A_TARGET_TOKENS}) — 2a's prompts "
-                f"'are never displayed on the site and never published; "
-                f"outputs and statistics only' (PREREG §3.1). This is a "
-                f"heuristic match (items.jsonl carries no corpus pointer), "
-                f"logged as unresolved in OPEN_QUESTIONS.md; the "
-                f"conservative path is to refuse rather than risk "
-                f"publishing a 2a run."
-            )
+def _check_longctx_corpus_provenance(run: RunData, run_dir: Path) -> None:
+    """Positive provenance check (pre-0B ticket, freeze-plan §10; replaces
+    the retired seed-signature heuristic of OPEN_QUESTIONS §4b — that
+    heuristic became wrong the moment PREREG Amendment 1 §A registered 2b at
+    the same n=96/seed=2024 as 2a). The run's manifest must positively
+    record which corpus built its longctx items; only the registered 2b
+    corpus (PG-1184) is publishable."""
+    recorded = (
+        ((run.run_config or {}).get("suites", {}) or {})
+        .get(LONGCTX_SUITE, {})
+        .get("corpus_sha256")
+    )
+    if not recorded:
+        raise EmbargoViolation(
+            f"refusing to package {run_dir}: run contains longctx_retrieval "
+            f"items but its manifest records no corpus provenance "
+            f"(manifest.json _run_config.suites.longctx_retrieval."
+            f"corpus_sha256 is missing). Only runs positively recorded "
+            f"against the registered 2b corpus "
+            f"({CORPUS_2B_STRIPPED_SHA256}) are publishable (PREREG §3.1, "
+            f"§11); regenerate the run with a pipeline that records "
+            f"_run_config, or amend the manifest from the run's own "
+            f"provenance records."
+        )
+    if recorded == CORPUS_2A_SHA256:
+        raise EmbargoViolation(
+            f"refusing to package {run_dir}: manifest records PREREG §3.1 "
+            f"config 2a's corpus ({CORPUS_2A_SHA256}) — 2a's prompts 'are "
+            f"never displayed on the site and never published; outputs and "
+            f"statistics only' (PREREG §3.1)."
+        )
+    if recorded != CORPUS_2B_STRIPPED_SHA256:
+        raise EmbargoViolation(
+            f"refusing to package {run_dir}: manifest records an "
+            f"unrecognized corpus sha256 ({recorded}); the only publishable "
+            f"longctx corpus is the registered 2b corpus "
+            f"({CORPUS_2B_STRIPPED_SHA256}) (PREREG §3.1, §11)."
+        )
 
 
 def package(
@@ -683,7 +697,7 @@ def package(
             )
         # Checked BEFORE anything is written: refusing a 2a-shaped run must
         # never leave a partial/stale package behind.
-        _check_2a_signature(longctx_combos, run_dir)
+        _check_longctx_corpus_provenance(run, run_dir)
 
         if tokenizer_path is None or corpus_path is None:
             raise ValueError(
@@ -810,9 +824,6 @@ def package(
 CONFIG_2A_REFERENCE_DIGEST = (
     "9220589bd8607bd0ff3be5bdcfecd23df07cac82d354d992468b15b60f398972"
 )
-CONFIG_2A_CORPUS_SHA256 = (
-    "b6135331a3132d08cb84262870ae8f9d9acb6bae4cd7f0278926a64c38f9329e"
-)
 
 
 def _default_pipeline_root(run_dir: Path) -> Path:
@@ -931,11 +942,11 @@ def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:
                 os.environ[k] = v
 
     actual_sha = hashlib.sha256(corpus_text.encode("utf-8")).hexdigest()
-    if actual_sha != CONFIG_2A_CORPUS_SHA256:
+    if actual_sha != CORPUS_2A_SHA256:
         return (
             "FAIL",
             f"local 2a corpus sha256 {actual_sha} != registered "
-            f"{CONFIG_2A_CORPUS_SHA256}",
+            f"{CORPUS_2A_SHA256}",
         )
 
     try:
