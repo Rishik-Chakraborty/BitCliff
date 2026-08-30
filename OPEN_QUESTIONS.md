@@ -14,7 +14,7 @@
 4. **§4a:** "expected" (gold passcodes) added to published longctx_retrieval
    fields; packager updated and re-run. **§4b:** config-2a refusal heuristic
    kept with an in-code revisit note; the durable corpus-pointer-in-items
-   fix is a ticketed later work item (freeze-plan §10) (ticket closed 2026-08-29: manifest _run_config.corpus_sha256 + positive provenance check replaced the heuristic — see freeze-plan §10).
+   fix is a ticketed later work item (freeze-plan §10). (ticket closed 2026-08-29: manifest _run_config.corpus_sha256 + positive provenance check replaced the heuristic — see freeze-plan §10).
 
 The original entries are preserved below as written overnight.
 
