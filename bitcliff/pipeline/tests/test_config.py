@@ -73,3 +73,40 @@ def test_spectacle_only_defaults_false_and_parses(tmp_path):
     cfg = load_config(write_yaml(tmp_path, yaml_text))
     assert cfg.quants[0].spectacle_only is False   # omitted -> default
     assert cfg.quants[1].spectacle_only is True
+
+
+# ---------------------------------------------------------------------------
+# 0B P3: config-pinned sha256 / per-quant hf_repo override / extra_files
+# (sharded GGUFs) -- all optional, default to None/None/() when omitted so
+# every pre-0B config keeps loading unchanged.
+# ---------------------------------------------------------------------------
+
+
+def test_quant_sha256_and_hf_repo_default_to_none(tmp_path):
+    cfg = load_config(write_yaml(tmp_path, VALID_YAML))
+    assert cfg.quants[0].sha256 is None
+    assert cfg.quants[0].hf_repo is None
+    assert cfg.quants[0].extra_files == ()
+
+
+def test_quant_sha256_and_hf_repo_override_parse(tmp_path):
+    yaml_text = VALID_YAML.replace(
+        "  - {label: Q8_0, filename: Qwen2.5-1.5B-Instruct-Q8_0.gguf, uploader: bartowski, imatrix: true}",
+        "  - {label: Q8_0, filename: Qwen2.5-1.5B-Instruct-Q8_0.gguf, uploader: bartowski, imatrix: true, "
+        "sha256: 'aa' , hf_repo: other/repo}",
+    )
+    cfg = load_config(write_yaml(tmp_path, yaml_text))
+    assert cfg.quants[0].sha256 == "aa"
+    assert cfg.quants[0].hf_repo == "other/repo"
+
+
+def test_quant_extra_files_parse(tmp_path):
+    yaml_text = VALID_YAML.replace(
+        "  - {label: Q8_0, filename: Qwen2.5-1.5B-Instruct-Q8_0.gguf, uploader: bartowski, imatrix: true}",
+        "  - {label: Q8_0, filename: shard1.gguf, uploader: qwen-official, imatrix: false, "
+        "extra_files: [{filename: shard2.gguf, sha256: 'bb'}]}",
+    )
+    cfg = load_config(write_yaml(tmp_path, yaml_text))
+    assert len(cfg.quants[0].extra_files) == 1
+    assert cfg.quants[0].extra_files[0].filename == "shard2.gguf"
+    assert cfg.quants[0].extra_files[0].sha256 == "bb"

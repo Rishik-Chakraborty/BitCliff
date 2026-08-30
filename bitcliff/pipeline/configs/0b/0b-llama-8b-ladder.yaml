@@ -1,0 +1,104 @@
+# 0B confirmatory run: Llama-3.1-8B-Instruct, bartowski canonical ladder.
+#
+# Registered-parameter carrier for RUN_0B.md §5's "Llama-8B bartowski
+# ladder" run unit (7 canonical rungs, ruled 2026-08-30) + the F16 baseline
+# (config.f16_path, generated automatically alongside every quant by
+# bitcliff_pipeline.__main__.run_pipeline). Every value below is checked
+# against PREREG.md / Amendment 1 / reference-manifests/*.json by
+# tests/test_0b_configs.py -- do not hand-edit a registered value here
+# without updating that test's assertion too.
+#
+# File pins: reference-manifests/llama-3.1-8b-bartowski.json
+#   (repo bartowski/Meta-Llama-3.1-8B-Instruct-GGUF,
+#    revision bf5b95e96dac0462e2a09145ec66cae9a3f12067).
+# Ladder ruling: RUN_0B.md §5 "RULED 2026-08-30" -- Q8_0, Q6_K, Q5_K_M,
+#   Q4_K_M, Q3_K_M, Q2_K, IQ2_M (7 rungs; PREREG §4's manifests pin
+#   provenance for every uploaded file, not the run matrix -- these 7 are
+#   the only ones individually PREREG-anchored as ladder members).
+
+model_id: llama-3.1-8b-instruct
+hf_repo: bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
+f16_path: models/f16/Llama-3.1-8B-Instruct-f16.gguf
+
+quants:
+  - label: Q8_0
+    filename: Meta-Llama-3.1-8B-Instruct-Q8_0.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 9da71c45c90a821809821244d4971e5e5dfad7eb091f0b8ff0546392393b6283
+  - label: Q6_K
+    filename: Meta-Llama-3.1-8B-Instruct-Q6_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 33981adf6bae52c503fb5c24f72539010632f7ed290a56c1315a8cd50adca587
+  - label: Q5_K_M
+    filename: Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 14e10feba0c82a55da198dcd69d137206ad22d116a809926d27fa5f2398c69c7
+  - label: Q4_K_M
+    filename: Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c
+  - label: Q3_K_M
+    filename: Meta-Llama-3.1-8B-Instruct-Q3_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 6be122b5c8f2a33974953e58e0ffd2be505661acc6f4caf733e4bca130e89fea
+  - label: Q2_K
+    filename: Meta-Llama-3.1-8B-Instruct-Q2_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 3f7f9265554ac91f1fb31c1b63b9cada4362533dfaa3f6e8dfc33c48d36909ce
+  - label: IQ2_M
+    filename: Meta-Llama-3.1-8B-Instruct-IQ2_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 849856e1e7eff8ea7425a2a4cee50f3d547165194f50ea3112c9fc07cb08daad
+
+# RUN_0B.md §3: greedy, temp 0.0, top_k 1, seed 42, global 1024-token
+# budget. n_ctx 16384: the longctx suite's t=8192 prompts run ~8300 tokens
+# (document + chat wrapper) and must leave room for the 32-token answer
+# budget plus headroom -- 16384 comfortably covers every suite's prompt +
+# answer, including arithmetic/factual_qa's shorter prompts under the
+# global 1024-token generation cap.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+suites:
+  # PREREG §3.1 config 2b + Amendment 1 §C/§D: multivalue4 @ t=8192 is the
+  # chosen (out-of-band-high, disclosed per §A2) setting for this model.
+  # corpus_sha256 is the STRIPPED-text hash, PREREG §3.1's "generator's
+  # corpus-hash gate accepts exactly this hash for 2b".
+  longctx_retrieval:
+    variant: multivalue4
+    target_tokens: 8192
+    seed: 2024
+    n_items: 96
+    corpus_path: corpora/pg1184-monte-cristo.txt
+    corpus_sha256: 0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443
+    tokenizer_path: models/hf/Llama-3.1-8B-Instruct
+    max_tokens: 32
+  # PREREG §3.2: n=500, seed=3141 (registered, never amended).
+  arithmetic:
+    n_items: 500
+    seed: 3141
+  # PREREG §3.3: seed=1301 (fixed n = all 47 template pairs / 94 items).
+  arithmetic_twins:
+    seed: 1301
+  # PREREG §3.4 + §7: n=500, confirmatory seed=2718 (registered, never
+  # amended), M3 popularity mix (Amendment 1 §C: chosen for all three
+  # models -- none landed in-band, M3 is the most tail-heavy candidate and
+  # the registered out-of-band fallback), 64-token answer budget, seed-2718
+  # alias augmentation widened per Amendment 1 §B (union of M1/M2/M3 QIDs).
+  factual_qa:
+    n_items: 500
+    seed: 2718
+    weights: [0.16, 0.16, 0.16, 0.16, 0.16, 0.04, 0.04, 0.04, 0.04, 0.04]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64

@@ -1,0 +1,97 @@
+# 0B confirmatory run: Qwen2.5-7B-Instruct, bartowski canonical ladder.
+#
+# Registered-parameter carrier for RUN_0B.md §5's "Qwen-7B bartowski
+# ladder" run unit (7 canonical rungs, ruled 2026-08-30) + the F16 baseline
+# (config.f16_path, generated automatically alongside every quant by
+# bitcliff_pipeline.__main__.run_pipeline). Every value below is checked
+# against PREREG.md / Amendment 1 / reference-manifests/*.json by
+# tests/test_0b_configs.py -- do not hand-edit a registered value here
+# without updating that test's assertion too.
+#
+# File pins: reference-manifests/qwen2.5-7b-bartowski.json
+#   (repo bartowski/Qwen2.5-7B-Instruct-GGUF,
+#    revision 8911e8a47f92bac19d6f5c64a2e2095bd2f7d031).
+# Ladder ruling: RUN_0B.md §5 "RULED 2026-08-30" -- Q8_0, Q6_K, Q5_K_M,
+#   Q4_K_M, Q3_K_M, Q2_K, IQ2_M (7 rungs; identical rung set to the Llama
+#   ladder -- PREREG §5's per-model confirmatory rung set is model-agnostic).
+
+model_id: qwen2.5-7b-instruct
+hf_repo: bartowski/Qwen2.5-7B-Instruct-GGUF
+f16_path: models/f16/Qwen2.5-7B-Instruct-f16.gguf
+
+quants:
+  - label: Q8_0
+    filename: Qwen2.5-7B-Instruct-Q8_0.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 9c6a6e61664446321d9c0dd7ee28a0d03914277609e21bc0e1fce4abe780ce1b
+  - label: Q6_K
+    filename: Qwen2.5-7B-Instruct-Q6_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 489138dfed4f04cd6dea56e5a8423e4aa05a0318cce2a4a72250fe1278e97cf8
+  - label: Q5_K_M
+    filename: Qwen2.5-7B-Instruct-Q5_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 2e998d7e181c8756c5ffc55231b9ee1cdc9d3acec4245d6e27d32bd8e738c474
+  - label: Q4_K_M
+    filename: Qwen2.5-7B-Instruct-Q4_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 65b8fcd92af6b4fefa935c625d1ac27ea29dcb6ee14589c55a8f115ceaaa1423
+  - label: Q3_K_M
+    filename: Qwen2.5-7B-Instruct-Q3_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 6738a2d4f9b280c55b2a19a7ab27334a75d2cafc6ef82a11a075f4b5613eb736
+  - label: Q2_K
+    filename: Qwen2.5-7B-Instruct-Q2_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: f04eb1416242987e53ceb567620a4bf7258f094705fc6c4086b24afaf85ed26c
+  - label: IQ2_M
+    filename: Qwen2.5-7B-Instruct-IQ2_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 1ecc8a1b8000b67a3bd73e0a1d3e0d9e63ddc31e3adfc54c52c1bb213a380900
+
+# RUN_0B.md §3: greedy, temp 0.0, top_k 1, seed 42, global 1024-token
+# budget. n_ctx 16384: see 0b-llama-8b-ladder.yaml's comment (identical
+# reasoning, model-agnostic).
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+suites:
+  # PREREG §3.1 config 2b + Amendment 1 §C/§D: multivalue4 @ t=8192 is the
+  # chosen (out-of-band-high, disclosed per §A2) setting for this model.
+  longctx_retrieval:
+    variant: multivalue4
+    target_tokens: 8192
+    seed: 2024
+    n_items: 96
+    corpus_path: corpora/pg1184-monte-cristo.txt
+    corpus_sha256: 0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443
+    tokenizer_path: models/hf/Qwen2.5-7B-Instruct
+    max_tokens: 32
+  # PREREG §3.2: n=500, seed=3141 (registered, never amended).
+  arithmetic:
+    n_items: 500
+    seed: 3141
+  # PREREG §3.3: seed=1301 (fixed n = all 47 template pairs / 94 items).
+  arithmetic_twins:
+    seed: 1301
+  # PREREG §3.4 + §7: n=500, confirmatory seed=2718 (registered, never
+  # amended), M3 popularity mix (Amendment 1 §C: chosen for all three
+  # models), 64-token answer budget, seed-2718 alias augmentation widened
+  # per Amendment 1 §B (union of M1/M2/M3 QIDs).
+  factual_qa:
+    n_items: 500
+    seed: 2718
+    weights: [0.16, 0.16, 0.16, 0.16, 0.16, 0.04, 0.04, 0.04, 0.04, 0.04]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64

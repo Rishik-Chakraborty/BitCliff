@@ -296,3 +296,20 @@ def test_load_popqa_items_without_alias_augmentation_path_is_unaugmented(monkeyp
     monkeypatch.setattr(datasets, "load_dataset", lambda name, split: AUG_RECORDS)
     items = load_popqa_items(10, seed=3)
     assert items[5].expected == ("answer-5",)
+
+
+def test_load_popqa_items_forwards_weights_to_items_from_records(monkeypatch):
+    """0B P3 wiring gap: `load_popqa_items` must forward an explicit
+    `weights` vector (PREREG §7's popularity-mix knob) through to
+    `items_from_records`, not silently default to the uniform mix."""
+    import datasets
+
+    monkeypatch.setattr(datasets, "load_dataset", lambda name, split: RECORDS)
+    m3 = (0.16, 0.16, 0.16, 0.16, 0.16, 0.04, 0.04, 0.04, 0.04, 0.04)
+
+    weighted = load_popqa_items(50, seed=7, weights=m3)
+    unweighted = load_popqa_items(50, seed=7)
+    direct = items_from_records(RECORDS, n_items=50, seed=7, weights=m3)
+
+    assert [i.id for i in weighted] == [i.id for i in direct]
+    assert weighted != unweighted

@@ -204,8 +204,14 @@ def _load_alias_augmentation(path: str | Path) -> dict[str, list[str]]:
 
 
 def load_popqa_items(
-    n_items: int, seed: int, alias_augmentation_path: str | Path | None = None
+    n_items: int,
+    seed: int,
+    alias_augmentation_path: str | Path | None = None,
+    weights: tuple[float, ...] | None = None,
 ) -> list[EvalItem]:
+    """`weights` is the PREREG §7 popularity-mix knob (M1/M2/M3), forwarded
+    straight to `items_from_records`'s `weights` parameter -- `None` (the
+    default) reproduces the original uniform-mix behavior unchanged."""
     from datasets import load_dataset
 
     ds = load_dataset("akariasai/PopQA", split="test")
@@ -214,7 +220,9 @@ def load_popqa_items(
         if alias_augmentation_path is not None
         else None
     )
-    return items_from_records(ds, n_items, seed, alias_augmentation=alias_augmentation)
+    return items_from_records(
+        ds, n_items, seed, weights=weights, alias_augmentation=alias_augmentation
+    )
 
 
 def _normalize(s: str) -> str:

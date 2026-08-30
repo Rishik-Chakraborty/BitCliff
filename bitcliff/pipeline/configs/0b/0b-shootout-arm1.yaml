@@ -1,0 +1,98 @@
+# 0B confirmatory run: uploader shootout Arm 1 (Llama-3.1-8B-Instruct only,
+# Q4_K_M + Q3_K_M only -- PREREG §5 binding ruling 2026-08-26).
+#
+# unsloth vs mradermacher-static vs mradermacher-i1, at the two shared
+# quant labels. bartowski's own Q4_K_M/Q3_K_M for this comparison come from
+# 0b-llama-8b-ladder.yaml's ladder run (RUN_0B.md §5: "bartowski's two come
+# from its ladder run") -- NOT duplicated here. Same F16 baseline
+# (f16_path) and same four scored suites as the ladder run.
+#
+# File pins: reference-manifests/shootout-8b.json. Every quant here sets
+# its own `hf_repo` (config.py's QuantFile.hf_repo override, added for
+# this run: three files' worth of quants from three distinct HF repos
+# inside one config, which the top-level `hf_repo` alone cannot express).
+# The top-level hf_repo below is never actually used for a download (every
+# quant overrides it) -- set to bartowski's ladder repo purely so the
+# required top-level key names something real and load_config never needs
+# a placeholder string.
+
+model_id: llama-3.1-8b-instruct
+hf_repo: bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
+f16_path: models/f16/Llama-3.1-8B-Instruct-f16.gguf
+
+quants:
+  # unsloth/Llama-3.1-8B-Instruct-GGUF (requested repo
+  # unsloth/Meta-Llama-3.1-8B-Instruct-GGUF did not resolve; shootout-8b.json
+  # records the auto-substitution -- same org, shortest matching name).
+  - label: unsloth_Q4_K_M
+    filename: Llama-3.1-8B-Instruct-Q4_K_M.gguf
+    uploader: unsloth
+    imatrix: false
+    hf_repo: unsloth/Llama-3.1-8B-Instruct-GGUF
+    sha256: b3bdbf23b47d7e6bb791c99b206deb169cd5a96362a9e3399028df2faacdc506
+  - label: unsloth_Q3_K_M
+    filename: Llama-3.1-8B-Instruct-Q3_K_M.gguf
+    uploader: unsloth
+    imatrix: false
+    hf_repo: unsloth/Llama-3.1-8B-Instruct-GGUF
+    sha256: 71daf40611ec04009c25d81764dc242abcc2d991c801a60f58c19ad856c500fd
+  # mradermacher/Meta-Llama-3.1-8B-Instruct-GGUF (static, non-imatrix).
+  - label: mradermacher_static_Q4_K_M
+    filename: Meta-Llama-3.1-8B-Instruct.Q4_K_M.gguf
+    uploader: mradermacher
+    imatrix: false
+    hf_repo: mradermacher/Meta-Llama-3.1-8B-Instruct-GGUF
+    sha256: 56e1a31ac6e5037174344ac2153c33d873f301f2a312ef2619775190aade51c7
+  - label: mradermacher_static_Q3_K_M
+    filename: Meta-Llama-3.1-8B-Instruct.Q3_K_M.gguf
+    uploader: mradermacher
+    imatrix: false
+    hf_repo: mradermacher/Meta-Llama-3.1-8B-Instruct-GGUF
+    sha256: c442867e159491ce63159ba45794926ef3a3afaf5f40c91c05a824d8f36faa8e
+  # mradermacher/Meta-Llama-3.1-8B-Instruct-i1-GGUF (imatrix-calibrated --
+  # the calibration-isolation counterpart to the static pair above).
+  - label: mradermacher_i1_Q4_K_M
+    filename: Meta-Llama-3.1-8B-Instruct.i1-Q4_K_M.gguf
+    uploader: mradermacher
+    imatrix: true
+    hf_repo: mradermacher/Meta-Llama-3.1-8B-Instruct-i1-GGUF
+    sha256: 85465a58bf902b8fe36e1e719fd1ddc23305110a6b19233f10560dfd1180f77a
+  - label: mradermacher_i1_Q3_K_M
+    filename: Meta-Llama-3.1-8B-Instruct.i1-Q3_K_M.gguf
+    uploader: mradermacher
+    imatrix: true
+    hf_repo: mradermacher/Meta-Llama-3.1-8B-Instruct-i1-GGUF
+    sha256: 2571f9e6218ffb56904b6b90a0ebf208956435d725f6c1b2390e049e0b8bf34e
+
+# Identical to 0b-llama-8b-ladder.yaml (RUN_0B.md §3): greedy, temp 0.0,
+# top_k 1, seed 42, global 1024-token budget, n_ctx 16384.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+# Identical suite block to 0b-llama-8b-ladder.yaml -- same model, same
+# registered per-suite settings; only the quant files differ.
+suites:
+  longctx_retrieval:
+    variant: multivalue4
+    target_tokens: 8192
+    seed: 2024
+    n_items: 96
+    corpus_path: corpora/pg1184-monte-cristo.txt
+    corpus_sha256: 0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443
+    tokenizer_path: models/hf/Llama-3.1-8B-Instruct
+    max_tokens: 32
+  arithmetic:
+    n_items: 500
+    seed: 3141
+  arithmetic_twins:
+    seed: 1301
+  factual_qa:
+    n_items: 500
+    seed: 2718
+    weights: [0.16, 0.16, 0.16, 0.16, 0.16, 0.04, 0.04, 0.04, 0.04, 0.04]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64

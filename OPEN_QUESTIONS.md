@@ -167,3 +167,29 @@ setting 0.9896); the §5 decision covers both 8B-class models.
 
 **RESOLVED 2026-08-28 (user):** option (a) — M3-analogue longctx
 fallback registered via the amendment; t=16384 extension rejected.
+
+## 6. `configs/0b/0b-arm2-official.yaml` (P3): official Qwen GGUFs' imatrix status is undocumented
+
+Building the 0B run configs (RUN_0B.md §2 P3), `reference-manifests/
+qwen2.5-7b-official.json` (the Qwen/Qwen2.5-7B-Instruct-GGUF pin) carries no
+per-file `imatrix` flag — unlike `shootout-8b.json`, whose unsloth/
+mradermacher entries each record `uploader`/`imatrix` explicitly. No other
+committed document (LICENSE_AUDIT.md, INHOUSE_QUANTS.md, PREREG.md,
+RUN_0B.md) states how Qwen's own team quantized their official q4_k_m/
+q3_k_m releases.
+
+**What was done:** `0b-arm2-official.yaml` sets `imatrix: false` for both
+official quants — the conservative choice (asserting `true` without
+evidence would be an unverified provenance claim in a config PREREG's
+cross-check test treats as authoritative), disclosed here rather than
+silently assumed. This does not block config authoring or the cross-check
+test (neither depends on the imatrix flag's value), but the manifest/
+reporting layer would publish a wrong provenance flag for this arm if the
+assumption is wrong.
+
+**Your decision:** confirm `imatrix: false` for the official Qwen GGUFs
+(no positive evidence either way), or provide/point to a source that
+settles it (e.g. Qwen's own model card, a `quantize.imatrix.file` GGUF
+metadata key readable once the file is downloaded) before Arm 2 actually
+runs. Low stakes either way — this only affects a provenance label, not
+which files are compared or how they're scored.
