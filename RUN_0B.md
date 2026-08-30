@@ -118,31 +118,28 @@ the 1.5B work.
 | Arm 2 official (Qwen-7B) | Qwen official q4_k_m (2 shards) + q3_k_m | all 4 |
 | Divergence pass | every rung above incl. F16 | longctx answer-span NLL (P2 scorer) |
 
-**Ladder rung lists (RULED 2026-08-30 — canonical registered ladder, not
-the 20-rung reading):** PREREG §4's ladder text verbatim: *"A quant level is
-a **file, not a label**: every result is pinned to uploader, imatrix status,
-and sha256. The registered ladders are pinned to the committed manifests
-(`bitcliff/pipeline/reference-manifests/`), enumerated live from HF and
-hashed on 2026-08-26."* The manifests pin **provenance** for everything the
-uploader ships; the run matrix is the canonical ladder, each rung
-individually anchored in PREREG text: Q8_0, Q2_K, IQ2_M (§12's pilot "8
-published rungs" + §2's IQ2_M>Q2_K candidate finding), Q6_K / Q5_K_M /
-Q4_K_M / Q3_K_M (§10's blind-check mid-ladder enumeration). Both bartowski
-repos publish IQ2_M as their lowest rung (no IQ2_XXS/IQ1 exists), matching
-the pilot precedent exactly. **Per-model confirmatory rung set (identical
-for both models): F16 (local baseline) + Q8_0, Q6_K, Q5_K_M, Q4_K_M,
-Q3_K_M, Q2_K, IQ2_M — 7 quant rungs.** Every other manifest file (IQ3/IQ4
-variants, _S/_L/_XL sizes, Q4_0 family, ARM-repacked, f32/f16) is
-provenance-pinned but NOT a confirmatory rung; no PREREG sentence names any
-of them as a ladder member. No variant's inclusion was ambiguous under this
-reading (each included rung has a direct PREREG anchor), so nothing was
-sent to OPEN_QUESTIONS.
+**Ladder rung lists — REOPENED 2026-08-30, awaiting ruling
+(`OPEN_QUESTIONS.md` §6).** The earlier "canonical ladder RULED" text in
+this section overclaimed its PREREG anchors (§10/§12 are 1.5B contexts,
+not reference-ladder registrations) and cited a "~60-cell multiplicity
+anticipation" that has no source in PREREG or IDEA; both statements are
+retracted. What is actually true: PREREG §4 registers the ladders only as
+manifest-pinned with no rung enumeration; IDEA.md §4's operative rule
+("down to the lowest level the tracked uploaders actually publish")
+resolves the BOTTOM to IQ2_M for both models (IQ2_XXS/IQ1_S exist in
+neither pinned bartowski manifest), but the mid-ladder rung set is
+unregistered. Options (a)–(d) with cell counts are in OPEN_QUESTIONS §6.
+The 7-rung matrix above (F16 + Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q3_K_M, Q2_K,
+IQ2_M = option (a)) stands as the DRAFT baseline this document's totals
+and cost are computed against, pending the ruling.
 
-**Cell count vs anticipation:** 2 models × 7 rungs × 4 scored suites =
-**56 confirmatory reference cells** for 0B — consistent with the ~60 the
-multiplicity policy anticipated (the rejected 20-rung reading implied 160).
-Shootout/official arms add 8 files × 4 suites = 32 arm-scoped cells,
-outside the reference matrix.
+**Cell count (option (a) draft baseline):** 2 models × 7 rungs × 4 scored
+suites = **56 confirmatory reference cells**; shootout/official arms add
+8 files × 4 suites = 32 arm-scoped cells, outside the reference matrix.
+PREREG §8's dual multiplicity rule is count-agnostic — per-cell verdicts
+are descriptive at α=0.05 regardless of ladder size; a larger ladder only
+enlarges the Holm family any cross-cell headline must survive. Other
+options: (b) 160 (+32); (c) 80–88 (+32).
 
 **Totals: 22 quant-rung generation runs (14 ladder + 6 shootout + 2
 official) + 2 F16 baselines + 24 divergence passes.** ~1,190 scored items
@@ -214,9 +211,10 @@ rather than discovering it at $175.
 
 ## 9. Decisions — RULED 2026-08-30
 
-1. **Ladder rung lists (§5): RULED — canonical registered ladder only**
-   (7 quant rungs/model, each PREREG-anchored; see §5). 20-rung reading
-   rejected; manifests pin provenance, not the run matrix.
+1. **Ladder rung lists (§5): REOPENED 2026-08-30 — see OPEN_QUESTIONS.md
+   §6** for the options awaiting ruling; §5's 7-rung matrix is the draft
+   baseline only, and this document's totals/cost are recomputed once the
+   ruling lands.
 2. **Local prerequisites (§2): GO** — P1–P3, local, $0, SDD with
    reviews; the P2 NLL scorer implements PREREG §3.1's registered Q2
    definition (teacher-forced on the full-precision trajectory) with

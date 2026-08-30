@@ -193,3 +193,69 @@ settles it (e.g. Qwen's own model card, a `quantize.imatrix.file` GGUF
 metadata key readable once the file is downloaded) before Arm 2 actually
 runs. Low stakes either way — this only affects a provenance label, not
 which files are compared or how they're scored.
+
+## 6. The reference-ladder rung set is not registered; registered expectation vs published files diverge (2026-08-30)
+
+PREREG §4 registers ladders only as "pinned to the committed manifests" —
+no per-rung enumeration, no subset rule. The product spec (claude/IDEA.md
+§4) says the ladder runs "F16 ..., then Q8, Q6, Q5, Q4, Q3, down to the
+lowest level the tracked uploaders actually publish, expected around
+IQ2_XXS, with IQ1_S included only where it exists." Facts, verified against
+the committed manifests (llama-3.1-8b-bartowski.json rev bf5b95e9...,
+qwen2.5-7b-bartowski.json rev 8911e8a4...):
+
+- IQ2_XXS: absent from BOTH manifests. IQ1_S: absent from both. IQ1_M:
+  absent from both.
+- Lowest quant bartowski publishes for both reference models: **IQ2_M**.
+  Sub-3-bit files present (identical label sets): IQ2_M, Q2_K, Q2_K_L.
+- The only IQ2_XXS/IQ1 rungs in the whole project are the 1.5B in-house
+  spectacle rungs (PREREG §4), which are spectacle_only and barred from
+  reference tables by registered rule.
+
+So under IDEA §4's own operative clause ("lowest level the tracked
+uploaders actually publish"), the reference bottom is IQ2_M — the
+"expected around IQ2_XXS" expectation is unmet by the uploader's actual
+catalog. That resolves the BOTTOM rung, but the MIDDLE of the ladder
+(which of the 24 manifest files per model are confirmatory rungs) is
+genuinely unregistered. A prior RUN_0B draft ruled a 7-rung "canonical"
+ladder citing PREREG §10/§12 anchors; those anchors are 1.5B contexts
+(blind-check materials, pilot rungs), not reference-ladder registrations —
+the citation was overclaimed, and the RUN_0B "~60-cell multiplicity
+anticipation" line has no source in PREREG or IDEA (PREREG §8's dual rule
+is count-agnostic; ladder size only changes the size of the Holm family a
+cross-cell headline must survive). Both statements are retracted here.
+
+NOT decided. **Your options (per reference model; the two models' manifests
+carry identical candidate label sets):**
+
+(a) **Family ladder, one file per label family, bottom = lowest
+    published:** F16 + Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q3_K_M, Q2_K, IQ2_M
+    (7 quant rungs). 2×7×4 = 56 reference cells (+32 arm cells).
+    Closest to IDEA §4's family enumeration; fewest cells; the IQ-vs-K
+    ~2.5 bpw comparison (Q5 exploratory candidate) is covered by
+    IQ2_M vs Q2_K.
+(b) **Full manifest ladder:** every runnable quant file in the pinned
+    manifests — 20 rungs/model (24 minus f32/f16, which are not quants,
+    minus Q4_0_4_4/4_8/8_8, ARM-repacked files the pinned llama.cpp build
+    cannot load; technical exclusions, disclosed). 2×20×4 = 160 reference
+    cells (+32). Maximal coverage; densest cliff localization; ~3× GPU
+    cost of (a); descriptive per-cell verdicts unaffected, but any
+    headline aggregating "from rung Y down" must survive a larger Holm
+    family.
+(c) **(a) plus the IQ mid-rungs** (IQ3_XS, IQ3_M, IQ4_XS both models;
+    IQ4_NL Llama / Q4_0 Qwen are further candidates): 10-11 rungs,
+    80-88 reference cells (+32). Adds the IQ-vs-K comparison at 3-4 bit.
+(d) **In-house quantize IQ2_XXS (and IQ1_S) for the reference models** to
+    reach IDEA's "expected" bottom. Flagged strongly: IDEA §4's in-house
+    exception is explicitly spectacle/1.5B-only ("the published-files-only
+    rule exists to protect download recommendations, and the 1.5B is not
+    one"), and PREREG §4 bars in-house rungs from reference tables — this
+    option would need its own disclosed registration amendment and is
+    disfavored by the registered text.
+
+Whichever option is chosen, the choice + rationale should be recorded as a
+dated disclosure in the run documentation (it fills a gap PREREG never
+registered, like §2/§5 above), and RUN_0B.md's matrix, GPU-hours, and cost
+line get recomputed against it before any "proceed".
+
+**NOT RESOLVED — awaiting your ruling.**
