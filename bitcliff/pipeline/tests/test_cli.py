@@ -139,6 +139,46 @@ def test_grade_stage_rejects_stale_outputs(tmp_path):
         )
 
 
+def test_manifest_records_run_config(tmp_path):
+    """Pre-0B ticket (freeze-plan §10): manifest.json carries the run's
+    suite config so the packager can positively identify corpus provenance
+    (e.g. a longctx run's corpus_sha256) instead of the seed heuristic."""
+    cfg = make_config(tmp_path)
+    cfg = dataclasses.replace(
+        cfg,
+        suites={
+            **cfg.suites,
+            "longctx_retrieval": {
+                "variant": "multivalue4",
+                "target_tokens": 8192,
+                "seed": 2024,
+                "n_items": 96,
+                "corpus_sha256": "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443",
+                "max_tokens": 32,
+            },
+        },
+    )
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    run_pipeline(
+        cfg, run_id="runconfig-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="download", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+    )
+
+    manifest = json.loads((runs_dir / "runconfig-test" / "manifest.json").read_text())
+    rc = manifest["_run_config"]
+    assert rc["model_id"] == "test-model"
+    assert rc["suites"]["longctx_retrieval"]["corpus_sha256"] == (
+        "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443"
+    )
+    # metadata key must not look like a rung to downstream consumers
+    assert set(manifest) - {"_run_config"} == {"F16", "Q4_K_M"}
+
+
 def test_build_items_covers_configured_suites(tmp_path):
     cfg = make_config(tmp_path)
     items = build_items(cfg, base_dir=tmp_path)

@@ -43,3 +43,27 @@ def test_verify_manifest_raises_on_changed_file(tmp_path):
     p.write_bytes(b"bbbb")
     with pytest.raises(ManifestMismatch, match="Q8_0"):
         verify_manifest(manifest, {"Q8_0": p})
+
+
+def test_verify_manifest_skips_underscore_metadata_keys(tmp_path):
+    from bitcliff_pipeline.hashing import build_manifest, verify_manifest
+
+    p = tmp_path / "m.gguf"
+    p.write_bytes(b"model bytes")
+    manifest = build_manifest({"Q4_K_M": p})
+    manifest["_run_config"] = {"model_id": "test-model", "suites": {}}
+    # must not KeyError on the metadata key; must still verify the real rung
+    verify_manifest(manifest, {"Q4_K_M": p})
+
+
+def test_verify_manifest_still_catches_mismatch_with_metadata_present(tmp_path):
+    import pytest
+    from bitcliff_pipeline.hashing import ManifestMismatch, build_manifest, verify_manifest
+
+    p = tmp_path / "m.gguf"
+    p.write_bytes(b"model bytes")
+    manifest = build_manifest({"Q4_K_M": p})
+    manifest["_run_config"] = {"model_id": "test-model", "suites": {}}
+    p.write_bytes(b"tampered")
+    with pytest.raises(ManifestMismatch):
+        verify_manifest(manifest, {"Q4_K_M": p})

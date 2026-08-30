@@ -69,6 +69,13 @@ def run_pipeline(
         meta["F16"] = {"uploader": "bitcliff-local-f16-conversion", "imatrix": False, "spectacle_only": False}
         for label, entry in manifest.items():
             entry.update(meta[label])
+        # Pre-0B ticket (freeze-plan §10): record the run's config in the
+        # manifest so dataset packaging can positively identify corpus
+        # provenance (2a vs 2b) instead of the retired seed heuristic.
+        manifest["_run_config"] = {
+            "model_id": config.model_id,
+            "suites": config.suites,
+        }
         write_manifest(manifest, manifest_path)
         print(f"manifest written: {manifest_path}")
 
