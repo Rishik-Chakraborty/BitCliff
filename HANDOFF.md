@@ -18,8 +18,7 @@ public pre-registration. Product spec: `claude/IDEA.md`.
 - **Difficulty calibration + Amendment 1** (F16-only, all three models,
   local): registered via PREREG's "Amendment 1 (2026-08-29)".
   - Amendment commit: `00a1228ca6df39ddb5971e87920d4d0b78913cf5`
-  - Receipt: `freeze/amendment1-commit-hash.txt.ots` — **pending Bitcoin
-    attestation** (chore: `ots upgrade` it, commit the upgraded receipt).
+  - Receipt: `freeze/amendment1-commit-hash.txt.ots` — **Bitcoin-attested** (blocks 964530/964545/964549; upgraded receipt committed, `62243b2`).
 - Also built and reviewed: static playground UI (`site/`, pilot fixtures),
   dataset packager with code-enforced embargoes
   (`bitcliff/pipeline/scripts/package_dataset.py`).

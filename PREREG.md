@@ -788,7 +788,7 @@ Per binding ruling 2026-08-26 (ruling 4):
    rules.
 
 PREREG commit: `5e6882b7a10c5e4670052855380e8646911db5f3` (the no-ff merge of `freeze-prep` into `main`; filled by the follow-up commit, since the freeze commit's hash cannot appear inside itself)
-OpenTimestamps proof: `freeze/freeze-commit-hash.txt.ots` (receipt over `freeze/freeze-commit-hash.txt` containing `5e6882b7a10c5e4670052855380e8646911db5f3`; submitted to 4 calendar servers 2026-08-26, pending Bitcoin attestation — run `ots upgrade` after ~a day to embed the final proof)
+OpenTimestamps proof: `freeze/freeze-commit-hash.txt.ots` (receipt over `freeze/freeze-commit-hash.txt` containing `5e6882b7a10c5e4670052855380e8646911db5f3`; Bitcoin-attested: block headers 964240/964307, upgraded receipt committed 2026-08-28, commit `0b4658a`)
 
 
 ---
@@ -802,7 +802,7 @@ the original; this amendment's own commit hash and receipt are recorded by
 the follow-up commit (the hash cannot appear inside its own commit):
 
 Amendment 1 commit: `00a1228ca6df39ddb5971e87920d4d0b78913cf5` (filled by the follow-up commit)
-Amendment 1 OpenTimestamps proof: `freeze/amendment1-commit-hash.txt.ots` (receipt over `freeze/amendment1-commit-hash.txt` containing `00a1228ca6df39ddb5971e87920d4d0b78913cf5`; submitted to 4 calendar servers 2026-08-29, pending Bitcoin attestation — run `ots upgrade` after ~a day)
+Amendment 1 OpenTimestamps proof: `freeze/amendment1-commit-hash.txt.ots` (receipt over `freeze/amendment1-commit-hash.txt` containing `00a1228ca6df39ddb5971e87920d4d0b78913cf5`; Bitcoin-attested: block headers 964530/964545/964549, upgraded receipt committed 2026-08-29, commit `62243b2`)
 
 Produced by: `bitcliff/pipeline/scripts/calibrate_f16.py` (task 1a, this
 overnight session). Full measurement provenance:
