@@ -132,3 +132,41 @@ def test_jsonl_roundtrip(tmp_path):
     loaded = read_records(path)
     assert loaded == records
     assert isinstance(loaded[0], OutputRecord)
+
+
+import pytest
+
+from bitcliff_pipeline.generate import (
+    TRUNCATION_PREFLIGHT_MAX_TOKENS,
+    assert_truncation_finish_reason,
+)
+
+
+class PreflightFakeLlm:
+    def __init__(self, finish_reason):
+        self._finish_reason = finish_reason
+        self.completion_kwargs = None
+
+    def tokenize(self, text, add_bos=True, special=False):
+        return list(range(len(text.split())))
+
+    def create_completion(self, prompt, **kwargs):
+        self.completion_kwargs = {"prompt": prompt, **kwargs}
+        return {"choices": [{"text": "1, 2, 3", "finish_reason": self._finish_reason}]}
+
+
+def test_truncation_preflight_passes_on_length():
+    llm = PreflightFakeLlm("length")
+    assert_truncation_finish_reason(llm)  # must not raise
+    # the probe really was a deliberately-truncated token-path completion
+    assert llm.completion_kwargs["max_tokens"] == TRUNCATION_PREFLIGHT_MAX_TOKENS
+    assert isinstance(llm.completion_kwargs["prompt"], list)
+    # deterministic decode settings, PREREG §6
+    assert llm.completion_kwargs["temperature"] == 0.0
+    assert llm.completion_kwargs["top_k"] == 1
+
+
+@pytest.mark.parametrize("bad", ["stop", None])
+def test_truncation_preflight_raises_on_wrong_finish_reason(bad):
+    with pytest.raises(RuntimeError, match="finish_reason"):
+        assert_truncation_finish_reason(PreflightFakeLlm(bad))

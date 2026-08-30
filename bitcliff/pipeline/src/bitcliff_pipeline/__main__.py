@@ -69,6 +69,13 @@ def run_pipeline(
         meta["F16"] = {"uploader": "bitcliff-local-f16-conversion", "imatrix": False, "spectacle_only": False}
         for label, entry in manifest.items():
             entry.update(meta[label])
+        # Pre-0B ticket (freeze-plan §10): record the run's config in the
+        # manifest so dataset packaging can positively identify corpus
+        # provenance (2a vs 2b) instead of the retired seed heuristic.
+        manifest["_run_config"] = {
+            "model_id": config.model_id,
+            "suites": config.suites,
+        }
         write_manifest(manifest, manifest_path)
         print(f"manifest written: {manifest_path}")
 
@@ -93,6 +100,7 @@ def run_pipeline(
                 continue
             print(f"generating {label} ({len(items)} items)...")
             llm = llm_factory(path, config.generation)
+            gen_mod.assert_truncation_finish_reason(llm)
             records = gen_mod.run_items(
                 llm, items, label, manifest[label]["sha256"], config.generation,
                 max_tokens_by_suite,

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import bitcliff_pipeline.__main__ as main_mod
+import bitcliff_pipeline.generate as gen_mod
 import bitcliff_pipeline.grading as grading_mod
 from bitcliff_pipeline.__main__ import build_items, run_pipeline
 from bitcliff_pipeline.config import GenSettings, LadderConfig, QuantFile
@@ -55,11 +56,19 @@ class FakeLlm:
 
     _ARITH_RE = re.compile(r"x = (\d+) and y = (\d+)")
 
+    def tokenize(self, text, add_bos=True, special=False):
+        return list(range(len(text.split())))
+
     def create_chat_completion(self, messages, **kwargs):
         prompt = messages[0]["content"]
         m = self._ARITH_RE.search(prompt)
         content = f"#### {int(m.group(1)) + int(m.group(2))}" if m else prompt
         return {"choices": [{"message": {"content": content}, "finish_reason": "stop"}]}
+
+    def create_completion(self, prompt, max_tokens, **kwargs):
+        # the truncation preflight (generate stage) probes via the token
+        # path with a small budget and expects an honest "length"
+        return {"choices": [{"text": "1, 2, 3", "finish_reason": "length"}]}
 
 
 @pytest.fixture(autouse=True)
@@ -139,6 +148,46 @@ def test_grade_stage_rejects_stale_outputs(tmp_path):
         )
 
 
+def test_manifest_records_run_config(tmp_path):
+    """Pre-0B ticket (freeze-plan §10): manifest.json carries the run's
+    suite config so the packager can positively identify corpus provenance
+    (e.g. a longctx run's corpus_sha256) instead of the seed heuristic."""
+    cfg = make_config(tmp_path)
+    cfg = dataclasses.replace(
+        cfg,
+        suites={
+            **cfg.suites,
+            "longctx_retrieval": {
+                "variant": "multivalue4",
+                "target_tokens": 8192,
+                "seed": 2024,
+                "n_items": 96,
+                "corpus_sha256": "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443",
+                "max_tokens": 32,
+            },
+        },
+    )
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    run_pipeline(
+        cfg, run_id="runconfig-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="download", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+    )
+
+    manifest = json.loads((runs_dir / "runconfig-test" / "manifest.json").read_text())
+    rc = manifest["_run_config"]
+    assert rc["model_id"] == "test-model"
+    assert rc["suites"]["longctx_retrieval"]["corpus_sha256"] == (
+        "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443"
+    )
+    # metadata key must not look like a rung to downstream consumers
+    assert set(manifest) - {"_run_config"} == {"F16", "Q4_K_M"}
+
+
 def test_build_items_covers_configured_suites(tmp_path):
     cfg = make_config(tmp_path)
     items = build_items(cfg, base_dir=tmp_path)
@@ -195,12 +244,13 @@ def test_build_items_factual_qa_without_alias_augmentation_path_passes_none(tmp_
 
 
 class TokenAwareFakeLlm(FakeLlm):
-    """Extends FakeLlm with create_completion, for suites (e.g.
-    longctx_retrieval) that generate from a token-id prompt rather than a
-    chat message. Records the exact token list it was called with.
-    """
+    """Extends FakeLlm with create_completion for token-id items. Records
+    the exact token list it was called with. Answers the truncation
+    preflight (identified by its registered probe budget) honestly."""
 
-    def create_completion(self, prompt, **kwargs):
+    def create_completion(self, prompt, max_tokens=None, **kwargs):
+        if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
+            return super().create_completion(prompt, max_tokens, **kwargs)
         return {"choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}]}
 
 

@@ -36,6 +36,9 @@ def load_manifest(path: Path) -> dict:
 
 def verify_manifest(manifest: dict, files: dict[str, Path]) -> None:
     for label, entry in manifest.items():
+        if label.startswith("_"):
+            # Reserved metadata (e.g. "_run_config"), not a rung entry.
+            continue
         actual = sha256_file(files[label])
         if actual != entry["sha256"]:
             raise ManifestMismatch(

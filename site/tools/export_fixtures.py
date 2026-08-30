@@ -162,7 +162,7 @@ def main() -> int:
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    manifest_labels = set(manifest.keys())
+    manifest_labels = {k for k in manifest.keys() if not k.startswith("_")}  # Exclude reserved metadata keys (e.g., _run_config)
     ladder_labels = set(LADDER_ORDER)
     if manifest_labels != ladder_labels:
         print(
