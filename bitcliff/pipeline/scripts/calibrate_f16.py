@@ -595,12 +595,10 @@ class LongctxRunner:
         # 20 items, in id order.
         sample = [it.prompt for it in sorted(items, key=lambda i: i.id)[:20]]
         llm = self._llm_for(_n_ctx_for(LONGCTX_TARGET_TOKENS[0]))
-        # BOS/special handling: HF side uses add_special_tokens=False (no
-        # BOS, no special tokens); the matching llama-cpp call is
-        # add_bos=False, special=False -- both sides then tokenize the raw
-        # string with no extra tokens injected, which is what makes them
-        # comparable at all.
-        llama_tokenize = lambda s: llm.tokenize(s.encode("utf-8"), add_bos=False, special=False)  # noqa: E731
+        # BOS/special handling (HF add_special_tokens=False <-> llama-cpp
+        # add_bos=False, special=False) lives in the shared helper now --
+        # see longctx_retrieval.llama_tokenize_callable's docstring.
+        llama_tokenize = longctx_retrieval.llama_tokenize_callable(llm)
         try:
             longctx_retrieval.assert_tokenizer_match(self.hf_tokenizer, llama_tokenize, sample)
         except AssertionError as e:

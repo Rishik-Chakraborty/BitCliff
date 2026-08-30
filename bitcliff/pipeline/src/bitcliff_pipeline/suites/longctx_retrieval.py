@@ -103,6 +103,22 @@ def assert_tokenizer_match(hf_tokenizer, llama_tokenize, samples: list[str]) -> 
         )
 
 
+def llama_tokenize_callable(llm):
+    """Wrap a llama-cpp model's `.tokenize` into the plain `text ->
+    list[int]` callable `assert_tokenizer_match` expects, with BOS/
+    special-token handling fixed to match the HF side's
+    `add_special_tokens=False` convention used above (no BOS, no special
+    tokens injected on either side — required for the two encodings to be
+    comparable at all).
+
+    This is the exact glue `scripts/calibrate_f16.py`'s tokenizer gate
+    uses (`LongctxRunner._check_tokenizer_once`); extracted here so that
+    caller and `bitcliff_pipeline.__main__.run_pipeline`'s confirmatory
+    gate share one implementation instead of two divergent copies.
+    """
+    return lambda s: llm.tokenize(s.encode("utf-8"), add_bos=False, special=False)
+
+
 def grade(item: EvalItem, text: str) -> str:
     """Paper's verbatim grading rule (GRADING.md §1): an item is correct iff
     every gold match string appears as a plain, unanchored, order-

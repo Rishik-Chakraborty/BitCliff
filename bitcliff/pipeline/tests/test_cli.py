@@ -1,4 +1,5 @@
 import dataclasses
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -276,8 +277,8 @@ def test_token_id_item_roundtrips_through_items_jsonl_and_grades(tmp_path, monke
     )
     original_build_items = main_mod.build_items
 
-    def build_items_with_token_item(config, base_dir):
-        return original_build_items(config, base_dir) + [token_item]
+    def build_items_with_token_item(config, base_dir, longctx_tokenizer=None):
+        return original_build_items(config, base_dir, longctx_tokenizer=longctx_tokenizer) + [token_item]
 
     monkeypatch.setattr(main_mod, "build_items", build_items_with_token_item)
 
@@ -311,6 +312,162 @@ def test_token_id_item_roundtrips_through_items_jsonl_and_grades(tmp_path, monke
     # the grade stage actually reconstructed prompt_tokens as a tuple, not a list
     assert captured["prompt_tokens"] == (11, 12, 13)
     assert isinstance(captured["prompt_tokens"], tuple)
+
+
+# ---------------------------------------------------------------------------
+# longctx_retrieval wiring — P1 (RUN_0B.md §2, PREREG §3.1). No network, no
+# real HF/GGUF tokenizer or model: a word-splitting stub tokenizer (same
+# shape as test_longctx_retrieval.py's StubTokenizer) stands in for the HF
+# side, and FakeLlm subclasses stand in for the llama-cpp side.
+# ---------------------------------------------------------------------------
+
+
+class StubHfTokenizer:
+    """Deterministic word<->id tokenizer exposing exactly the surface
+    `longctx_retrieval.build_items` / `assert_tokenizer_match` need:
+    `__call__`, `decode`, `apply_chat_template`, `name_or_path`.
+    """
+
+    def __init__(self, name: str = "stub-hf-tokenizer"):
+        self.name_or_path = name
+        self._word_to_id: dict[str, int] = {}
+        self._id_to_word: dict[int, str] = {}
+
+    def _id_for(self, word: str) -> int:
+        if word not in self._word_to_id:
+            i = len(self._word_to_id)
+            self._word_to_id[word] = i
+            self._id_to_word[i] = word
+        return self._word_to_id[word]
+
+    def __call__(self, text: str, add_special_tokens: bool = False) -> dict:
+        return {"input_ids": [self._id_for(w) for w in text.split(" ")]}
+
+    def decode(self, ids) -> str:
+        return " ".join(self._id_to_word[i] for i in ids)
+
+    def apply_chat_template(self, messages, tokenize: bool = False, add_generation_prompt: bool = True) -> str:
+        return f"<|user|>{messages[0]['content']}<|assistant|>"
+
+
+LONGCTX_CORPUS_TEXT = " ".join(f"corpusword{i}" for i in range(500))
+LONGCTX_CORPUS_SHA256 = hashlib.sha256(LONGCTX_CORPUS_TEXT.encode("utf-8")).hexdigest()
+
+
+def _longctx_config(tmp_path: Path, cfg: LadderConfig) -> LadderConfig:
+    (tmp_path / "corpus.txt").write_text(LONGCTX_CORPUS_TEXT)
+    return dataclasses.replace(
+        cfg,
+        suites={
+            **cfg.suites,
+            "longctx_retrieval": {
+                "variant": "multivalue2",
+                "target_tokens": 64,
+                "seed": 7,
+                "n_items": 3,
+                "corpus_path": "corpus.txt",
+                "corpus_sha256": LONGCTX_CORPUS_SHA256,
+                "tokenizer_path": "tok",  # never actually loaded in these tests
+                "max_tokens": 32,
+            },
+        },
+    )
+
+
+class LongctxFakeLlm(FakeLlm):
+    """A llama-cpp-shaped fake whose `.tokenize` agrees word-for-word with
+    a given StubHfTokenizer — i.e. its GGUF-side tokenizer matches the HF
+    side, so PREREG §3.1's gate passes."""
+
+    def __init__(self, hf_tokenizer: StubHfTokenizer):
+        self._hf = hf_tokenizer
+
+    def tokenize(self, text: bytes, add_bos: bool = True, special: bool = False):
+        s = text.decode("utf-8") if isinstance(text, bytes) else text
+        return self._hf(s, add_special_tokens=False)["input_ids"]
+
+    def create_completion(self, prompt, max_tokens=None, **kwargs):
+        if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
+            return {"choices": [{"text": "1, 2, 3", "finish_reason": "length"}]}
+        return {"choices": [{"text": "irrelevant completion", "finish_reason": "stop"}]}
+
+
+class MismatchingLongctxFakeLlm(LongctxFakeLlm):
+    """Diverges from the HF tokenizer on every sample — simulates a GGUF
+    tokenizer that disagrees with the HF one, which the §3.1 gate must
+    catch and abort on."""
+
+    def tokenize(self, text, add_bos: bool = True, special: bool = False):
+        return super().tokenize(text, add_bos=add_bos, special=special) + [999999]
+
+
+def test_build_items_longctx_retrieval_wiring(tmp_path):
+    cfg = _longctx_config(tmp_path, make_config(tmp_path))
+    stub = StubHfTokenizer()
+
+    items = build_items(cfg, base_dir=tmp_path, longctx_tokenizer=stub)
+
+    longctx_items = [i for i in items if i.suite == "longctx_retrieval"]
+    assert len(longctx_items) == 3
+    assert all(i.prompt_tokens is not None for i in longctx_items)
+    assert all(isinstance(i.prompt_tokens, tuple) for i in longctx_items)
+
+
+def test_build_items_longctx_retrieval_corpus_hash_mismatch_raises(tmp_path):
+    cfg = _longctx_config(tmp_path, make_config(tmp_path))
+    cfg = dataclasses.replace(
+        cfg,
+        suites={**cfg.suites, "longctx_retrieval": {**cfg.suites["longctx_retrieval"], "corpus_sha256": "0" * 64}},
+    )
+    stub = StubHfTokenizer()
+
+    with pytest.raises(AssertionError, match="sha256"):
+        build_items(cfg, base_dir=tmp_path, longctx_tokenizer=stub)
+
+
+def test_generate_stage_runs_tokenizer_gate_before_first_longctx_generation(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+
+    cfg = _longctx_config(tmp_path, make_config(tmp_path))
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    run_pipeline(
+        cfg, run_id="longctx-gate-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=lambda path, gen: LongctxFakeLlm(hf_tokenizer), base_dir=tmp_path,
+    )
+
+    run = runs_dir / "longctx-gate-test"
+    assert (run / "outputs" / "F16.jsonl").exists()
+    assert (run / "outputs" / "Q4_K_M.jsonl").exists()
+
+
+def test_generate_stage_aborts_on_tokenizer_mismatch(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+
+    cfg = _longctx_config(tmp_path, make_config(tmp_path))
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    with pytest.raises(AssertionError, match="tokenizer mismatch"):
+        run_pipeline(
+            cfg, run_id="longctx-mismatch-test", models_dir=models_dir, runs_dir=runs_dir,
+            stage="all", llm_factory=lambda path, gen: MismatchingLongctxFakeLlm(hf_tokenizer),
+            base_dir=tmp_path,
+        )
+
+    run = runs_dir / "longctx-mismatch-test"
+    # the gate aborts before the first rung's generation ever writes output
+    assert not (run / "outputs" / "F16.jsonl").exists()
+    assert not (run / "outputs" / "Q4_K_M.jsonl").exists()
 
 
 def test_spectacle_only_flag_in_results(tmp_path):

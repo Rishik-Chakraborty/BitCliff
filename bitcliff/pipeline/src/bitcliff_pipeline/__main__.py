@@ -13,12 +13,21 @@ from .models import ensure_quants, resolve_all
 from .report import add_retention, aggregate, plot_retention, write_csv, write_json
 
 
-def build_items(config: LadderConfig, base_dir: Path) -> list[EvalItem]:
-    # longctx_retrieval items are NOT built here: that suite needs a real
-    # tokenizer and a verified corpus, and exposes its own
-    # `longctx_retrieval.build_items(tokenizer, corpus_text, corpus_sha256,
-    # ...)` builder for run configs that wire those in.
-    from .suites import arithmetic, arithmetic_twins, factual_qa, spectacle
+def _load_hf_tokenizer(path: Path):
+    """Deferred `transformers` import (matching the pattern already used
+    for other heavy/networked deps elsewhere in this pipeline, e.g.
+    `calibrate_f16.py`'s `datasets` imports) -- importing `transformers` at
+    module scope would drag it into every CLI invocation, including ones
+    that never touch longctx_retrieval."""
+    from transformers import AutoTokenizer
+
+    return AutoTokenizer.from_pretrained(str(path))
+
+
+def build_items(
+    config: LadderConfig, base_dir: Path, longctx_tokenizer=None
+) -> list[EvalItem]:
+    from .suites import arithmetic, arithmetic_twins, factual_qa, longctx_retrieval, spectacle
 
     items: list[EvalItem] = []
     suites = config.suites
@@ -39,6 +48,30 @@ def build_items(config: LadderConfig, base_dir: Path) -> list[EvalItem]:
         )
         items += factual_qa.load_popqa_items(
             s["n_items"], s["seed"], alias_augmentation_path=alias_augmentation_path
+        )
+    if "longctx_retrieval" in suites:
+        # PREREG §3.1 / RUN_0B.md §2 P1: needs a real tokenizer and a
+        # verified corpus. Every registered value (variant, target_tokens,
+        # seed, n_items, corpus_path, corpus_sha256, tokenizer_path) comes
+        # from the config block, never hardcoded here. The corpus-hash gate
+        # lives in `longctx_retrieval.build_items` itself (reused, not
+        # duplicated): a corpus_path whose bytes don't hash to
+        # corpus_sha256 raises AssertionError before any items are built.
+        s = suites["longctx_retrieval"]
+        tokenizer = (
+            longctx_tokenizer
+            if longctx_tokenizer is not None
+            else _load_hf_tokenizer(base_dir / s["tokenizer_path"])
+        )
+        corpus_text = (base_dir / s["corpus_path"]).read_bytes().decode("utf-8")
+        items += longctx_retrieval.build_items(
+            tokenizer,
+            corpus_text,
+            s["corpus_sha256"],
+            n_items=s["n_items"],
+            seed=s["seed"],
+            variant=s["variant"],
+            target_tokens=s["target_tokens"],
         )
     if "spectacle" in suites:
         items += spectacle.load_items(base_dir / suites["spectacle"]["path"])
@@ -83,7 +116,14 @@ def run_pipeline(
         paths = resolve_all(config, models_dir)
         manifest = load_manifest(manifest_path)
         verify_manifest(manifest, paths)
-        items = build_items(config, base_dir)
+
+        longctx_cfg = config.suites.get("longctx_retrieval")
+        longctx_hf_tokenizer = (
+            _load_hf_tokenizer(base_dir / longctx_cfg["tokenizer_path"])
+            if longctx_cfg is not None
+            else None
+        )
+        items = build_items(config, base_dir, longctx_tokenizer=longctx_hf_tokenizer)
         items_path = run_dir / "items.jsonl"
         items_path.write_text(
             "".join(json.dumps(dataclasses.asdict(i)) + "\n" for i in items)
@@ -93,6 +133,28 @@ def run_pipeline(
             for suite, scfg in config.suites.items()
             if isinstance(scfg, dict) and "max_tokens" in scfg
         }
+
+        # PREREG §3.1: the tokenizer-match gate must run before each
+        # model's FIRST generation, over the registered 20-string sample
+        # (the question strings of the run's first 20 longctx_retrieval
+        # items, in id order). Reuses `longctx_retrieval.assert_tokenizer_
+        # match` / `llama_tokenize_callable` -- the same mechanism
+        # `calibrate_f16.py` already implements -- never a reimplemented
+        # copy. Runs once per run_pipeline invocation (one model, one
+        # tokenizer shared across every quant rung), against whichever
+        # llama-cpp handle is loaded first.
+        tokenizer_gate_checked = longctx_cfg is None
+        if longctx_cfg is not None:
+            from .suites import longctx_retrieval
+
+            longctx_sample = [
+                it.prompt
+                for it in sorted(
+                    (i for i in items if i.suite == "longctx_retrieval"),
+                    key=lambda i: i.id,
+                )[:20]
+            ]
+
         for label, path in paths.items():
             out_path = run_dir / "outputs" / f"{label}.jsonl"
             if out_path.exists():
@@ -101,6 +163,13 @@ def run_pipeline(
             print(f"generating {label} ({len(items)} items)...")
             llm = llm_factory(path, config.generation)
             gen_mod.assert_truncation_finish_reason(llm)
+            if not tokenizer_gate_checked:
+                longctx_retrieval.assert_tokenizer_match(
+                    longctx_hf_tokenizer,
+                    longctx_retrieval.llama_tokenize_callable(llm),
+                    longctx_sample,
+                )
+                tokenizer_gate_checked = True
             records = gen_mod.run_items(
                 llm, items, label, manifest[label]["sha256"], config.generation,
                 max_tokens_by_suite,
