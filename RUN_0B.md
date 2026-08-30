@@ -63,7 +63,7 @@ execute without them, so approving this plan approves building them.
 | Instance | **g6e.xlarge** (1× NVIDIA L40S 48GB, 4 vCPU, 32 GiB RAM) — the leash's ceiling, and sufficient: largest file is a 15GB F16, plus 8k context KV |
 | Region | us-east-1 (aws-ops fixed decision) |
 | AMI | AWS Deep Learning Base GPU AMI (Ubuntu 22.04), latest in us-east-1 at launch; **exact AMI ID recorded in every run manifest** |
-| Storage | 400 GB gp3 EBS (models ~260 GB + headroom); deleted at termination |
+| Storage | 250 GB gp3 EBS (canonical models ~125 GB + headroom); deleted at termination |
 | Tags | `project=bitcliff`, `lifecycle=transient`, `phase=0b` (aws-ops rule) |
 | Python | project-pinned via uv (same `uv.lock` as local; lockfile synced to instance) |
 | llama-cpp-python | **0.3.35** (local pin), built from sdist with `CMAKE_ARGS="-DGGML_CUDA=on"`; the bundled llama.cpp commit is read off the installed build at setup and recorded in every manifest |
@@ -111,31 +111,42 @@ the 1.5B work.
 | run unit | files | suites |
 |---|---|---|
 | Llama-8B F16 baseline | local conversion (15 GB) | all 4 |
-| Llama-8B bartowski ladder | 20 rungs (see below) | all 4 |
+| Llama-8B bartowski ladder | 7 rungs (canonical, see ruling below) | all 4 |
 | Shootout Arm 1 (Llama-8B) | 6 files: unsloth Q4_K_M+Q3_K_M, mradermacher static + i1 Q4_K_M+Q3_K_M (bartowski's two come from its ladder run) | all 4 |
 | Qwen-7B F16 baseline | local conversion (14 GB) | all 4 |
-| Qwen-7B bartowski ladder | 20 rungs | all 4 |
+| Qwen-7B bartowski ladder | 7 rungs (canonical) | all 4 |
 | Arm 2 official (Qwen-7B) | Qwen official q4_k_m (2 shards) + q3_k_m | all 4 |
 | Divergence pass | every rung above incl. F16 | longctx answer-span NLL (P2 scorer) |
 
-**Proposed ladder rung lists (NEEDS YOUR RULING — see §9):** all files in
-each bartowski manifest **except**:
-- `f32` (Llama) / `f16` (Qwen): not quants; the registered F16 baseline is
-  the local official-repo conversion (PREREG §4), and bartowski's
-  full-precision files are neither baseline nor download recommendation.
-- `Q4_0_4_4` / `Q4_0_4_8` / `Q4_0_8_8` (both models): ARM-repacked
-  variants; llama.cpp removed loader support for them upstream, so they
-  cannot run on the pinned build at all.
+**Ladder rung lists (RULED 2026-08-30 — canonical registered ladder, not
+the 20-rung reading):** PREREG §4's ladder text verbatim: *"A quant level is
+a **file, not a label**: every result is pinned to uploader, imatrix status,
+and sha256. The registered ladders are pinned to the committed manifests
+(`bitcliff/pipeline/reference-manifests/`), enumerated live from HF and
+hashed on 2026-08-26."* The manifests pin **provenance** for everything the
+uploader ships; the run matrix is the canonical ladder, each rung
+individually anchored in PREREG text: Q8_0, Q2_K, IQ2_M (§12's pilot "8
+published rungs" + §2's IQ2_M>Q2_K candidate finding), Q6_K / Q5_K_M /
+Q4_K_M / Q3_K_M (§10's blind-check mid-ladder enumeration). Both bartowski
+repos publish IQ2_M as their lowest rung (no IQ2_XXS/IQ1 exists), matching
+the pilot precedent exactly. **Per-model confirmatory rung set (identical
+for both models): F16 (local baseline) + Q8_0, Q6_K, Q5_K_M, Q4_K_M,
+Q3_K_M, Q2_K, IQ2_M — 7 quant rungs.** Every other manifest file (IQ3/IQ4
+variants, _S/_L/_XL sizes, Q4_0 family, ARM-repacked, f32/f16) is
+provenance-pinned but NOT a confirmatory rung; no PREREG sentence names any
+of them as a ladder member. No variant's inclusion was ambiguous under this
+reading (each included rung has a direct PREREG anchor), so nothing was
+sent to OPEN_QUESTIONS.
 
-That leaves 20 rungs per ladder (Llama includes IQ4_NL; Qwen includes
-Q4_0). Exclusions and reasons get a dated disclosure note in the run
-documentation. PREREG §4 pins ladders to the manifests without
-enumerating a rung subset, so this reading — "every runnable quant file
-in the manifest" — is the widest faithful one; a narrower ladder is a
-decision only you can make.
+**Cell count vs anticipation:** 2 models × 7 rungs × 4 scored suites =
+**56 confirmatory reference cells** for 0B — consistent with the ~60 the
+multiplicity policy anticipated (the rejected 20-rung reading implied 160).
+Shootout/official arms add 8 files × 4 suites = 32 arm-scoped cells,
+outside the reference matrix.
 
-**Totals: 48 quant-rung generation runs + 2 F16 baselines + ~50
-divergence passes.** ~1,190 scored items per rung.
+**Totals: 22 quant-rung generation runs (14 ladder + 6 shootout + 2
+official) + 2 F16 baselines + 24 divergence passes.** ~1,190 scored items
+per rung.
 
 ## 6. Order of runs
 
@@ -147,7 +158,8 @@ divergence passes.** ~1,190 scored items per rung.
    tokenizer-match assertion. Verify outputs by eye + tests. **Report
    smoke result to you before the full ladders start** (cheap checkpoint,
    instance STOPPED while waiting unless you pre-authorize continuing).
-3. **Llama-8B:** F16 baseline → ladder top-down (Q8_0 → … → IQ2_M) →
+3. **Llama-8B:** F16 baseline → ladder top-down (Q8_0 → Q6_K → Q5_K_M →
+   Q4_K_M → Q3_K_M → Q2_K → IQ2_M) →
    shootout files → divergence passes (per rung, immediately after its
    generation, while the file is loaded).
 4. **Qwen-7B:** F16 baseline → ladder → official arm → divergence.
@@ -185,32 +197,36 @@ conservative end.
 | block | estimate |
 |---|---|
 | Setup + CUDA build + smoke | 2–3 h |
-| Downloads (~230 GB HF→EC2) | 1–2 h (overlaps setup where possible) |
-| 48 quant rungs × ~40–60 min | 32–48 h |
+| Downloads (~95 GB HF→EC2, canonical rungs + arms only) | ~1 h (overlaps setup) |
+| 22 quant rungs × ~40–60 min | 15–22 h |
 | 2 F16 baselines × ~1–1.5 h | 2–3 h |
-| ~50 divergence passes × ~3–5 min | 3–5 h |
-| **Total GPU-instance hours** | **≈ 40–61 h** (midpoint ~50 h) |
+| 24 divergence passes × ~3–5 min | 1.5–2 h |
+| **Total GPU-instance hours** | **≈ 21–31 h** (midpoint ~26 h) |
 
-**COST ESTIMATE: ~50 GPU-hours × $1.861/h (g6e.xlarge us-east-1
-on-demand, to be re-verified at launch) ≈ $93; range $75–115 for 40–61 h;
-plus ~$8 EBS+S3 ⇒ ≈ $85–125 total, against the $250 hard cap.**
+**COST ESTIMATE (revised under the canonical-ladder ruling, 2026-08-30):
+~26 GPU-hours × $1.861/h (g6e.xlarge us-east-1 on-demand, to be
+re-verified at launch) ≈ $48; range $39–58 for 21–31 h; plus ~$6 EBS+S3 ⇒
+≈ $45–65 total, against the $250 hard cap.**
 Consistent with IDEA.md §12's ~$150 allocation for confirmatory runs.
 If the realized per-rung time trends above the range after the first
 three rungs, I extrapolate, report, and wait at the $100 checkpoint
 rather than discovering it at $175.
 
-## 9. Decisions you must make before "proceed"
+## 9. Decisions — RULED 2026-08-30
 
-1. **Ladder rung lists (§5):** approve the 20-rung-per-model reading
-   (all manifest files minus f32/f16 and the three ARM-repacked
-   variants), or name a narrower registered ladder.
-2. **Local prerequisites (§2):** go/no-go on building P1–P3 now
-   (local, $0, SDD with reviews).
-3. **Smoke-test checkpoint (§6.2):** default is stop-and-report after the
-   smoke test; say so if you'd rather I continue straight into the
-   ladders on a clean smoke result.
-4. **AWS access:** refresh the `bitcliff-agent` credentials (currently
-   expired; no local `aws` CLI — I'll drive via the AWS MCP unless you
-   prefer installing the CLI).
-5. **The cost line (§8).** Nothing launches until your explicit
-   "proceed."
+1. **Ladder rung lists (§5): RULED — canonical registered ladder only**
+   (7 quant rungs/model, each PREREG-anchored; see §5). 20-rung reading
+   rejected; manifests pin provenance, not the run matrix.
+2. **Local prerequisites (§2): GO** — P1–P3, local, $0, SDD with
+   reviews; the P2 NLL scorer implements PREREG §3.1's registered Q2
+   definition (teacher-forced on the full-precision trajectory) with
+   tests asserting exactly that.
+3. **Smoke-test checkpoint (§6.2): CONFIRMED** — stop and report after
+   the smoke test.
+4. **AWS access: DONE** — profile `bitcliff-agent` verified via
+   `aws sts get-caller-identity` (account 048568674517); CLI now
+   installed and working, used as primary (leash applies identically).
+5. **The cost line (§8): revised to ≈ $45–65** under the canonical
+   ladder. Nothing launches until the explicit "proceed" — which per the
+   2026-08-30 ruling comes after: this ladder ruling (done) + revised
+   cost (done) + P1–P3 complete + credentials confirmation (done).
