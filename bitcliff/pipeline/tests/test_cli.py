@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import bitcliff_pipeline.__main__ as main_mod
+import bitcliff_pipeline.generate as gen_mod
 import bitcliff_pipeline.grading as grading_mod
 from bitcliff_pipeline.__main__ import build_items, run_pipeline
 from bitcliff_pipeline.config import GenSettings, LadderConfig, QuantFile
@@ -55,11 +56,19 @@ class FakeLlm:
 
     _ARITH_RE = re.compile(r"x = (\d+) and y = (\d+)")
 
+    def tokenize(self, text, add_bos=True, special=False):
+        return list(range(len(text.split())))
+
     def create_chat_completion(self, messages, **kwargs):
         prompt = messages[0]["content"]
         m = self._ARITH_RE.search(prompt)
         content = f"#### {int(m.group(1)) + int(m.group(2))}" if m else prompt
         return {"choices": [{"message": {"content": content}, "finish_reason": "stop"}]}
+
+    def create_completion(self, prompt, max_tokens, **kwargs):
+        # the truncation preflight (generate stage) probes via the token
+        # path with a small budget and expects an honest "length"
+        return {"choices": [{"text": "1, 2, 3", "finish_reason": "length"}]}
 
 
 @pytest.fixture(autouse=True)
@@ -235,12 +244,13 @@ def test_build_items_factual_qa_without_alias_augmentation_path_passes_none(tmp_
 
 
 class TokenAwareFakeLlm(FakeLlm):
-    """Extends FakeLlm with create_completion, for suites (e.g.
-    longctx_retrieval) that generate from a token-id prompt rather than a
-    chat message. Records the exact token list it was called with.
-    """
+    """Extends FakeLlm with create_completion for token-id items. Records
+    the exact token list it was called with. Answers the truncation
+    preflight (identified by its registered probe budget) honestly."""
 
-    def create_completion(self, prompt, **kwargs):
+    def create_completion(self, prompt, max_tokens=None, **kwargs):
+        if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
+            return super().create_completion(prompt, max_tokens, **kwargs)
         return {"choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}]}
 
 

@@ -100,6 +100,7 @@ def run_pipeline(
                 continue
             print(f"generating {label} ({len(items)} items)...")
             llm = llm_factory(path, config.generation)
+            gen_mod.assert_truncation_finish_reason(llm)
             records = gen_mod.run_items(
                 llm, items, label, manifest[label]["sha256"], config.generation,
                 max_tokens_by_suite,

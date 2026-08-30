@@ -9,6 +9,39 @@ from .config import GenSettings
 from .items import EvalItem
 
 
+# Pre-0B ticket (freeze-plan §10): grading.py derives every record's
+# `truncated` flag from `finish_reason == "length"`. Verify, on the actual
+# llm instance about to generate, that a deliberately-truncated
+# create_completion (the token path confirmatory longctx runs use) really
+# reports "length" — if a llama-cpp-python version ever stops populating
+# it, every truncation would silently grade as a clean stop.
+TRUNCATION_PREFLIGHT_PROMPT = "Count upward forever: 1, 2, 3, 4, 5, 6, 7,"
+TRUNCATION_PREFLIGHT_MAX_TOKENS = 8
+
+
+def assert_truncation_finish_reason(llm) -> None:
+    tokens = llm.tokenize(
+        TRUNCATION_PREFLIGHT_PROMPT.encode("utf-8"), add_bos=True, special=False
+    )
+    out = llm.create_completion(
+        prompt=list(tokens),
+        max_tokens=TRUNCATION_PREFLIGHT_MAX_TOKENS,
+        temperature=0.0,
+        top_k=1,
+        seed=42,
+    )
+    finish_reason = out["choices"][0].get("finish_reason")
+    if finish_reason != "length":
+        raise RuntimeError(
+            f"truncation preflight failed: a create_completion capped at "
+            f"{TRUNCATION_PREFLIGHT_MAX_TOKENS} tokens reported "
+            f"finish_reason={finish_reason!r}, not 'length' — the truncated "
+            f"flag (grading.py) cannot be trusted on this "
+            f"llama-cpp-python build; aborting before any confirmatory "
+            f"generation (pre-0B ticket, freeze-plan §10)"
+        )
+
+
 @dataclass(frozen=True)
 class OutputRecord:
     item_id: str
