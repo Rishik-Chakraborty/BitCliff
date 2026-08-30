@@ -204,8 +204,8 @@ def test_build_items_factual_qa_forwards_alias_augmentation_path(tmp_path, monke
     forwards it to load_popqa_items."""
     captured = {}
 
-    def fake_load_popqa_items(n_items, seed, alias_augmentation_path=None):
-        captured["args"] = (n_items, seed, alias_augmentation_path)
+    def fake_load_popqa_items(n_items, seed, alias_augmentation_path=None, weights=None):
+        captured["args"] = (n_items, seed, alias_augmentation_path, weights)
         return []
 
     monkeypatch.setattr(factual_qa, "load_popqa_items", fake_load_popqa_items)
@@ -223,14 +223,14 @@ def test_build_items_factual_qa_forwards_alias_augmentation_path(tmp_path, monke
         },
     )
     build_items(cfg, base_dir=tmp_path)
-    assert captured["args"] == (500, 7411, tmp_path / "data/aliases.json")
+    assert captured["args"] == (500, 7411, tmp_path / "data/aliases.json", None)
 
 
 def test_build_items_factual_qa_without_alias_augmentation_path_passes_none(tmp_path, monkeypatch):
     captured = {}
 
-    def fake_load_popqa_items(n_items, seed, alias_augmentation_path=None):
-        captured["args"] = (n_items, seed, alias_augmentation_path)
+    def fake_load_popqa_items(n_items, seed, alias_augmentation_path=None, weights=None):
+        captured["args"] = (n_items, seed, alias_augmentation_path, weights)
         return []
 
     monkeypatch.setattr(factual_qa, "load_popqa_items", fake_load_popqa_items)
@@ -241,7 +241,33 @@ def test_build_items_factual_qa_without_alias_augmentation_path_passes_none(tmp_
         suites={**cfg.suites, "factual_qa": {"n_items": 500, "seed": 7411}},
     )
     build_items(cfg, base_dir=tmp_path)
-    assert captured["args"] == (500, 7411, None)
+    assert captured["args"] == (500, 7411, None, None)
+
+
+def test_build_items_factual_qa_forwards_weights(tmp_path, monkeypatch):
+    """0B P3 wiring gap: `items_from_records` already accepted a `weights`
+    parameter (PREREG §7's popularity-mix knob), but `__main__.build_items`
+    never read a `weights` key from the config block or passed it through.
+    """
+    captured = {}
+
+    def fake_load_popqa_items(n_items, seed, alias_augmentation_path=None, weights=None):
+        captured["args"] = (n_items, seed, alias_augmentation_path, weights)
+        return []
+
+    monkeypatch.setattr(factual_qa, "load_popqa_items", fake_load_popqa_items)
+
+    m3 = [0.16, 0.16, 0.16, 0.16, 0.16, 0.04, 0.04, 0.04, 0.04, 0.04]
+    cfg = make_config(tmp_path)
+    cfg = dataclasses.replace(
+        cfg,
+        suites={
+            **cfg.suites,
+            "factual_qa": {"n_items": 500, "seed": 2718, "weights": m3},
+        },
+    )
+    build_items(cfg, base_dir=tmp_path)
+    assert captured["args"] == (500, 2718, None, tuple(m3))
 
 
 class TokenAwareFakeLlm(FakeLlm):
@@ -277,8 +303,13 @@ def test_token_id_item_roundtrips_through_items_jsonl_and_grades(tmp_path, monke
     )
     original_build_items = main_mod.build_items
 
-    def build_items_with_token_item(config, base_dir, longctx_tokenizer=None):
-        return original_build_items(config, base_dir, longctx_tokenizer=longctx_tokenizer) + [token_item]
+    def build_items_with_token_item(
+        config, base_dir, longctx_tokenizer=None, longctx_answer_specs=None
+    ):
+        return original_build_items(
+            config, base_dir, longctx_tokenizer=longctx_tokenizer,
+            longctx_answer_specs=longctx_answer_specs,
+        ) + [token_item]
 
     monkeypatch.setattr(main_mod, "build_items", build_items_with_token_item)
 
@@ -512,6 +543,57 @@ def test_generate_stage_gates_second_file_even_after_first_files_gate_passed(tmp
     # ...but Q4_K_M's gate must still fire on Q4_K_M's own (mismatching)
     # tokenizer and abort before Q4_K_M ever generates.
     assert not (run / "outputs" / "Q4_K_M.jsonl").exists()
+
+
+def test_generate_stage_writes_aligned_answer_spans_for_longctx(tmp_path, monkeypatch):
+    """0B P3 carried item (a): run_pipeline's generate stage must persist
+    an answer_spans.jsonl sidecar aligned with items.jsonl's
+    longctx_retrieval items (RUN_0B.md §2 P3(a) -- so a later P2 divergence
+    pass can consume this run's items without rebuilding them)."""
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+
+    cfg = _longctx_config(tmp_path, make_config(tmp_path))
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    run_pipeline(
+        cfg, run_id="answer-spans-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=lambda path, gen: LongctxFakeLlm(hf_tokenizer), base_dir=tmp_path,
+    )
+
+    run = runs_dir / "answer-spans-test"
+    spans = [json.loads(l) for l in (run / "answer_spans.jsonl").read_text().splitlines()]
+    items = [json.loads(l) for l in (run / "items.jsonl").read_text().splitlines()]
+    longctx_items = [i for i in items if i["suite"] == "longctx_retrieval"]
+
+    assert len(spans) == len(longctx_items) == 3
+    assert [s["item_id"] for s in spans] == [i["id"] for i in longctx_items]
+    for s in spans:
+        assert s["n_answer_tokens"] == len(s["answer_ids"])
+        assert s["n_answer_tokens"] > 0
+
+
+def test_generate_stage_no_answer_spans_file_without_longctx_suite(tmp_path):
+    """No longctx_retrieval suite configured -> no answer_spans.jsonl at
+    all (rather than an empty file), matching items.jsonl's own
+    suite-conditional behavior."""
+    cfg = make_config(tmp_path)
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    run_pipeline(
+        cfg, run_id="no-longctx-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+    )
+
+    assert not (runs_dir / "no-longctx-test" / "answer_spans.jsonl").exists()
 
 
 def test_spectacle_only_flag_in_results(tmp_path):

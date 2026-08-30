@@ -119,8 +119,12 @@ def score_answer_span(
       contiguous suffix (ANSWER_TOKENS.md's "Construction" section); this
       is what makes F16-vs-quant deltas paired on the identical gold
       sequence, per the user ruling this module implements.
-    All of the above raise `AssertionError`. A NaN anywhere in a scored
-    logits row raises `ValueError` (see `_log_softmax_at`).
+    All of the above raise `ValueError` (structural/contract violations --
+    a caller building `nll_input_ids` wrong, not a data/numerical problem).
+    A NaN anywhere in a scored logits row also raises `ValueError` (see
+    `_log_softmax_at`) -- both classes of failure use the same exception
+    type so a caller can catch one thing, but each carries its own
+    distinguishing message text.
 
     Returns a dict:
     - `per_token_nll`: list[float], one NLL per answer-span position, in
@@ -136,32 +140,37 @@ def score_answer_span(
       hardcoded constant.
     """
     n_ans = len(answer_ids)
-    assert n_ans > 0, "answer_ids is empty -- nothing to score"
-    assert n_prompt >= 1, (
-        f"n_prompt={n_prompt}: need at least one prompt token so the first "
-        f"answer token has a state position (n_prompt-1) to be scored from "
-        f"(ANSWER_TOKENS.md: 'logits for the first answer token come from "
-        f"the last prompt token')"
-    )
-    assert len(nll_input_ids) == n_prompt + n_ans, (
-        f"len(nll_input_ids)={len(nll_input_ids)} != n_prompt({n_prompt}) + "
-        f"len(answer_ids)({n_ans}); nll_input_ids must be exactly "
-        f"gen_prompt_ids + answer_ids (ANSWER_TOKENS.md 'Construction')"
-    )
+    if n_ans == 0:
+        raise ValueError("answer_ids is empty -- nothing to score")
+    if n_prompt < 1:
+        raise ValueError(
+            f"n_prompt={n_prompt}: need at least one prompt token so the first "
+            f"answer token has a state position (n_prompt-1) to be scored from "
+            f"(ANSWER_TOKENS.md: 'logits for the first answer token come from "
+            f"the last prompt token')"
+        )
+    if len(nll_input_ids) != n_prompt + n_ans:
+        raise ValueError(
+            f"len(nll_input_ids)={len(nll_input_ids)} != n_prompt({n_prompt}) + "
+            f"len(answer_ids)({n_ans}); nll_input_ids must be exactly "
+            f"gen_prompt_ids + answer_ids (ANSWER_TOKENS.md 'Construction')"
+        )
     suffix = list(nll_input_ids[n_prompt:])
-    assert suffix == list(answer_ids), (
-        f"answer_ids {list(answer_ids)} does not match the suffix of "
-        f"nll_input_ids at [{n_prompt}:] ({suffix}); the scored span must "
-        f"be the contiguous suffix nll_input_ids[n_prompt:] "
-        f"(ANSWER_TOKENS.md 'Construction')"
-    )
+    if suffix != list(answer_ids):
+        raise ValueError(
+            f"answer_ids {list(answer_ids)} does not match the suffix of "
+            f"nll_input_ids at [{n_prompt}:] ({suffix}); the scored span must "
+            f"be the contiguous suffix nll_input_ids[n_prompt:] "
+            f"(ANSWER_TOKENS.md 'Construction')"
+        )
 
     logits = logits_provider(list(nll_input_ids))
-    assert len(logits) == len(nll_input_ids), (
-        f"logits_provider returned {len(logits)} rows for "
-        f"{len(nll_input_ids)} input tokens -- the contract is exactly one "
-        f"logits row per input position"
-    )
+    if len(logits) != len(nll_input_ids):
+        raise ValueError(
+            f"logits_provider returned {len(logits)} rows for "
+            f"{len(nll_input_ids)} input tokens -- the contract is exactly one "
+            f"logits row per input position"
+        )
 
     per_token_nll: list[float] = []
     for k in range(n_ans):

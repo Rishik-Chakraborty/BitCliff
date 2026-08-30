@@ -199,6 +199,71 @@ def test_build_items_corpus_hash_mismatch_raises():
 
 
 # ---------------------------------------------------------------------------
+# build_items_with_answer_spec — the P3 carried item (a) sidecar. EvalItem
+# stays untouched; answer_ids/n_answer_tokens come back as an aligned
+# AnswerSpec list instead.
+# ---------------------------------------------------------------------------
+
+
+def test_build_items_with_answer_spec_same_length_as_items():
+    items, specs = longctx_retrieval.build_items_with_answer_spec(
+        make_tokenizer(), CORPUS_TEXT, CORPUS_SHA256, n_items=5, seed=7, target_tokens=64,
+    )
+    assert len(items) == 5
+    assert len(specs) == 5
+
+
+def test_build_items_with_answer_spec_aligned_by_id_and_index():
+    items, specs = longctx_retrieval.build_items_with_answer_spec(
+        make_tokenizer(), CORPUS_TEXT, CORPUS_SHA256, n_items=5, seed=7, target_tokens=64,
+    )
+    for item, spec in zip(items, specs):
+        assert item.id == spec.item_id
+
+
+def test_build_items_with_answer_spec_answer_ids_match_raw_generator_output():
+    tok = make_tokenizer()
+    items, specs = longctx_retrieval.build_items_with_answer_spec(
+        tok, CORPUS_TEXT, CORPUS_SHA256, n_items=3, seed=7, target_tokens=64,
+    )
+    # Independently rebuild the raw generator items (same seed/variant/
+    # target_tokens) and confirm the sidecar's answer_ids/n_answer_tokens
+    # match the vendored generator's own fields exactly -- not just "some"
+    # tuple of ints.
+    raw_items = mv2.build_items(tok, "multivalue2", n_items=3, target_tokens=64, seed=7)
+    for spec, raw in zip(specs, raw_items):
+        assert spec.answer_ids == tuple(raw["answer_ids"])
+        assert spec.n_answer_tokens == raw["n_answer_tokens"]
+        assert spec.n_answer_tokens == len(spec.answer_ids)
+
+
+def test_build_items_with_answer_spec_prompt_tokens_plus_answer_ids_is_nll_input_ids():
+    """The exact pairing nll_scorer.score_answer_span needs: EvalItem.
+    prompt_tokens (gen_prompt_ids) + AnswerSpec.answer_ids reconstructs
+    ANSWER_TOKENS.md's nll_input_ids without rebuilding anything."""
+    items, specs = longctx_retrieval.build_items_with_answer_spec(
+        make_tokenizer(), CORPUS_TEXT, CORPUS_SHA256, n_items=1, seed=7, target_tokens=64,
+    )
+    (item,), (spec,) = items, specs
+    nll_input_ids = item.prompt_tokens + spec.answer_ids
+    assert nll_input_ids[: len(item.prompt_tokens)] == item.prompt_tokens
+    assert nll_input_ids[len(item.prompt_tokens):] == spec.answer_ids
+
+
+def test_build_items_is_unchanged_by_the_answer_spec_refactor():
+    """build_items (the pre-existing public API) must keep returning
+    exactly what it always did -- build_items_with_answer_spec is an
+    additive wrapper, not a behavior change."""
+    a = longctx_retrieval.build_items(
+        make_tokenizer(), CORPUS_TEXT, CORPUS_SHA256, n_items=3, seed=7, target_tokens=64,
+    )
+    items, _specs = longctx_retrieval.build_items_with_answer_spec(
+        make_tokenizer(), CORPUS_TEXT, CORPUS_SHA256, n_items=3, seed=7, target_tokens=64,
+    )
+    assert a == items
+
+
+# ---------------------------------------------------------------------------
 # assert_tokenizer_match — the PREREG §3.1 build-time GGUF/HF tokenizer
 # equivalence gate. Pure given two callables: an HF-style tokenizer and the
 # llama-cpp model's tokenize function.

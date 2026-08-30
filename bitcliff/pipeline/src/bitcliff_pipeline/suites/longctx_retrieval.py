@@ -26,12 +26,40 @@ docstring for provenance). This adapter:
 """
 
 import hashlib
+from dataclasses import dataclass
 
 from ..items import EvalItem
 from ..vendor import generate_multivalue2 as mv2
 
 
-def build_items(
+@dataclass(frozen=True)
+class AnswerSpec:
+    """0B P3 carried item (RUN_0B.md §2 P3(a) / P2 report's documented
+    gap): the answer-token spec the vendored generator already computes per
+    item (`answer_ids`, `n_answer_tokens` — see ANSWER_TOKENS.md), threaded
+    through `build_items_with_answer_spec` as a SIDECAR aligned 1:1 with
+    the EvalItem list -- same order, same count, `item_id == EvalItem.id`
+    at the same index. `EvalItem` deliberately stays untouched (it has no
+    concept of an "answer span"; that's a longctx_retrieval-specific,
+    tokenizer-bound construction other suites don't share), so this is a
+    parallel list rather than an EvalItem field.
+
+    Consumer (P2, `nll_scorer.py`): `nll_scorer.NLLItem(id=spec.item_id,
+    suite="longctx_retrieval", gen_prompt_ids=item.prompt_tokens,
+    answer_ids=spec.answer_ids)`, pairing an `AnswerSpec` with the
+    same-index `EvalItem` from `build_items_with_answer_spec`'s other
+    return value -- no tokenizer, corpus, or vendored generator call
+    needed a second time; a run's already-built `items.jsonl` (which
+    carries `prompt_tokens`, i.e. `gen_prompt_ids`) plus this sidecar is
+    everything `score_answer_span` requires.
+    """
+
+    item_id: str
+    answer_ids: tuple[int, ...]
+    n_answer_tokens: int
+
+
+def build_items_with_answer_spec(
     tokenizer,
     corpus_text: str,
     corpus_sha256: str,
@@ -39,8 +67,10 @@ def build_items(
     seed: int,
     variant: str = "multivalue2",
     target_tokens: int = 4096,
-) -> list[EvalItem]:
-    """Build longctx_retrieval EvalItems via the vendored multivalue2 generator.
+) -> tuple[list[EvalItem], list[AnswerSpec]]:
+    """Build longctx_retrieval EvalItems via the vendored multivalue2
+    generator, alongside an aligned `AnswerSpec` sidecar list (see
+    `AnswerSpec`'s docstring for why it isn't just added to `EvalItem`).
 
     `tokenizer` needs exactly the surface the vendored generator uses: a
     callable `tokenizer(text, add_special_tokens=False)["input_ids"]`,
@@ -49,6 +79,10 @@ def build_items(
 
     Raises AssertionError if `corpus_text` does not hash to `corpus_sha256`
     (a different corpus silently changes every document).
+
+    Alignment guarantee (tested in test_longctx_retrieval.py): the returned
+    `(items, answer_specs)` have equal length, and for every index `i`,
+    `items[i].id == answer_specs[i].item_id`.
     """
     digest = hashlib.sha256(corpus_text.encode("utf-8")).hexdigest()
     assert digest == corpus_sha256, (
@@ -64,16 +98,46 @@ def build_items(
 
     raw_items = mv2.build_items(tokenizer, variant, n_items, target_tokens, seed)
 
-    return [
-        EvalItem(
-            id=f"longctx_retrieval-{variant}-t{target_tokens}-s{seed}-{it['index']:04d}",
-            suite="longctx_retrieval",
-            prompt=it["question"],
-            expected=tuple(it["match_strings"]),
-            prompt_tokens=tuple(it["gen_prompt_ids"]),
+    items = []
+    answer_specs = []
+    for it in raw_items:
+        item_id = f"longctx_retrieval-{variant}-t{target_tokens}-s{seed}-{it['index']:04d}"
+        items.append(
+            EvalItem(
+                id=item_id,
+                suite="longctx_retrieval",
+                prompt=it["question"],
+                expected=tuple(it["match_strings"]),
+                prompt_tokens=tuple(it["gen_prompt_ids"]),
+            )
         )
-        for it in raw_items
-    ]
+        answer_specs.append(
+            AnswerSpec(
+                item_id=item_id,
+                answer_ids=tuple(it["answer_ids"]),
+                n_answer_tokens=it["n_answer_tokens"],
+            )
+        )
+    return items, answer_specs
+
+
+def build_items(
+    tokenizer,
+    corpus_text: str,
+    corpus_sha256: str,
+    n_items: int,
+    seed: int,
+    variant: str = "multivalue2",
+    target_tokens: int = 4096,
+) -> list[EvalItem]:
+    """Build longctx_retrieval EvalItems via the vendored multivalue2
+    generator. Back-compat wrapper around `build_items_with_answer_spec`
+    that drops the answer-spec sidecar; every existing caller (and every
+    existing test) keeps this exact signature and return type."""
+    items, _ = build_items_with_answer_spec(
+        tokenizer, corpus_text, corpus_sha256, n_items, seed, variant, target_tokens,
+    )
+    return items
 
 
 def assert_tokenizer_match(hf_tokenizer, llama_tokenize, samples: list[str]) -> None:

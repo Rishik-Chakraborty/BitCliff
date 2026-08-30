@@ -25,8 +25,18 @@ def _load_hf_tokenizer(path: Path):
 
 
 def build_items(
-    config: LadderConfig, base_dir: Path, longctx_tokenizer=None
+    config: LadderConfig,
+    base_dir: Path,
+    longctx_tokenizer=None,
+    longctx_answer_specs: list | None = None,
 ) -> list[EvalItem]:
+    """`longctx_answer_specs`, when passed a list, is populated in place
+    with the longctx_retrieval suite's `longctx_retrieval.AnswerSpec`
+    sidecar (0B P3 carried item (a)), aligned 1:1 with this call's
+    longctx_retrieval items in the same order they're appended to the
+    returned list. `None` (the default, every pre-existing caller) skips
+    this entirely and behaves exactly as before -- `build_items`'s return
+    type and every other suite's behavior are unchanged."""
     from .suites import arithmetic, arithmetic_twins, factual_qa, longctx_retrieval, spectacle
 
     items: list[EvalItem] = []
@@ -46,8 +56,17 @@ def build_items(
             if s.get("alias_augmentation_path")
             else None
         )
+        # PREREG §7's popularity-mix knob (M1/M2/M3): an optional `weights`
+        # key in the config block, forwarded straight through (0B P3 wiring
+        # gap -- items_from_records already had the parameter; __main__
+        # never passed it). YAML lists become a plain list; items_from_
+        # records/_apportion_counts only ever index it, so a tuple isn't
+        # required, but casting keeps the type stable regardless of the
+        # YAML loader's list-vs-tuple behavior.
+        weights = tuple(s["weights"]) if s.get("weights") else None
         items += factual_qa.load_popqa_items(
-            s["n_items"], s["seed"], alias_augmentation_path=alias_augmentation_path
+            s["n_items"], s["seed"],
+            alias_augmentation_path=alias_augmentation_path, weights=weights,
         )
     if "longctx_retrieval" in suites:
         # PREREG §3.1 / RUN_0B.md §2 P1: needs a real tokenizer and a
@@ -64,15 +83,28 @@ def build_items(
             else _load_hf_tokenizer(base_dir / s["tokenizer_path"])
         )
         corpus_text = (base_dir / s["corpus_path"]).read_bytes().decode("utf-8")
-        items += longctx_retrieval.build_items(
-            tokenizer,
-            corpus_text,
-            s["corpus_sha256"],
-            n_items=s["n_items"],
-            seed=s["seed"],
-            variant=s["variant"],
-            target_tokens=s["target_tokens"],
-        )
+        if longctx_answer_specs is not None:
+            longctx_items, specs = longctx_retrieval.build_items_with_answer_spec(
+                tokenizer,
+                corpus_text,
+                s["corpus_sha256"],
+                n_items=s["n_items"],
+                seed=s["seed"],
+                variant=s["variant"],
+                target_tokens=s["target_tokens"],
+            )
+            items += longctx_items
+            longctx_answer_specs.extend(specs)
+        else:
+            items += longctx_retrieval.build_items(
+                tokenizer,
+                corpus_text,
+                s["corpus_sha256"],
+                n_items=s["n_items"],
+                seed=s["seed"],
+                variant=s["variant"],
+                target_tokens=s["target_tokens"],
+            )
     if "spectacle" in suites:
         items += spectacle.load_items(base_dir / suites["spectacle"]["path"])
     return items
@@ -123,11 +155,31 @@ def run_pipeline(
             if longctx_cfg is not None
             else None
         )
-        items = build_items(config, base_dir, longctx_tokenizer=longctx_hf_tokenizer)
+        # 0B P3 carried item (a): capture the longctx_retrieval answer-span
+        # sidecar (RUN_0B.md §2 P3(a) / P2 report's documented gap) as this
+        # run's items are built, and persist it alongside items.jsonl so a
+        # later P2 (nll_scorer) divergence pass can consume this run's
+        # items directly -- pairing items.jsonl's prompt_tokens
+        # (gen_prompt_ids) with answer_spans.jsonl's answer_ids by item id
+        # -- without re-deriving anything from the tokenizer/corpus/vendored
+        # generator a second time.
+        longctx_answer_specs: list = []
+        items = build_items(
+            config, base_dir, longctx_tokenizer=longctx_hf_tokenizer,
+            longctx_answer_specs=longctx_answer_specs,
+        )
         items_path = run_dir / "items.jsonl"
         items_path.write_text(
             "".join(json.dumps(dataclasses.asdict(i)) + "\n" for i in items)
         )
+        if longctx_answer_specs:
+            answer_spans_path = run_dir / "answer_spans.jsonl"
+            answer_spans_path.write_text(
+                "".join(
+                    json.dumps(dataclasses.asdict(spec)) + "\n"
+                    for spec in longctx_answer_specs
+                )
+            )
         max_tokens_by_suite = {
             suite: scfg["max_tokens"]
             for suite, scfg in config.suites.items()

@@ -198,26 +198,26 @@ def test_nan_elsewhere_in_the_row_still_raises_even_if_scored_token_is_finite():
 def test_answer_ids_suffix_mismatch_raises():
     provider = make_fake_provider({}, VOCAB)
     nll_input_ids = [10, 11, 12, 999]  # suffix is [999]
-    with pytest.raises(AssertionError, match="suffix"):
+    with pytest.raises(ValueError, match="suffix"):
         score_answer_span(provider, nll_input_ids, N_PROMPT, [3])
 
 
 def test_length_mismatch_between_nll_input_ids_and_n_prompt_plus_answer_raises():
     provider = make_fake_provider({}, VOCAB)
     nll_input_ids = [10, 11, 12, 3, 4]  # 5 tokens, but n_prompt+len(answer)=4
-    with pytest.raises(AssertionError, match="len\\(nll_input_ids\\)"):
+    with pytest.raises(ValueError, match="len\\(nll_input_ids\\)"):
         score_answer_span(provider, nll_input_ids, N_PROMPT, [3])
 
 
 def test_empty_answer_ids_raises():
     provider = make_fake_provider({}, VOCAB)
-    with pytest.raises(AssertionError, match="empty"):
+    with pytest.raises(ValueError, match="empty"):
         score_answer_span(provider, [10, 11, 12], N_PROMPT, [])
 
 
 def test_zero_prompt_length_raises():
     provider = make_fake_provider({}, VOCAB)
-    with pytest.raises(AssertionError, match="n_prompt"):
+    with pytest.raises(ValueError, match="n_prompt"):
         score_answer_span(provider, [3], 0, [3])
 
 
@@ -225,7 +225,7 @@ def test_logits_provider_row_count_mismatch_raises():
     def short_provider(input_ids):
         return [[0.0] * VOCAB for _ in range(len(input_ids) - 1)]
 
-    with pytest.raises(AssertionError, match="rows"):
+    with pytest.raises(ValueError, match="rows"):
         score_answer_span(short_provider, [10, 11, 12, 3], N_PROMPT, [3])
 
 
