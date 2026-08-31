@@ -76,24 +76,51 @@ valid (paired per item within rung and model on identical hw/sw) — but
 any model whose ladder is split across two boxes is a deviation:
 STOP, log to OPEN_QUESTIONS.md, ask.
 
-**Access/authorization state:** local AWS credentials are currently
-expired, and no `aws` CLI is installed on this machine (AWS MCP tooling is
-available once credentials are refreshed). Phase 2 cannot start until you
-refresh credentials for the `bitcliff-agent` IAM user.
+**Access/authorization state (updated 2026-08-31):** profile
+`bitcliff-agent` verified (account 048568674517), `aws` CLI installed and
+primary. **F16 conversion pin (added under the §4 revision):** llama.cpp
+commit `bf942164697d2d62c2237a17b677dc2c017ea8e7` (the same commit
+INHOUSE_QUANTS.md registers), command per PILOT_RUNBOOK.md; cloned at
+that exact commit on the instance.
 
-## 4. Data movement (up)
+## 4. Data movement (REVISED 2026-08-31 — cloud-side F16 reconstruction)
 
-1. Upload the two F16 references (Llama 15 GB + Qwen7B 14 GB, sha256s
-   verified before and after) plus both models' HF tokenizer files
-   (avoids gated-repo auth on the instance) to S3 **before the instance
-   launches** — the meter isn't running while a home-bandwidth upload
-   crawls. Existing artifacts bucket per aws-ops (create if absent:
-   single bucket, public access blocked, 30-day IA lifecycle).
-2. The 2b corpus (PG-1184, 2.7 MB) and pipeline code ship the same way.
-3. Quant ladders (~230 GB) download HF→instance directly (fast path),
-   each file sha256-verified against the committed reference manifests
-   before use — a mismatch is a hard stop (uploader re-quantized →
-   "newer file exists" case; STOP instance, log, ask).
+The original plan (upload the 29 GB of local F16 references to S3 from
+home) is DEAD: home bandwidth stalled a multipart upload at zero parts
+for 2+ hours (HANDOFF §6 lesson). Replaced by user ruling 2026-08-31:
+
+1. **Small assets via S3 only** — pipeline code tarball, 2b corpus
+   (inside it), tokenizer bundles, and the registered F16 hash file.
+   All four verified landed in
+   `s3://bitcliff-artifacts-048568674517/0b/` (size + MD5/composite-MD5
+   match against local, 2026-08-31).
+2. **F16 references reconstructed ON the instance:** download the
+   official safetensors (`meta-llama/Llama-3.1-8B-Instruct`,
+   `Qwen/Qwen2.5-7B-Instruct`; resolved HF revision recorded in the run
+   manifest at download time), convert with the pinned llama.cpp commit
+   `bf942164697d2d62c2237a17b677dc2c017ea8e7` and the recorded command
+   (`convert_hf_to_gguf.py <hf-dir> --outtype f16 --outfile <out>`,
+   PILOT_RUNBOOK.md). **Gate: the converted files' sha256 MUST equal the
+   registered local hashes — Llama `139c255d857940bc945b2a3242fbbb2641
+   b59191d79413bcad9b74fa1784c7b0`, Qwen7B `970ccec3ad83bb62aa25ce585bed
+   4ebd297963257442afe697d350465933f2c5` (committed to S3 as
+   `0b/meta/f16-sha256.txt`). Any mismatch: STOP the instance, log to
+   OPEN_QUESTIONS, ask — never substitute.**
+3. **Gated Llama download:** needs the user's HF token, entered by the
+   user directly over SSH (never through chat/agent logs): SSH to the
+   instance and run `hf auth login` (token stored in
+   `~/.cache/huggingface/token`, mode 600). Agent-run commands rely on
+   that ambient stored token and never read, echo, or copy it.
+4. Quant ladders (~95 GB, registered rungs + arm files only) download
+   HF→instance directly, each file sha256-verified against the committed
+   reference manifests before use — a mismatch is a hard stop (uploader
+   re-quantized → "newer file exists"; STOP instance, log, ask).
+
+**Standing transfer rule (user, 2026-08-31, binding for every transfer
+> 1 GB anywhere in 0B):** report observed rate and projected ETA within
+60 seconds of starting; if the projection exceeds 30 minutes, STOP the
+transfer and ask. Transfer monitors alert on stalled byte/part progress,
+never on mere process liveness.
 
 ## 5. Run matrix
 
@@ -190,16 +217,18 @@ conservative end.
 | block | estimate |
 |---|---|
 | Setup + CUDA build + smoke | 2–3 h |
+| F16 reconstruction on-instance (safetensors ~30 GB download + 2 conversions + hash gate) | 1–1.5 h |
 | Downloads (~95 GB HF→EC2, canonical rungs + arms only) | ~1 h (overlaps setup) |
 | 22 quant rungs × ~40–60 min | 15–22 h |
 | 2 F16 baselines × ~1–1.5 h | 2–3 h |
 | 24 divergence passes × ~3–5 min | 1.5–2 h |
-| **Total GPU-instance hours** | **≈ 21–31 h** (midpoint ~26 h) |
+| **Total GPU-instance hours** | **≈ 22–32 h** (midpoint ~27 h) |
 
-**COST ESTIMATE (revised under the canonical-ladder ruling, 2026-08-30):
-~26 GPU-hours × $1.861/h (g6e.xlarge us-east-1 on-demand, to be
-re-verified at launch) ≈ $48; range $39–58 for 21–31 h; plus ~$6 EBS+S3 ⇒
-≈ $45–65 total, against the $250 hard cap.**
+**COST ESTIMATE (revised 2026-08-31 for cloud-side F16 reconstruction;
+price verified from AWS's published on-demand map): ~27 GPU-hours ×
+$1.8610/h (g6e.xlarge us-east-1 on-demand) ≈ $50; range $41–60 for
+22–32 h; plus ~$5 EBS+S3 (S3 now carries only ~110 MB of small assets) ⇒
+≈ $46–65 total, against the $250 hard cap.**
 Consistent with IDEA.md §12's ~$150 allocation for confirmatory runs.
 If the realized per-rung time trends above the range after the first
 three rungs, I extrapolate, report, and wait at the $100 checkpoint

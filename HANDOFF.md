@@ -137,3 +137,16 @@ sensitivity), cliff tables, packaged dataset (embargoes enforced by
   differently — item sets differ per mix even at the same seed (why the
   alias mapping unions M1/M2/M3 QIDs; `calibrate_f16.py --print-mix-overlap`
   reproduces the numbers).
+
+## 6. Lessons appended during 0B (2026-08-31)
+
+- **A transfer monitor must watch part/byte progress, not process liveness
+  or log-line presence.** The take-3 S3 upload of the Llama F16 sat at ZERO
+  completed parts for 2+ hours while looking alive: the process ran, the
+  retry loop ticked, heartbeat lines printed — and the monitor's filter
+  excluded the heartbeat lines and had no "progress hasn't advanced" alarm.
+  `--no-progress` made the stall invisible in the log too. Rule going
+  forward (user, standing): any transfer over 1 GB must report rate and ETA
+  within 60 seconds and STOP AND ASK if the projection exceeds 30 minutes;
+  monitors on transfers alert on stalled byte/part counts, not on the
+  process being alive.
