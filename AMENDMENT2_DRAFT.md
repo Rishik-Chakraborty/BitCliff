@@ -15,7 +15,7 @@ Appended per the disclosed-gap mechanics of Amendment 1 §A/§A2 (a
 registration-gap fix beyond §7's knob-amendment scope, disclosed in its
 own right), after user review of the standalone draft
 (`AMENDMENT2_DRAFT.md`) and explicit user approval ("stamp it",
-2026-08-30). Committed and OpenTimestamps-stamped like the original; this
+2026-08-31). Committed and OpenTimestamps-stamped like the original; this
 amendment's own commit hash and receipt are recorded by the follow-up
 commit:
 

@@ -1094,9 +1094,8 @@ own right), after user review of the standalone draft
 amendment's own commit hash and receipt are recorded by the follow-up
 commit:
 
-Amendment 2 commit: [TO BE FILLED by the follow-up commit]
-Amendment 2 OpenTimestamps proof: `freeze/amendment2-commit-hash.txt.ots`
-[TO BE FILLED after stamping]
+Amendment 2 commit: `22fbaba04694b3b3ef9701c00802540208ed18f2` (filled by the follow-up commit)
+Amendment 2 OpenTimestamps proof: `freeze/amendment2-commit-hash.txt.ots` (receipt over `freeze/amendment2-commit-hash.txt` containing `22fbaba04694b3b3ef9701c00802540208ed18f2`; submitted to 4 calendar servers 2026-08-31, pending Bitcoin attestation — run `ots upgrade` after ~a day and commit the upgraded receipt)
 
 ## A. What PREREG omitted
 
