@@ -259,3 +259,18 @@ registered, like §2/§5 above), and RUN_0B.md's matrix, GPU-hours, and cost
 line get recomputed against it before any "proceed".
 
 **NOT RESOLVED — awaiting your ruling.**
+
+**RESOLVED 2026-08-30 (user): option (a)** — registered via Amendment 2
+(drafted as AMENDMENT2_DRAFT.md, appended + OTS-stamped before any
+confirmatory generation, on the user's "stamp it"): F16 (local) + Q8_0,
+Q6_K, Q5_K_M, Q4_K_M, Q3_K_M, Q2_K + lowest-published-below-Q2_K, which
+the pinned manifests resolve to IQ2_M for both reference models
+(IQ2_XXS/IQ1_S absent). (b)/(c) rejected (Holm-family inflation beyond
+anticipation); (d) rejected (in-house rungs are 1.5B-spectacle-only).
+Note on sources, kept honest: the ruling cited an idea.md §4 file-level
+enumeration and an idea.md §7 "roughly sixty confirmatory cells" sentence;
+the repo's IDEA.md §4 carries the family-level ladder + lowest-published
+rule (quoted in the amendment), the file-level enumeration exists as
+plan.md's pilot-ladder precedent (quoted), and the "roughly sixty" sentence
+was not found anywhere in the repo — flagged inside AMENDMENT2_DRAFT.md
+for the user to source or strike before stamping.

@@ -118,28 +118,24 @@ the 1.5B work.
 | Arm 2 official (Qwen-7B) | Qwen official q4_k_m (2 shards) + q3_k_m | all 4 |
 | Divergence pass | every rung above incl. F16 | longctx answer-span NLL (P2 scorer) |
 
-**Ladder rung lists — REOPENED 2026-08-30, awaiting ruling
-(`OPEN_QUESTIONS.md` §6).** The earlier "canonical ladder RULED" text in
-this section overclaimed its PREREG anchors (§10/§12 are 1.5B contexts,
-not reference-ladder registrations) and cited a "~60-cell multiplicity
-anticipation" that has no source in PREREG or IDEA; both statements are
-retracted. What is actually true: PREREG §4 registers the ladders only as
-manifest-pinned with no rung enumeration; IDEA.md §4's operative rule
-("down to the lowest level the tracked uploaders actually publish")
-resolves the BOTTOM to IQ2_M for both models (IQ2_XXS/IQ1_S exist in
-neither pinned bartowski manifest), but the mid-ladder rung set is
-unregistered. Options (a)–(d) with cell counts are in OPEN_QUESTIONS §6.
-The 7-rung matrix above (F16 + Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q3_K_M, Q2_K,
-IQ2_M = option (a)) stands as the DRAFT baseline this document's totals
-and cost are computed against, pending the ruling.
+**Ladder rung lists — RULED 2026-08-30 (OPEN_QUESTIONS §6, option (a)),
+registered via Amendment 2, PENDING STAMP.** The registered rule: per
+reference model, F16 (local baseline) + Q8_0, Q6_K, Q5_K_M, Q4_K_M,
+Q3_K_M, Q2_K + the lowest rung the tracked uploader publishes below
+Q2_K — which the pinned bartowski manifests resolve to **IQ2_M for both
+models** (IQ2_XXS/IQ1_S absent from both; idea.md §4's "expected around
+IQ2_XXS" unmet by the actual catalogs; the lowest-published rule, not the
+expectation, governs). Full text, sources quoted verbatim, and rejected
+alternatives: `AMENDMENT2_DRAFT.md`. **Amendment 2 is appended to PREREG
+and OTS-stamped BEFORE any confirmatory generation** — the ladder is the
+row-definition of every reference table.
 
-**Cell count (option (a) draft baseline):** 2 models × 7 rungs × 4 scored
-suites = **56 confirmatory reference cells**; shootout/official arms add
-8 files × 4 suites = 32 arm-scoped cells, outside the reference matrix.
-PREREG §8's dual multiplicity rule is count-agnostic — per-cell verdicts
-are descriptive at α=0.05 regardless of ladder size; a larger ladder only
-enlarges the Holm family any cross-cell headline must survive. Other
-options: (b) 160 (+32); (c) 80–88 (+32).
+**Cell count (registered ladder):** 2 models × 7 quant rungs × 4 scored
+suites = **56 confirmatory reference cells**, + 32 arm-scoped cells
+(8 arm files × 4 suites) outside the reference matrix. PREREG §8's dual
+rule applies unchanged (per-cell descriptive at α=0.05; Holm over any
+cross-cell headline's family). Options (b)/(c) (160 / 80–88 cells) and
+(d) (in-house bottom rungs) rejected per the ruling.
 
 **Totals: 22 quant-rung generation runs (14 ladder + 6 shootout + 2
 official) + 2 F16 baselines + 24 divergence passes.** ~1,190 scored items
@@ -211,10 +207,10 @@ rather than discovering it at $175.
 
 ## 9. Decisions — RULED 2026-08-30
 
-1. **Ladder rung lists (§5): REOPENED 2026-08-30 — see OPEN_QUESTIONS.md
-   §6** for the options awaiting ruling; §5's 7-rung matrix is the draft
-   baseline only, and this document's totals/cost are recomputed once the
-   ruling lands.
+1. **Ladder rung lists (§5): RULED 2026-08-30 — OPEN_QUESTIONS §6 option
+   (a), registered via Amendment 2 (AMENDMENT2_DRAFT.md), which must be
+   appended + OTS-stamped before any confirmatory generation.** §5's
+   matrix, §8's hours, and the cost line are final against this ladder.
 2. **Local prerequisites (§2): GO** — P1–P3, local, $0, SDD with
    reviews; the P2 NLL scorer implements PREREG §3.1's registered Q2
    definition (teacher-forced on the full-precision trajectory) with
