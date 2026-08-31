@@ -38,8 +38,9 @@ before any confirmatory run; resolved by user ruling 2026-08-30.
 
 ## B. Sources the ruling carries into registered text
 
-The product spec (`claude/IDEA.md` §4, unregistered until now) defines
-the ladder shape, quoted verbatim:
+The design doc as of the freeze (`claude/IDEA-v1.md` §4 — at
+`claude/IDEA.md` until 2026-08-30, preserved verbatim at the v1 path;
+unregistered until now) defines the ladder shape, quoted verbatim:
 
 > **The ladder** runs from full precision down to the deranged zone: F16
 > (converted locally as the reference, never a download recommendation),
@@ -60,13 +61,6 @@ repo 2026-08-26, quoted verbatim):
 > Q5_K_M, Q4_K_M, Q3_K_M, Q2_K, IQ2_M. The repo publishes nothing below
 > IQ2_M […]
 
-[FLAGGED FOR USER EDIT — unsourced citation: the 2026-08-30 ruling cites
-"launch freezes roughly sixty confirmatory cells" as idea.md §7. That
-sentence does not appear in the repository (all .md files searched;
-IDEA.md §7 is the uploader shootout). Either point this draft at the
-document that carries it, or strike the bracketed sentence in §D below
-and the anticipation is recorded as the ruling's own statement.]
-
 ## C. The registered rule (user ruling, 2026-08-30)
 
 **Per reference model, the confirmatory ladder is: F16 (the local
@@ -76,7 +70,7 @@ lowest rung the tracked uploader publishes below Q2_K** — one file per
 rung, drawn from the pinned bartowski imatrix manifests (PREREG §4
 table), each result pinned to that file's sha256.
 
-**Manifest resolution, stated plainly:** idea.md §4 expected the bottom
+**Manifest resolution, stated plainly:** IDEA-v1.md §4 expected the bottom
 "around IQ2_XXS, with IQ1_S included only where it exists." The pinned
 manifests (llama-3.1-8b-bartowski.json rev `bf5b95e9…`,
 qwen2.5-7b-bartowski.json rev `8911e8a4…`) carry **no IQ2_XXS, no IQ1_S,
@@ -99,8 +93,9 @@ unchanged by this amendment.
 
 The confirmatory reference family is **2 models × 7 quant rungs × 4
 scored suites = 56 cells**, plus 32 arm-scoped cells (8 arm files × 4
-suites) outside the reference matrix — [within the ~60-cell launch
-anticipation the ruling cites]. §8's dual rule applies unchanged:
+suites) outside the reference matrix. The 56-cell family matches the
+launch-scope anticipation this ruling itself states (no external source
+is cited for the anticipation). §8's dual rule applies unchanged:
 per-cell verdicts descriptive at α = 0.05; any cross-cell headline
 survives Holm over the family it aggregates across.
 
@@ -111,7 +106,7 @@ survives Holm over the family it aggregates across.
   REJECTED — both inflate the Holm family well beyond the anticipated
   launch scope.
 - **In-house quantization of IQ2_XXS/IQ1_S for the reference models**:
-  REJECTED — in-house rungs are 1.5B-spectacle-only (idea.md §4's
+  REJECTED — in-house rungs are 1.5B-spectacle-only (IDEA-v1.md §4's
   exception "exists to protect download recommendations, and the 1.5B is
   not one"; PREREG §4 bars `bitcliff-inhouse` rungs from reference
   tables, enforced in code).
@@ -122,5 +117,5 @@ survives Holm over the family it aggregates across.
   the §4 manifests; it fills the rung-enumeration slot §4 never carried.
 - Does not change the shootout/official arms (§5) or the 1.5B ladder
   (0B′ scope).
-- Does not promote IDEA.md to registered status beyond the sentences
-  quoted here.
+- Does not promote IDEA-v1.md to registered status beyond the sentences
+  quoted here, and cites no other design document.
