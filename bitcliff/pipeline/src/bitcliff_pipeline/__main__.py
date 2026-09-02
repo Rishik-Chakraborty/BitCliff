@@ -291,6 +291,18 @@ def run_pipeline(
         print(f"report written under {run_dir}")
 
 
+def _resolve_base_dir(config_path: Path) -> Path:
+    """The pipeline root: the directory containing the `configs/` ancestor
+    of the config file, however deeply the config is nested (configs/x.yaml,
+    configs/0b/x.yaml, ...). A config outside any `configs/` directory
+    falls back to its own parent."""
+    p = config_path.resolve()
+    for ancestor in p.parents:
+        if ancestor.name == "configs":
+            return ancestor.parent
+    return p.parent
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="bitcliff_pipeline")
     parser.add_argument("config")
@@ -309,7 +321,7 @@ def main() -> None:
         models_dir=Path(args.models_dir),
         runs_dir=Path(args.runs_dir),
         stage=args.stage,
-        base_dir=Path(args.config).resolve().parent.parent,
+        base_dir=_resolve_base_dir(Path(args.config)),
     )
 
 

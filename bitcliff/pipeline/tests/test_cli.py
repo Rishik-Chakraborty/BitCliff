@@ -619,3 +619,26 @@ def test_spectacle_only_flag_in_results(tmp_path):
     assert all(r["spectacle_only"] is False for r in f16_rows)
     # Q4_K_M should have spectacle_only=True
     assert all(r["spectacle_only"] is True for r in q4_rows)
+
+
+def test_main_base_dir_resolves_pipeline_root_for_nested_configs(tmp_path, monkeypatch):
+    """configs may live in subdirectories (configs/0b/, configs/smoke/) —
+    base_dir must resolve to the directory CONTAINING `configs/`, not to
+    whatever sits two levels above the config file (the pre-0B bug that
+    broke every relative asset path for nested configs)."""
+    import bitcliff_pipeline.__main__ as m
+
+    pipeline_root = tmp_path / "pipeline"
+    nested = pipeline_root / "configs" / "0b"
+    nested.mkdir(parents=True)
+    cfg = nested / "run.yaml"
+    cfg.write_text("x: 1\n")
+    flat = pipeline_root / "configs" / "flat.yaml"
+    flat.write_text("x: 1\n")
+
+    assert m._resolve_base_dir(cfg) == pipeline_root
+    assert m._resolve_base_dir(flat) == pipeline_root
+    # a config outside any configs/ dir falls back to its own parent
+    stray = tmp_path / "stray.yaml"
+    stray.write_text("x: 1\n")
+    assert m._resolve_base_dir(stray) == tmp_path
