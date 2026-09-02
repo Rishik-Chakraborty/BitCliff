@@ -1,0 +1,3 @@
+quant_label,suite,n,correct,partial,wrong,truncated,loops,accuracy,spectacle_only,retention
+F16,factual_qa,20,4,0,16,1,0,0.2,False,1.0
+Q4_K_M,factual_qa,20,4,0,16,1,0,0.2,False,1.0

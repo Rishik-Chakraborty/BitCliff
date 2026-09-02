@@ -1,0 +1,66 @@
+{
+  "F16": {
+    "filename": "Qwen2.5-7B-Instruct-f16.gguf",
+    "imatrix": false,
+    "sha256": "970ccec3ad83bb62aa25ce585bed4ebd297963257442afe697d350465933f2c5",
+    "size_bytes": 15237853760,
+    "spectacle_only": false,
+    "uploader": "bitcliff-local-f16-conversion"
+  },
+  "Q3_K_M": {
+    "filename": "qwen2.5-7b-instruct-q3_k_m.gguf",
+    "imatrix": false,
+    "sha256": "a96b16179dc6cc9afdf0cf7a96a80c199cbd00b9be207c3465be21cb721cca5e",
+    "size_bytes": 3808391072,
+    "spectacle_only": false,
+    "uploader": "qwen-official"
+  },
+  "Q4_K_M": {
+    "filename": "qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf",
+    "imatrix": false,
+    "sha256": "dfce12e3862a5283ccfb88221b48480e58745165de856439950d0f22590580db",
+    "size_bytes": 3993201344,
+    "spectacle_only": false,
+    "uploader": "qwen-official"
+  },
+  "_run_config": {
+    "model_id": "qwen2.5-7b-instruct",
+    "suites": {
+      "arithmetic": {
+        "n_items": 500,
+        "seed": 3141
+      },
+      "arithmetic_twins": {
+        "seed": 1301
+      },
+      "factual_qa": {
+        "alias_augmentation_path": "data/popqa_wikidata_aliases_seed2718.json",
+        "max_tokens": 64,
+        "n_items": 500,
+        "seed": 2718,
+        "weights": [
+          0.16,
+          0.16,
+          0.16,
+          0.16,
+          0.16,
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04
+        ]
+      },
+      "longctx_retrieval": {
+        "corpus_path": "corpora/pg1184-monte-cristo.txt",
+        "corpus_sha256": "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443",
+        "max_tokens": 32,
+        "n_items": 96,
+        "seed": 2024,
+        "target_tokens": 8192,
+        "tokenizer_path": "models/hf/Qwen2.5-7B-Instruct",
+        "variant": "multivalue4"
+      }
+    }
+  }
+}

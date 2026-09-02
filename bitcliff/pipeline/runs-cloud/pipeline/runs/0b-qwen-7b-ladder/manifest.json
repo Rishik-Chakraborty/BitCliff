@@ -1,0 +1,106 @@
+{
+  "F16": {
+    "filename": "Qwen2.5-7B-Instruct-f16.gguf",
+    "imatrix": false,
+    "sha256": "970ccec3ad83bb62aa25ce585bed4ebd297963257442afe697d350465933f2c5",
+    "size_bytes": 15237853760,
+    "spectacle_only": false,
+    "uploader": "bitcliff-local-f16-conversion"
+  },
+  "IQ2_M": {
+    "filename": "Qwen2.5-7B-Instruct-IQ2_M.gguf",
+    "imatrix": true,
+    "sha256": "1ecc8a1b8000b67a3bd73e0a1d3e0d9e63ddc31e3adfc54c52c1bb213a380900",
+    "size_bytes": 2780342976,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q2_K": {
+    "filename": "Qwen2.5-7B-Instruct-Q2_K.gguf",
+    "imatrix": true,
+    "sha256": "f04eb1416242987e53ceb567620a4bf7258f094705fc6c4086b24afaf85ed26c",
+    "size_bytes": 3015940800,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q3_K_M": {
+    "filename": "Qwen2.5-7B-Instruct-Q3_K_M.gguf",
+    "imatrix": true,
+    "sha256": "6738a2d4f9b280c55b2a19a7ab27334a75d2cafc6ef82a11a075f4b5613eb736",
+    "size_bytes": 3808391872,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q4_K_M": {
+    "filename": "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+    "imatrix": true,
+    "sha256": "65b8fcd92af6b4fefa935c625d1ac27ea29dcb6ee14589c55a8f115ceaaa1423",
+    "size_bytes": 4683074240,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q5_K_M": {
+    "filename": "Qwen2.5-7B-Instruct-Q5_K_M.gguf",
+    "imatrix": true,
+    "sha256": "2e998d7e181c8756c5ffc55231b9ee1cdc9d3acec4245d6e27d32bd8e738c474",
+    "size_bytes": 5444831936,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q6_K": {
+    "filename": "Qwen2.5-7B-Instruct-Q6_K.gguf",
+    "imatrix": true,
+    "sha256": "489138dfed4f04cd6dea56e5a8423e4aa05a0318cce2a4a72250fe1278e97cf8",
+    "size_bytes": 6254199488,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q8_0": {
+    "filename": "Qwen2.5-7B-Instruct-Q8_0.gguf",
+    "imatrix": true,
+    "sha256": "9c6a6e61664446321d9c0dd7ee28a0d03914277609e21bc0e1fce4abe780ce1b",
+    "size_bytes": 8098525888,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "_run_config": {
+    "model_id": "qwen2.5-7b-instruct",
+    "suites": {
+      "arithmetic": {
+        "n_items": 500,
+        "seed": 3141
+      },
+      "arithmetic_twins": {
+        "seed": 1301
+      },
+      "factual_qa": {
+        "alias_augmentation_path": "data/popqa_wikidata_aliases_seed2718.json",
+        "max_tokens": 64,
+        "n_items": 500,
+        "seed": 2718,
+        "weights": [
+          0.16,
+          0.16,
+          0.16,
+          0.16,
+          0.16,
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04
+        ]
+      },
+      "longctx_retrieval": {
+        "corpus_path": "corpora/pg1184-monte-cristo.txt",
+        "corpus_sha256": "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443",
+        "max_tokens": 32,
+        "n_items": 96,
+        "seed": 2024,
+        "target_tokens": 8192,
+        "tokenizer_path": "models/hf/Qwen2.5-7B-Instruct",
+        "variant": "multivalue4"
+      }
+    }
+  }
+}

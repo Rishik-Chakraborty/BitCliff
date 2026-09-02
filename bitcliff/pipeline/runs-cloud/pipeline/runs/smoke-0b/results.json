@@ -1,0 +1,28 @@
+[
+  {
+    "quant_label": "F16",
+    "suite": "factual_qa",
+    "n": 20,
+    "correct": 4,
+    "partial": 0,
+    "wrong": 16,
+    "truncated": 1,
+    "loops": 0,
+    "accuracy": 0.2,
+    "spectacle_only": false,
+    "retention": 1.0
+  },
+  {
+    "quant_label": "Q4_K_M",
+    "suite": "factual_qa",
+    "n": 20,
+    "correct": 4,
+    "partial": 0,
+    "wrong": 16,
+    "truncated": 1,
+    "loops": 0,
+    "accuracy": 0.2,
+    "spectacle_only": false,
+    "retention": 1.0
+  }
+]
