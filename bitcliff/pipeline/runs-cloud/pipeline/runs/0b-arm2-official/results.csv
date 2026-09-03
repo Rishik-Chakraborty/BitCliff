@@ -1,0 +1,13 @@
+quant_label,suite,n,correct,partial,wrong,truncated,loops,accuracy,spectacle_only,retention
+F16,arithmetic,500,460,0,40,0,0,0.92,False,1.0
+F16,arithmetic_twins,94,84,0,10,0,0,0.8936170212765957,False,1.0
+F16,factual_qa,500,72,0,428,7,0,0.144,False,1.0
+F16,longctx_retrieval,96,96,0,0,2,0,1.0,False,1.0
+Q3_K_M,arithmetic,500,459,0,41,0,0,0.918,False,0.9978260869565218
+Q3_K_M,arithmetic_twins,94,85,0,9,0,0,0.9042553191489362,False,1.011904761904762
+Q3_K_M,factual_qa,500,72,0,428,4,0,0.144,False,1.0
+Q3_K_M,longctx_retrieval,96,96,0,0,1,0,1.0,False,1.0
+Q4_K_M,arithmetic,500,461,0,39,0,0,0.922,False,1.0021739130434784
+Q4_K_M,arithmetic_twins,94,86,0,8,0,0,0.9148936170212766,False,1.023809523809524
+Q4_K_M,factual_qa,500,69,0,431,2,0,0.138,False,0.9583333333333335
+Q4_K_M,longctx_retrieval,96,96,0,0,12,0,1.0,False,1.0

@@ -1,0 +1,73 @@
+nll items: 96
+NLL_START F16 Llama-3.1-8B-Instruct-f16.gguf
+digit token ids: 10
+NLL_DONE F16 n=96
+NLL_START Q8_0 Meta-Llama-3.1-8B-Instruct-Q8_0.gguf
+NLL_DONE Q8_0 n=96
+NLL_START Q6_K Meta-Llama-3.1-8B-Instruct-Q6_K.gguf
+NLL_DONE Q6_K n=96
+NLL_START Q5_K_M Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
+NLL_DONE Q5_K_M n=96
+NLL_START Q4_K_M Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+NLL_DONE Q4_K_M n=96
+NLL_START Q3_K_M Meta-Llama-3.1-8B-Instruct-Q3_K_M.gguf
+NLL_DONE Q3_K_M n=96
+NLL_START Q2_K Meta-Llama-3.1-8B-Instruct-Q2_K.gguf
+NLL_DONE Q2_K n=96
+NLL_START IQ2_M Meta-Llama-3.1-8B-Instruct-IQ2_M.gguf
+NLL_DONE IQ2_M n=96
+NLL_PASS_COMPLETE
+nll items: 96
+NLL_START F16 Llama-3.1-8B-Instruct-f16.gguf
+digit token ids: 10
+NLL_DONE F16 n=96
+NLL_START unsloth_Q4_K_M Llama-3.1-8B-Instruct-Q4_K_M.gguf
+NLL_DONE unsloth_Q4_K_M n=96
+NLL_START unsloth_Q3_K_M Llama-3.1-8B-Instruct-Q3_K_M.gguf
+NLL_DONE unsloth_Q3_K_M n=96
+NLL_START mradermacher_static_Q4_K_M Meta-Llama-3.1-8B-Instruct.Q4_K_M.gguf
+NLL_DONE mradermacher_static_Q4_K_M n=96
+NLL_START mradermacher_static_Q3_K_M Meta-Llama-3.1-8B-Instruct.Q3_K_M.gguf
+NLL_DONE mradermacher_static_Q3_K_M n=96
+NLL_START mradermacher_i1_Q4_K_M Meta-Llama-3.1-8B-Instruct.i1-Q4_K_M.gguf
+NLL_DONE mradermacher_i1_Q4_K_M n=96
+NLL_START mradermacher_i1_Q3_K_M Meta-Llama-3.1-8B-Instruct.i1-Q3_K_M.gguf
+NLL_DONE mradermacher_i1_Q3_K_M n=96
+NLL_PASS_COMPLETE
+nll items: 96
+NLL_START F16 Qwen2.5-7B-Instruct-f16.gguf
+digit token ids: 10
+nll items: 96
+n_ctx sized to 8448 (max seq 8263)
+NLL_START F16 Qwen2.5-7B-Instruct-f16.gguf
+digit token ids: 10
+nll items: 96
+n_ctx sized to 8448 (max seq 8263)
+NLL_START F16 Qwen2.5-7B-Instruct-f16.gguf
+digit token ids: 10
+NLL_DONE F16 n=96
+NLL_START Q8_0 Qwen2.5-7B-Instruct-Q8_0.gguf
+NLL_DONE Q8_0 n=96
+NLL_START Q6_K Qwen2.5-7B-Instruct-Q6_K.gguf
+NLL_DONE Q6_K n=96
+NLL_START Q5_K_M Qwen2.5-7B-Instruct-Q5_K_M.gguf
+NLL_DONE Q5_K_M n=96
+NLL_START Q4_K_M Qwen2.5-7B-Instruct-Q4_K_M.gguf
+NLL_DONE Q4_K_M n=96
+NLL_START Q3_K_M Qwen2.5-7B-Instruct-Q3_K_M.gguf
+NLL_DONE Q3_K_M n=96
+NLL_START Q2_K Qwen2.5-7B-Instruct-Q2_K.gguf
+NLL_DONE Q2_K n=96
+NLL_START IQ2_M Qwen2.5-7B-Instruct-IQ2_M.gguf
+NLL_DONE IQ2_M n=96
+NLL_PASS_COMPLETE
+nll items: 96
+n_ctx sized to 8448 (max seq 8263)
+NLL_START F16 Qwen2.5-7B-Instruct-f16.gguf
+digit token ids: 10
+NLL_DONE F16 n=96
+NLL_START Q4_K_M qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf
+NLL_DONE Q4_K_M n=96
+NLL_START Q3_K_M qwen2.5-7b-instruct-q3_k_m.gguf
+NLL_DONE Q3_K_M n=96
+NLL_PASS_COMPLETE

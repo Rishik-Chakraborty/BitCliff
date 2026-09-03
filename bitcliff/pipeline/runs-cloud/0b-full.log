@@ -1,0 +1,51 @@
+STAGE_START 0b-llama-8b-ladder generate 2026-09-02 05:17:25
+STAGE_DONE 0b-llama-8b-ladder generate rc=0 2026-09-02 09:12:45
+STAGE_START 0b-llama-8b-ladder grade 2026-09-02 09:12:45
+STAGE_DONE 0b-llama-8b-ladder grade rc=0 2026-09-02 09:12:46
+STAGE_START 0b-llama-8b-ladder report 2026-09-02 09:12:46
+STAGE_DONE 0b-llama-8b-ladder report rc=0 2026-09-02 09:12:47
+STAGE_START 0b-shootout-arm1 generate 2026-09-02 09:12:47
+STAGE_DONE 0b-shootout-arm1 generate rc=0 2026-09-02 12:17:53
+STAGE_START 0b-shootout-arm1 grade 2026-09-02 12:17:53
+STAGE_DONE 0b-shootout-arm1 grade rc=0 2026-09-02 12:17:54
+STAGE_START 0b-shootout-arm1 report 2026-09-02 12:17:54
+STAGE_DONE 0b-shootout-arm1 report rc=0 2026-09-02 12:17:55
+NLLCFG_START 0b-llama-8b-ladder 2026-09-02 12:17:55
+NLLCFG_DONE 0b-llama-8b-ladder rc=0 2026-09-03 01:35:22
+NLLCFG_START 0b-shootout-arm1 2026-09-03 01:35:22
+NLLCFG_DONE 0b-shootout-arm1 rc=0 2026-09-03 13:08:03
+STAGE_START 0b-qwen-7b-ladder generate 2026-09-03 13:08:03
+STAGE_DONE 0b-qwen-7b-ladder generate rc=0 2026-09-03 16:44:35
+STAGE_START 0b-qwen-7b-ladder grade 2026-09-03 16:44:35
+STAGE_DONE 0b-qwen-7b-ladder grade rc=0 2026-09-03 16:44:37
+STAGE_START 0b-qwen-7b-ladder report 2026-09-03 16:44:37
+STAGE_DONE 0b-qwen-7b-ladder report rc=0 2026-09-03 16:44:38
+STAGE_START 0b-arm2-official generate 2026-09-03 16:44:38
+STAGE_DONE 0b-arm2-official generate rc=0 2026-09-03 18:22:30
+STAGE_START 0b-arm2-official grade 2026-09-03 18:22:30
+STAGE_DONE 0b-arm2-official grade rc=0 2026-09-03 18:22:31
+STAGE_START 0b-arm2-official report 2026-09-03 18:22:31
+STAGE_DONE 0b-arm2-official report rc=0 2026-09-03 18:22:31
+NLLCFG_START 0b-qwen-7b-ladder 2026-09-03 18:22:31
+NLLCFG_DONE 0b-qwen-7b-ladder rc=137 2026-09-03 18:24:11
+NLL_FAILED 0b-qwen-7b-ladder
+NLL_START mradermacher_static_Q4_K_M Meta-Llama-3.1-8B-Instruct.Q4_K_M.gguf
+NLL_DONE mradermacher_static_Q4_K_M n=96
+NLL_START mradermacher_static_Q3_K_M Meta-Llama-3.1-8B-Instruct.Q3_K_M.gguf
+NLL_DONE mradermacher_static_Q3_K_M n=96
+NLL_START mradermacher_i1_Q4_K_M Meta-Llama-3.1-8B-Instruct.i1-Q4_K_M.gguf
+NLL_DONE mradermacher_i1_Q4_K_M n=96
+NLL_START mradermacher_i1_Q3_K_M Meta-Llama-3.1-8B-Instruct.i1-Q3_K_M.gguf
+NLL_DONE mradermacher_i1_Q3_K_M n=96
+NLL_PASS_COMPLETE
+nll items: 96
+NLL_START F16 Qwen2.5-7B-Instruct-f16.gguf
+digit token ids: 10
+NLLCFG_START 0b-qwen-7b-ladder 2026-09-03 18:40:02
+NLLCFG_DONE 0b-qwen-7b-ladder rc=137
+NLL_FAILED 0b-qwen-7b-ladder
+NLLCFG_START 0b-qwen-7b-ladder 2026-09-03 19:21:59
+NLLCFG_DONE 0b-qwen-7b-ladder rc=0
+NLLCFG_START 0b-arm2-official 2026-09-03 20:16:16
+NLLCFG_DONE 0b-arm2-official rc=0
+ALL_0B_COMPLETE 2026-09-03 20:35:13
