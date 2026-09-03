@@ -388,3 +388,39 @@ def test_digit_token_ids_from_decode_picks_only_single_ascii_digit_tokens():
 def test_digit_token_ids_from_decode_empty_vocab_gives_empty_set():
     ids = digit_token_ids_from_decode(lambda ids: "z", vocab_size=0)
     assert ids == frozenset()
+
+
+def test_make_llama_logits_provider_prefers_scores_array_over_eval_logits():
+    """The real llama-cpp-python object exposes `scores` as an (n_ctx,
+    n_vocab) numpy array; materializing `eval_logits` instead copies every
+    position's row into Python floats (~45 GB for a 152k-vocab model over
+    an 8.3k sequence — the OOM that killed the Qwen NLL pass, dmesg
+    2026-09-03 18:43). The provider must read `scores[:n]` and never touch
+    `eval_logits` when `scores` exists."""
+    import numpy as np
+
+    class FakeLlmWithScores:
+        def __init__(self):
+            self.scores = np.zeros((16, 5), dtype=np.float32)
+            self.calls = []
+
+        def reset(self):
+            self.calls.append("reset")
+
+        def eval(self, tokens):
+            self.calls.append(("eval", list(tokens)))
+            for i in range(len(tokens)):
+                self.scores[i, :] = float(i)
+
+        @property
+        def eval_logits(self):
+            raise AssertionError(
+                "provider touched eval_logits despite scores being available"
+            )
+
+    llm = FakeLlmWithScores()
+    provider = make_llama_logits_provider(llm)
+    rows = provider([7, 8, 9])
+    assert llm.calls == ["reset", ("eval", [7, 8, 9])]
+    assert len(rows) == 3
+    assert [float(rows[i][0]) for i in range(3)] == [0.0, 1.0, 2.0]

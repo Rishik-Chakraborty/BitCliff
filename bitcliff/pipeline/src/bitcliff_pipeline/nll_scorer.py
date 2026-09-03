@@ -284,6 +284,18 @@ def make_llama_logits_provider(llm) -> LogitsProvider:
     def provider(input_ids: list[int]) -> list[list[float]]:
         llm.reset()
         llm.eval(list(input_ids))
+        n = len(input_ids)
+        # Prefer the (n_ctx, n_vocab) numpy `scores` array the real
+        # llama-cpp-python object exposes under logits_all=True: a zero-copy
+        # row view with identical row semantics to eval_logits (which is
+        # built FROM scores). Materializing eval_logits copies every
+        # position's row into Python float objects — ~45 GB for a 152k-vocab
+        # model over an 8.3k sequence — which OOM-killed the Qwen NLL pass
+        # (dmesg 2026-09-03 18:43). score_answer_span only ever reads the
+        # ~n_answer+1 rows it scores from.
+        scores = getattr(llm, "scores", None)
+        if scores is not None:
+            return scores[:n]
         return [list(row) for row in llm.eval_logits]
 
     return provider
