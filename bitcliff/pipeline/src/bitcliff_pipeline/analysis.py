@@ -71,11 +71,14 @@ def paired_bootstrap_ci(
 
     and return (sorted_deltas[lo_index], sorted_deltas[hi_index]).
 
-    Degenerate case: an empty ``pairs`` list returns (0.0, 0.0).
+    Raises ``ValueError`` on an empty ``pairs`` list — a silent (0.0, 0.0)
+    CI from no data at all would be indistinguishable from a genuine
+    zero-width CI and is exactly the "equivalence from absence of evidence"
+    §8 forbids.
     """
     n = len(pairs)
     if n == 0:
-        return (0.0, 0.0)
+        raise ValueError("paired_bootstrap_ci: pairs must not be empty")
 
     deltas = []
     for _ in range(n_resamples):
@@ -94,19 +97,28 @@ def cell_state(delta: float, ci: tuple[float, float], margin: float) -> str:
     """Classify a cell into one of the four PREREG §8 states.
 
     - "damaged": CI excludes 0 and delta < -margin (exceeds M loss).
-    - "small_real_loss": CI excludes 0 and NOT damaged — this includes a
-      loss within margin AND a significant gain within margin (both flip
-      directions are reported; §8's "point estimate is within M" governs
-      either sign once the CI has already excluded 0).
+    - "small_real_loss": CI excludes 0, not damaged, and the point estimate
+      is within margin (|delta| <= margin) — this covers both a loss within
+      margin and a significant GAIN within margin (both flip directions are
+      reported; §8's "point estimate is within M" governs either sign once
+      the CI has already excluded 0).
     - "equivalent": the ENTIRE CI lies strictly within (-margin, +margin).
       A CI that merely touches the boundary (lo == -margin or hi == margin)
       does NOT count as equivalent — §8 requires strict inclusion.
-    - "indeterminate": none of the above.
+    - "indeterminate": none of the above. This is also where a CI-excludes-0
+      cell with a significant GAIN *beyond* margin (delta > +margin) lands —
+      §8's states 1-3 don't cover it: it isn't damaged (not a loss), isn't
+      "within M" (small_real_loss requires |delta| <= margin), and the CI
+      excluding 0 means it can't be equivalent either.
     """
     lo, hi = ci
     excludes_zero = lo > 0 or hi < 0
     if excludes_zero:
-        return "damaged" if delta < -margin else "small_real_loss"
+        if delta < -margin:
+            return "damaged"
+        if abs(delta) <= margin:
+            return "small_real_loss"
+        return "indeterminate"
     if lo > -margin and hi < margin:
         return "equivalent"
     return "indeterminate"
@@ -131,8 +143,14 @@ def analyze_cell(
     n_resamples: int = 10_000,
     rng: random.Random,
 ) -> Cell:
-    """Run the full §8 per-cell pipeline on one (quant, suite) pair set."""
+    """Run the full §8 per-cell pipeline on one (quant, suite) pair set.
+
+    Raises ``ValueError`` on an empty ``pairs`` list (same rationale as
+    ``paired_bootstrap_ci``: no silent equivalence-from-absence).
+    """
     n = len(pairs)
+    if n == 0:
+        raise ValueError("analyze_cell: pairs must not be empty")
     f16_acc = sum(1 for f16_ok, _ in pairs if f16_ok) / n
     quant_acc = sum(1 for _, quant_ok in pairs if quant_ok) / n
     delta = quant_acc - f16_acc
@@ -187,8 +205,15 @@ def cliff(
     ``non_monotonic`` is True iff a "damaged" rung appears earlier (higher
     precision) in ladder order than some rung whose state is NOT "damaged"
     — i.e. the damaged states don't form a clean suffix down the ladder.
+
+    Raises ``ValueError`` if ``states_by_rung`` names a rung that isn't in
+    ``ladder_order`` — a typo'd rung label must not be silently dropped,
+    especially if it was "damaged".
     """
     state_map = dict(states_by_rung)
+    unknown = set(state_map) - set(ladder_order)
+    if unknown:
+        raise ValueError(f"cliff: rung(s) not in ladder_order: {sorted(unknown)}")
     ordered_states = [state_map[r] for r in ladder_order if r in state_map]
 
     cliff_rung = None

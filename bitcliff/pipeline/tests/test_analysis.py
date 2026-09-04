@@ -1,6 +1,8 @@
 import math
 import random
 
+import pytest
+
 from bitcliff_pipeline.analysis import (
     Cell,
     analyze_cell,
@@ -54,6 +56,12 @@ def test_mcnemar_one_sided_extreme_small_p():
     assert mcnemar_exact_p(0, 1) == 1.0
 
 
+def test_mcnemar_mid_case_2_and_8():
+    # n=10, k=min(2,8)=2 -> tail = C(10,0)+C(10,1)+C(10,2) = 1+10+45 = 56
+    # p = 2*56/1024 = 112/1024
+    assert mcnemar_exact_p(2, 8) == pytest.approx(112 / 1024)
+
+
 # ---------------------------------------------------------------------------
 # paired_bootstrap_ci
 # ---------------------------------------------------------------------------
@@ -87,6 +95,20 @@ def test_bootstrap_ci_different_seed_may_differ():
     ci_a = paired_bootstrap_ci(pairs, 2000, random.Random(1))
     ci_b = paired_bootstrap_ci(pairs, 2000, random.Random(2))
     assert ci_a != ci_b
+
+
+def test_bootstrap_ci_sign_convention_quant_minus_f16():
+    # every item: f16 correct, quant wrong -> every resample has
+    # f16_acc = 1.0, quant_acc = 0.0 -> delta = quant - f16 = -1.0, always.
+    # Pins the sign of the reported delta (quant minus F16, not the reverse).
+    pairs = [(True, False)] * 20
+    lo, hi = paired_bootstrap_ci(pairs, 500, random.Random(3))
+    assert (lo, hi) == (-1.0, -1.0)
+
+
+def test_bootstrap_ci_empty_pairs_raises():
+    with pytest.raises(ValueError):
+        paired_bootstrap_ci([], 100, random.Random(1))
 
 
 def test_bootstrap_ci_lo_le_hi():
@@ -134,6 +156,12 @@ def test_cell_state_small_real_loss():
     assert cell_state(-0.01, (-0.02, -0.005), 0.03) == "small_real_loss"
 
 
+def test_cell_state_delta_exactly_at_margin_is_not_damaged():
+    # damaged requires delta STRICTLY < -margin; delta == -margin exactly
+    # is small_real_loss, not damaged.
+    assert cell_state(-0.03, (-0.05, -0.01), 0.03) == "small_real_loss"
+
+
 def test_cell_state_small_real_loss_on_significant_gain():
     # CI excludes 0 (all positive), delta is a GAIN but |delta| <= margin
     # -> still small_real_loss per §8 precision rule (both flip directions).
@@ -159,11 +187,12 @@ def test_cell_state_indeterminate():
     assert cell_state(-0.02, (-0.10, 0.02), 0.03) == "indeterminate"
 
 
-def test_cell_state_ci_excludes_zero_positive_delta_beyond_margin_is_small_real_loss():
-    # Per explicit precision rule: CI-excludes-0 branches only into damaged
-    # when delta < -margin; any other case (including a large gain) is
-    # small_real_loss.
-    assert cell_state(0.10, (0.05, 0.15), 0.03) == "small_real_loss"
+def test_cell_state_ci_excludes_zero_positive_delta_beyond_margin_is_indeterminate():
+    # CI excludes 0, delta is a significant GAIN beyond +margin: none of
+    # §8's states 1-3 apply (not a loss -> not damaged; |delta| > margin ->
+    # not "within M" -> not small_real_loss; CI excludes 0 -> not
+    # equivalent). Falls through to indeterminate.
+    assert cell_state(0.10, (0.05, 0.15), 0.03) == "indeterminate"
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +209,7 @@ def test_analyze_cell_basic_fields():
     assert cell.c == 0
     assert math.isclose(cell.delta, 0.8 - 1.0)
     assert cell.p == mcnemar_exact_p(2, 0)
-    assert cell.ci_lo <= cell.delta <= cell.ci_hi or cell.ci_lo <= cell.ci_hi
+    assert cell.ci_lo <= cell.delta <= cell.ci_hi
     assert cell.state in {"damaged", "small_real_loss", "equivalent", "indeterminate"}
 
 
@@ -201,6 +230,11 @@ def test_analyze_cell_flip_directions_counted_independently():
     cell = analyze_cell(pairs, margin=0.03, n_resamples=100, rng=random.Random(2))
     assert cell.b == 3
     assert cell.c == 5
+
+
+def test_analyze_cell_empty_pairs_raises():
+    with pytest.raises(ValueError):
+        analyze_cell([], margin=0.03, n_resamples=100, rng=random.Random(1))
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +258,17 @@ def test_holm_stops_at_first_failure():
     pvalues = {"a": 0.01, "b": 0.04, "c": 0.20}
     result = holm(pvalues, alpha=0.05)
     assert result == {"a": True, "b": False, "c": False}
+
+
+def test_holm_step_down_stops_even_if_later_p_passes_its_own_threshold():
+    # p = 0.03, 0.04; alpha = 0.05. Sorted: a=0.03 (thresh 0.05/2=0.025,
+    # FAILS -> procedure stops), b=0.04 (thresh 0.05/1=0.05, would pass on
+    # its own, but the step-down has already stopped at a, so b is also
+    # False). An implementation that tests each p independently against
+    # its own threshold (no stopping) would wrongly report b: True.
+    pvalues = {"a": 0.03, "b": 0.04}
+    result = holm(pvalues, alpha=0.05)
+    assert result == {"a": False, "b": False}
 
 
 def test_holm_all_fail():
@@ -299,3 +344,11 @@ def test_cliff_single_damaged_at_bottom():
     rung, non_monotonic = cliff(states, LADDER)
     assert rung == "IQ2_M"
     assert non_monotonic is False
+
+
+def test_cliff_unknown_rung_raises():
+    # A typo'd rung label (not in ladder_order) must not be silently
+    # dropped -- especially dangerous if it was "damaged".
+    states = [("Q8_0", "equivalent"), ("Q4_K_MM", "damaged")]  # typo'd label
+    with pytest.raises(ValueError):
+        cliff(states, LADDER)
