@@ -13,10 +13,12 @@ from pathlib import Path
 
 import pytest
 
+from bitcliff_pipeline import registered
 from bitcliff_pipeline.config import LadderConfig, load_config
 
 PIPELINE_ROOT = Path(__file__).resolve().parent.parent
 CONFIGS_0B_DIR = PIPELINE_ROOT / "configs" / "0b"
+CONFIGS_0B2_DIR = PIPELINE_ROOT / "configs" / "0b2"
 MANIFESTS_DIR = PIPELINE_ROOT / "reference-manifests"
 
 # RUN_0B.md §5 "RULED 2026-08-30 -- canonical registered ladder": the
@@ -26,29 +28,16 @@ CANONICAL_LADDER_LABELS = ["Q8_0", "Q6_K", "Q5_K_M", "Q4_K_M", "Q3_K_M", "Q2_K",
 # PREREG §7's registered factual_qa popularity-mix candidates (most
 # tail-heavy first). M3 is the "step-tail-heavy" mix chosen for all three
 # models per Amendment 1 §C ("None in [0.6, 0.85]... Chosen mix: M3").
-# Cross-checked against scripts/calibrate_f16.py's M3_WEIGHTS — the
-# convention-correct vector for factual_qa.items_from_records, whose
-# deciles are built in ASCENDING s_pop order (index 0 = least popular).
-# PREREG §7 writes the vector in prose order (decile 1 = most popular);
-# using it un-reversed sampled a non-registered item set (OPEN_QUESTIONS
-# §8, 2026-09-04). Import, don't restate, so drift is impossible.
-import importlib.util as _ilu
-from pathlib import Path as _P
-
-_spec = _ilu.spec_from_file_location(
-    "calibrate_f16", _P(__file__).resolve().parents[1] / "scripts" / "calibrate_f16.py"
-)
-_cal = _ilu.module_from_spec(_spec)
-try:
-    _spec.loader.exec_module(_cal)
-    M3_WEIGHTS = _cal.M3_WEIGHTS
-except Exception:  # calibrate_f16 imports heavy deps; fall back to verbatim copy
-    M3_WEIGHTS = (0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16)
+# Imported from `bitcliff_pipeline.registered` -- the single home of this
+# constant (pre-rerun hardening, OPEN_QUESTIONS §8) -- instead of restated
+# or re-derived here, so drift between this test's cross-check and the
+# actual registered value is structurally impossible.
+M3_WEIGHTS = registered.M3_WEIGHTS_CONVENTION
 assert tuple(M3_WEIGHTS) == (0.04,) * 5 + (0.16,) * 5
 
 # PREREG §3.1 "Configuration 2b": the STRIPPED-text sha256 ("The
 # generator's corpus-hash gate accepts exactly this hash for 2b").
-CORPUS_SHA256_2B = "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443"
+CORPUS_SHA256_2B = registered.CORPUS_2B_SHA256
 
 ALL_0B_CONFIG_PATHS = sorted(CONFIGS_0B_DIR.glob("*.yaml"))
 
@@ -98,10 +87,10 @@ ALL_CONFIGS_WITH_SUITES = ALL_0B_CONFIG_PATHS  # every 0B config carries the ful
 @pytest.mark.parametrize("path", ALL_0B_CONFIG_PATHS, ids=lambda p: p.name)
 def test_generation_settings_match_prereg_section_6(path):
     cfg = _load(path)
-    assert cfg.generation.seed == 42
+    assert cfg.generation.seed == registered.GEN_SEED
     assert cfg.generation.temperature == 0.0
     assert cfg.generation.top_k == 1
-    assert cfg.generation.max_tokens == 1024  # PREREG §6 global budget
+    assert cfg.generation.max_tokens == registered.GLOBAL_MAX_TOKENS  # PREREG §6 global budget
 
 
 @pytest.mark.parametrize("path", ALL_0B_CONFIG_PATHS, ids=lambda p: p.name)
@@ -126,8 +115,8 @@ def test_n_ctx_is_large_enough_for_the_longctx_t8192_prompt(path):
 @pytest.mark.parametrize("path", ALL_0B_CONFIG_PATHS, ids=lambda p: p.name)
 def test_per_suite_answer_budgets_match_prereg_section_6(path):
     cfg = _load(path)
-    assert cfg.suites["longctx_retrieval"]["max_tokens"] == 32
-    assert cfg.suites["factual_qa"]["max_tokens"] == 64
+    assert cfg.suites["longctx_retrieval"]["max_tokens"] == registered.LONGCTX_MAX_TOKENS
+    assert cfg.suites["factual_qa"]["max_tokens"] == registered.FACTUAL_QA_MAX_TOKENS
     # arithmetic / arithmetic_twins use the global budget (PREREG §6: "arithmetic
     # suites use the global budget") -- no suite-level max_tokens override.
     assert "max_tokens" not in cfg.suites["arithmetic"]
@@ -145,13 +134,13 @@ def test_per_suite_answer_budgets_match_prereg_section_6(path):
 def test_registered_seeds_match_prereg(path):
     cfg = _load(path)
     # Amendment 1 §A: 2b longctx_retrieval registered n=96, seed=2024.
-    assert cfg.suites["longctx_retrieval"]["seed"] == 2024
+    assert cfg.suites["longctx_retrieval"]["seed"] == registered.LONGCTX_SEED
     # PREREG §3.2: "confirmatory item set... sampled with fixed seed 3141".
-    assert cfg.suites["arithmetic"]["seed"] == 3141
+    assert cfg.suites["arithmetic"]["seed"] == registered.ARITHMETIC_SEED
     # PREREG §3.3: instantiated twin set is seed 1301.
-    assert cfg.suites["arithmetic_twins"]["seed"] == 1301
+    assert cfg.suites["arithmetic_twins"]["seed"] == registered.TWINS_SEED
     # PREREG §3.4: "confirmatory fixed seed 2718".
-    assert cfg.suites["factual_qa"]["seed"] == 2718
+    assert cfg.suites["factual_qa"]["seed"] == registered.FACTUAL_QA_SEED
 
 
 # ---------------------------------------------------------------------------
@@ -164,9 +153,9 @@ def test_registered_seeds_match_prereg(path):
 @pytest.mark.parametrize("path", ALL_0B_CONFIG_PATHS, ids=lambda p: p.name)
 def test_registered_ns_match_prereg(path):
     cfg = _load(path)
-    assert cfg.suites["longctx_retrieval"]["n_items"] == 96  # Amendment 1 §A
-    assert cfg.suites["arithmetic"]["n_items"] == 500  # PREREG §3.2
-    assert cfg.suites["factual_qa"]["n_items"] == 500  # PREREG §3.4
+    assert cfg.suites["longctx_retrieval"]["n_items"] == registered.LONGCTX_N  # Amendment 1 §A
+    assert cfg.suites["arithmetic"]["n_items"] == registered.ARITHMETIC_N  # PREREG §3.2
+    assert cfg.suites["factual_qa"]["n_items"] == registered.FACTUAL_QA_N  # PREREG §3.4
     # arithmetic_twins has no n_items config key: PREREG §3.3's n (47
     # template pairs = 94 items) is fixed by the verified template set
     # itself, not a config-supplied count (__main__.build_items passes
@@ -464,3 +453,70 @@ def test_every_quant_in_every_0b_config_has_a_sha256_pin(path):
                 f"{path.name}: quant {q.label!r}'s extra file "
                 f"{extra.filename!r} has no config-pinned sha256"
             )
+
+
+# ---------------------------------------------------------------------------
+# configs/0b2/*.yaml — the factual_qa-only rerun (OPEN_QUESTIONS §8, item-set
+# mix-order bug). Four configs, mechanically derived from their configs/0b/
+# counterparts: identical model/f16_path/quants/generation, suites carrying
+# ONLY factual_qa at the registered values -- the item set is the only
+# intended diff from the first pass.
+# ---------------------------------------------------------------------------
+
+ALL_0B2_CONFIG_PATHS = sorted(CONFIGS_0B2_DIR.glob("*.yaml"))
+
+# (0b2 config, its 0b counterpart) -- same model/quants/f16_path/generation.
+_0B2_TO_0B_COUNTERPART = {
+    "0b2-llama-8b-ladder.yaml": "0b-llama-8b-ladder.yaml",
+    "0b2-qwen-7b-ladder.yaml": "0b-qwen-7b-ladder.yaml",
+    "0b2-shootout-arm1.yaml": "0b-shootout-arm1.yaml",
+    "0b2-arm2-official.yaml": "0b-arm2-official.yaml",
+}
+
+
+def test_all_four_0b2_configs_exist_and_load():
+    names = {p.name for p in ALL_0B2_CONFIG_PATHS}
+    assert names == set(_0B2_TO_0B_COUNTERPART)
+    for path in ALL_0B2_CONFIG_PATHS:
+        _load(path)  # must not raise
+
+
+@pytest.mark.parametrize("path", ALL_0B2_CONFIG_PATHS, ids=lambda p: p.name)
+def test_0b2_configs_carry_only_factual_qa(path):
+    cfg = _load(path)
+    assert set(cfg.suites) == {"factual_qa"}
+
+
+@pytest.mark.parametrize("path", ALL_0B2_CONFIG_PATHS, ids=lambda p: p.name)
+def test_0b2_factual_qa_matches_registered_values(path):
+    cfg = _load(path)
+    s = cfg.suites["factual_qa"]
+    assert s["n_items"] == registered.FACTUAL_QA_N
+    assert s["seed"] == registered.FACTUAL_QA_SEED
+    assert tuple(s["weights"]) == pytest.approx(registered.M3_WEIGHTS_CONVENTION)
+    assert s["max_tokens"] == registered.FACTUAL_QA_MAX_TOKENS
+    aug_path = PIPELINE_ROOT / s["alias_augmentation_path"]
+    assert aug_path.name == "popqa_wikidata_aliases_seed2718.json"
+    assert aug_path.exists()
+
+
+@pytest.mark.parametrize(
+    "config_0b2_name,config_0b_name", _0B2_TO_0B_COUNTERPART.items(),
+    ids=list(_0B2_TO_0B_COUNTERPART),
+)
+def test_0b2_config_is_identical_to_its_0b_counterpart_except_the_item_set(
+    config_0b2_name, config_0b_name
+):
+    cfg_0b2 = _load(CONFIGS_0B2_DIR / config_0b2_name)
+    cfg_0b = _load(CONFIGS_0B_DIR / config_0b_name)
+
+    assert cfg_0b2.model_id == cfg_0b.model_id
+    assert cfg_0b2.hf_repo == cfg_0b.hf_repo
+    assert cfg_0b2.f16_path == cfg_0b.f16_path
+    assert cfg_0b2.generation == cfg_0b.generation  # seed 42, temp 0, top_k 1, 1024, 16384 -- PINNED
+    assert cfg_0b2.quants == cfg_0b.quants  # same pinned sha256s, same labels/repos/extra_files
+
+    # The item set is the only intended diff: 0b's factual_qa block, minus
+    # every other suite.
+    assert cfg_0b2.suites["factual_qa"] == cfg_0b.suites["factual_qa"]
+    assert set(cfg_0b.suites) - {"factual_qa"}  # sanity: 0b really did carry more suites

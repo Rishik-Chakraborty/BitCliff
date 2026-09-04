@@ -1,0 +1,89 @@
+# 0B2 factual_qa-only rerun: Qwen2.5-7B-Instruct, bartowski canonical
+# ladder. Purpose: OPEN_QUESTIONS.md §8 — the first 0B pass's
+# `configs/0b/*.yaml` hand-copied PREREG §7's M3 weight vector in its prose
+# order instead of the `factual_qa.items_from_records` ascending-s_pop
+# convention order, so every factual_qa cell in the first pass measured a
+# non-registered item set (item_set sha256 `ac5cb282…`, not the registered
+# `2e53ca0e…`). Date: 2026-09-04 (this rerun's configs); see
+# `bitcliff/pipeline/analysis/0b/F16_CROSS_MACHINE.md` for the investigation.
+#
+# Mechanically derived from `configs/0b/0b-qwen-7b-ladder.yaml`: identical
+# model_id/hf_repo/f16_path/quants (same pinned sha256s) and identical
+# generation block (seed 42, temp 0, top_k 1, max_tokens 1024, n_ctx
+# 16384), PINNED to match the first pass exactly. suites carries ONLY
+# factual_qa, at the registered n/seed/weights/alias-augmentation-path/
+# budget (`bitcliff_pipeline.registered`) — the item set is the ONLY
+# intended diff from `0b-qwen-7b-ladder.yaml`. No longctx_retrieval,
+# arithmetic, or arithmetic_twins here: those suites' item sets were
+# unaffected by the bug (OPEN_QUESTIONS §8: "longctx (item-set hash matches
+# calibration), arithmetic (seed 3141), and twins (fixed 94) are
+# unaffected") and do not need to be regenerated.
+#
+# File pins: reference-manifests/qwen2.5-7b-bartowski.json (repo
+# bartowski/Qwen2.5-7B-Instruct-GGUF,
+# revision 8911e8a47f92bac19d6f5c64a2e2095bd2f7d031). Ladder: Q8_0, Q6_K,
+# Q5_K_M, Q4_K_M, Q3_K_M, Q2_K, IQ2_M (RUN_0B.md §5 "RULED 2026-08-30",
+# identical 7-rung set to the first pass).
+
+model_id: qwen2.5-7b-instruct
+hf_repo: bartowski/Qwen2.5-7B-Instruct-GGUF
+f16_path: models/f16/Qwen2.5-7B-Instruct-f16.gguf
+
+quants:
+  - label: Q8_0
+    filename: Qwen2.5-7B-Instruct-Q8_0.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 9c6a6e61664446321d9c0dd7ee28a0d03914277609e21bc0e1fce4abe780ce1b
+  - label: Q6_K
+    filename: Qwen2.5-7B-Instruct-Q6_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 489138dfed4f04cd6dea56e5a8423e4aa05a0318cce2a4a72250fe1278e97cf8
+  - label: Q5_K_M
+    filename: Qwen2.5-7B-Instruct-Q5_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 2e998d7e181c8756c5ffc55231b9ee1cdc9d3acec4245d6e27d32bd8e738c474
+  - label: Q4_K_M
+    filename: Qwen2.5-7B-Instruct-Q4_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 65b8fcd92af6b4fefa935c625d1ac27ea29dcb6ee14589c55a8f115ceaaa1423
+  - label: Q3_K_M
+    filename: Qwen2.5-7B-Instruct-Q3_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 6738a2d4f9b280c55b2a19a7ab27334a75d2cafc6ef82a11a075f4b5613eb736
+  - label: Q2_K
+    filename: Qwen2.5-7B-Instruct-Q2_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: f04eb1416242987e53ceb567620a4bf7258f094705fc6c4086b24afaf85ed26c
+  - label: IQ2_M
+    filename: Qwen2.5-7B-Instruct-IQ2_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 1ecc8a1b8000b67a3bd73e0a1d3e0d9e63ddc31e3adfc54c52c1bb213a380900
+
+# PINNED identical to 0b-qwen-7b-ladder.yaml — same seed 42, temp 0,
+# top_k 1, global 1024-token budget, n_ctx 16384 — so the item set is the
+# only diff from the first pass.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+# factual_qa ONLY: registered n=500, seed=2718, convention-correct M3
+# weights (index 0 = least popular — see 0b-qwen-7b-ladder.yaml's
+# identical comment / OPEN_QUESTIONS §8), seed-2718 alias augmentation
+# (Amendment 1 §B), 64-token answer budget (PREREG §6).
+suites:
+  factual_qa:
+    n_items: 500
+    seed: 2718
+    weights: [0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64

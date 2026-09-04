@@ -1,0 +1,89 @@
+# 0B2 factual_qa-only rerun: Llama-3.1-8B-Instruct, bartowski canonical
+# ladder. Purpose: OPEN_QUESTIONS.md §8 — the first 0B pass's
+# `configs/0b/*.yaml` hand-copied PREREG §7's M3 weight vector in its prose
+# order instead of the `factual_qa.items_from_records` ascending-s_pop
+# convention order, so every factual_qa cell in the first pass measured a
+# non-registered item set (item_set sha256 `ac5cb282…`, not the registered
+# `2e53ca0e…`). Date: 2026-09-04 (this rerun's configs); see
+# `bitcliff/pipeline/analysis/0b/F16_CROSS_MACHINE.md` for the investigation.
+#
+# Mechanically derived from `configs/0b/0b-llama-8b-ladder.yaml`: identical
+# model_id/hf_repo/f16_path/quants (same pinned sha256s) and identical
+# generation block (seed 42, temp 0, top_k 1, max_tokens 1024, n_ctx
+# 16384), PINNED to match the first pass exactly. suites carries ONLY
+# factual_qa, at the registered n/seed/weights/alias-augmentation-path/
+# budget (`bitcliff_pipeline.registered`) — the item set is the ONLY
+# intended diff from `0b-llama-8b-ladder.yaml`. No longctx_retrieval,
+# arithmetic, or arithmetic_twins here: those suites' item sets were
+# unaffected by the bug (OPEN_QUESTIONS §8: "longctx (item-set hash matches
+# calibration), arithmetic (seed 3141), and twins (fixed 94) are
+# unaffected") and do not need to be regenerated.
+#
+# File pins: reference-manifests/llama-3.1-8b-bartowski.json (repo
+# bartowski/Meta-Llama-3.1-8B-Instruct-GGUF,
+# revision bf5b95e96dac0462e2a09145ec66cae9a3f12067). Ladder: Q8_0, Q6_K,
+# Q5_K_M, Q4_K_M, Q3_K_M, Q2_K, IQ2_M (RUN_0B.md §5 "RULED 2026-08-30",
+# identical 7-rung set to the first pass).
+
+model_id: llama-3.1-8b-instruct
+hf_repo: bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
+f16_path: models/f16/Llama-3.1-8B-Instruct-f16.gguf
+
+quants:
+  - label: Q8_0
+    filename: Meta-Llama-3.1-8B-Instruct-Q8_0.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 9da71c45c90a821809821244d4971e5e5dfad7eb091f0b8ff0546392393b6283
+  - label: Q6_K
+    filename: Meta-Llama-3.1-8B-Instruct-Q6_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 33981adf6bae52c503fb5c24f72539010632f7ed290a56c1315a8cd50adca587
+  - label: Q5_K_M
+    filename: Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 14e10feba0c82a55da198dcd69d137206ad22d116a809926d27fa5f2398c69c7
+  - label: Q4_K_M
+    filename: Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c
+  - label: Q3_K_M
+    filename: Meta-Llama-3.1-8B-Instruct-Q3_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 6be122b5c8f2a33974953e58e0ffd2be505661acc6f4caf733e4bca130e89fea
+  - label: Q2_K
+    filename: Meta-Llama-3.1-8B-Instruct-Q2_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 3f7f9265554ac91f1fb31c1b63b9cada4362533dfaa3f6e8dfc33c48d36909ce
+  - label: IQ2_M
+    filename: Meta-Llama-3.1-8B-Instruct-IQ2_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 849856e1e7eff8ea7425a2a4cee50f3d547165194f50ea3112c9fc07cb08daad
+
+# PINNED identical to 0b-llama-8b-ladder.yaml — same seed 42, temp 0,
+# top_k 1, global 1024-token budget, n_ctx 16384 — so the item set is the
+# only diff from the first pass.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+# factual_qa ONLY: registered n=500, seed=2718, convention-correct M3
+# weights (index 0 = least popular — see 0b-llama-8b-ladder.yaml's
+# identical comment / OPEN_QUESTIONS §8), seed-2718 alias augmentation
+# (Amendment 1 §B), 64-token answer budget (PREREG §6).
+suites:
+  factual_qa:
+    n_items: 500
+    seed: 2718
+    weights: [0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64
