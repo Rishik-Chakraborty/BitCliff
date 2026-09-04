@@ -100,6 +100,37 @@ def test_quant_sha256_and_hf_repo_override_parse(tmp_path):
     assert cfg.quants[0].hf_repo == "other/repo"
 
 
+# ---------------------------------------------------------------------------
+# Pre-rerun hardening (OPEN_QUESTIONS §8): `exploratory: true` opts a config
+# out of the boot-time item-set hash gate (__main__.py generate stage) --
+# e.g. a smoke config sampling a registered n at a deliberately non-
+# registered draw. Defaults False so every existing config keeps loading
+# unchanged and stays gated.
+# ---------------------------------------------------------------------------
+
+
+def test_exploratory_defaults_false(tmp_path):
+    cfg = load_config(write_yaml(tmp_path, VALID_YAML))
+    assert cfg.exploratory is False
+
+
+def test_exploratory_true_parses(tmp_path):
+    yaml_text = "exploratory: true\n" + VALID_YAML
+    cfg = load_config(write_yaml(tmp_path, yaml_text))
+    assert cfg.exploratory is True
+
+
+def test_smoke_config_loads_and_is_exploratory():
+    """configs/smoke/smoke-llama-q4km.yaml: the committed example of a
+    deliberately non-registered n draw, opted out of the boot-time
+    item-set hash gate (OPEN_QUESTIONS §8)."""
+    path = Path(__file__).resolve().parent.parent / "configs" / "smoke" / "smoke-llama-q4km.yaml"
+    cfg = load_config(path)
+    assert cfg.exploratory is True
+    assert cfg.model_id == "llama-3.1-8b-instruct"
+    assert cfg.suites["factual_qa"]["n_items"] == 20
+
+
 def test_quant_extra_files_parse(tmp_path):
     yaml_text = VALID_YAML.replace(
         "  - {label: Q8_0, filename: Qwen2.5-1.5B-Instruct-Q8_0.gguf, uploader: bartowski, imatrix: true}",

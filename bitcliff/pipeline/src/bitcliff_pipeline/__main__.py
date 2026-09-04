@@ -1,16 +1,87 @@
 import argparse
 import dataclasses
 import json
+from collections import defaultdict
 from pathlib import Path
 
 from . import generate as gen_mod
+from . import registered
 from .config import LadderConfig, load_config
 from .divergence import divergence_for_records
 from .grading import grade_record, read_grades
-from .hashing import build_manifest, load_manifest, verify_manifest, write_manifest
+from .hashing import build_manifest, item_set_sha256, load_manifest, verify_manifest, write_manifest
 from .items import EvalItem
 from .models import ensure_quants, resolve_all
 from .report import add_retention, aggregate, plot_retention, write_csv, write_json
+
+# Pre-rerun hardening (OPEN_QUESTIONS §8): the registered n for every suite
+# the boot-time item-set hash gate below covers. A suite with no entry here
+# (e.g. "spectacle", which is unscored and has no registered item set) is
+# never gated. `arithmetic_twins` has no config-supplied n_items (PREREG
+# §3.3 fixes it at all 47 template pairs = 94 items) -- its registered n is
+# still checked, just against the item count itself rather than a config
+# key.
+REGISTERED_SUITE_N: dict[str, int] = {
+    "arithmetic": registered.ARITHMETIC_N,
+    "arithmetic_twins": registered.TWINS_N,
+    "factual_qa": registered.FACTUAL_QA_N,
+    "longctx_retrieval": registered.LONGCTX_N,
+}
+
+
+def assert_item_sets_match_registered(items: list[EvalItem], model_id: str) -> None:
+    """Boot-time item-set hash gate (pre-rerun hardening, OPEN_QUESTIONS
+    §8): run once per invocation, immediately after items are built and
+    BEFORE any generation -- the same abort-before-generation pattern as
+    the tokenizer-match gate below, but for item-set identity rather than
+    tokenizer agreement.
+
+    Groups `items` by suite. A suite whose item count does not equal that
+    suite's REGISTERED n (`REGISTERED_SUITE_N`) is left ungated -- a
+    non-registered n (a smoke config's n=20, a unit test's n=4, ...) is by
+    construction not a confirmatory draw, so there is nothing registered to
+    check it against. For every suite AT its registered n, this recomputes
+    the item-set hash (`hashing.item_set_sha256`) and compares it against
+    `registered.expected_item_set_sha256(suite, model_id)`:
+
+    - No pinned hash at all (neither registered nor derived) for that
+      (suite, model_id): refuses outright -- unknown item sets are never
+      silently accepted.
+    - A pinned hash that does not match: refuses, naming suite/expected/
+      actual -- this is the exact class of bug OPEN_QUESTIONS §8 documents
+      (a hand-copied M3 weight vector sampling a non-registered factual_qa
+      item set) made structurally impossible.
+    - A pinned hash that matches: no-op.
+
+    A config with `exploratory: true` skips calling this function entirely
+    (see `run_pipeline` below), printing a loud warning instead.
+    """
+    by_suite: dict[str, list[EvalItem]] = defaultdict(list)
+    for it in items:
+        by_suite[it.suite].append(it)
+
+    for suite, suite_items in by_suite.items():
+        expected_n = REGISTERED_SUITE_N.get(suite)
+        if expected_n is None or len(suite_items) != expected_n:
+            continue  # not a registered-n draw for this suite -- ungated
+        expected = registered.expected_item_set_sha256(suite, model_id)
+        if expected is None:
+            raise RuntimeError(
+                f"item-set hash gate: no registered or derived item-set "
+                f"hash pinned for suite={suite!r} model_id={model_id!r} at "
+                f"n={expected_n} -- refusing to generate on an unknown item "
+                f"set (unknown = refuse). Pin one in "
+                f"bitcliff_pipeline.registered, or mark this config "
+                f"`exploratory: true` if it is deliberately non-registered."
+            )
+        actual = item_set_sha256(suite_items)
+        if actual != expected:
+            raise RuntimeError(
+                f"item-set hash gate: suite={suite!r} model_id={model_id!r} "
+                f"-- expected item-set sha256 {expected}, got {actual}. "
+                f"This config would generate on a NON-registered item set; "
+                f"refusing before any generation (OPEN_QUESTIONS §8)."
+            )
 
 
 def _load_hf_tokenizer(path: Path):
@@ -168,6 +239,20 @@ def run_pipeline(
             config, base_dir, longctx_tokenizer=longctx_hf_tokenizer,
             longctx_answer_specs=longctx_answer_specs,
         )
+
+        # Pre-rerun hardening (OPEN_QUESTIONS §8): boot-time item-set hash
+        # gate, BEFORE any generation for any file in this run.
+        if config.exploratory:
+            print(
+                f"WARNING: config.exploratory=True (model_id={config.model_id!r}) "
+                f"-- SKIPPING the registered item-set hash gate. This run's "
+                f"item sets are NOT verified against any registered/derived "
+                f"value; never treat this run's numbers as confirmatory "
+                f"(OPEN_QUESTIONS §8)."
+            )
+        else:
+            assert_item_sets_match_registered(items, config.model_id)
+
         items_path = run_dir / "items.jsonl"
         items_path.write_text(
             "".join(json.dumps(dataclasses.asdict(i)) + "\n" for i in items)

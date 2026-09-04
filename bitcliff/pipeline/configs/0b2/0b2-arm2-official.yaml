@@ -1,0 +1,67 @@
+# 0B2 factual_qa-only rerun: official-vs-community Arm 2
+# (Qwen2.5-7B-Instruct only, Q4_K_M + Q3_K_M only — PREREG §5). Purpose:
+# OPEN_QUESTIONS.md §8 — the first 0B pass's `configs/0b/*.yaml`
+# hand-copied PREREG §7's M3 weight vector in its prose order instead of
+# the `factual_qa.items_from_records` ascending-s_pop convention order, so
+# every factual_qa cell in the first pass (including this arm) measured a
+# non-registered item set (item_set sha256 `ac5cb282…`, not the registered
+# `2e53ca0e…`). Date: 2026-09-04 (this rerun's configs); see
+# `bitcliff/pipeline/analysis/0b/F16_CROSS_MACHINE.md` for the
+# investigation.
+#
+# Mechanically derived from `configs/0b/0b-arm2-official.yaml`: identical
+# model_id/hf_repo/f16_path/quants (same pinned sha256s, same sharded
+# Q4_K_M extra_files) and identical generation block (seed 42, temp 0,
+# top_k 1, max_tokens 1024, n_ctx 16384), PINNED to match the first pass
+# exactly. suites carries ONLY factual_qa, at the registered n/seed/
+# weights/alias-augmentation-path/budget (`bitcliff_pipeline.registered`)
+# — the item set is the ONLY intended diff from `0b-arm2-official.yaml`.
+# No longctx_retrieval, arithmetic, or arithmetic_twins here: those
+# suites' item sets were unaffected by the bug (OPEN_QUESTIONS §8:
+# "longctx (item-set hash matches calibration), arithmetic (seed 3141),
+# and twins (fixed 94) are unaffected") and do not need to be regenerated.
+#
+# File pins: reference-manifests/qwen2.5-7b-official.json (repo
+# Qwen/Qwen2.5-7B-Instruct-GGUF,
+# revision bb5d59e06d9551d752d08b292a50eb208b07ab1f).
+
+model_id: qwen2.5-7b-instruct
+hf_repo: Qwen/Qwen2.5-7B-Instruct-GGUF
+f16_path: models/f16/Qwen2.5-7B-Instruct-f16.gguf
+
+quants:
+  - label: Q4_K_M
+    filename: qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf
+    uploader: qwen-official
+    imatrix: false
+    sha256: dfce12e3862a5283ccfb88221b48480e58745165de856439950d0f22590580db
+    extra_files:
+      - filename: qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf
+        sha256: 539cf93f78e887edea1c04e2d7d8cdaca9d01dae9c9025bcb8accbe29df3d72a
+  - label: Q3_K_M
+    filename: qwen2.5-7b-instruct-q3_k_m.gguf
+    uploader: qwen-official
+    imatrix: false
+    sha256: a96b16179dc6cc9afdf0cf7a96a80c199cbd00b9be207c3465be21cb721cca5e
+
+# PINNED identical to 0b-arm2-official.yaml — same seed 42, temp 0, top_k
+# 1, global 1024-token budget, n_ctx 16384 — so the item set is the only
+# diff from the first pass.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+# factual_qa ONLY: registered n=500, seed=2718, convention-correct M3
+# weights (index 0 = least popular — see 0b-arm2-official.yaml's
+# identical comment / OPEN_QUESTIONS §8), seed-2718 alias augmentation
+# (Amendment 1 §B), 64-token answer budget (PREREG §6).
+suites:
+  factual_qa:
+    n_items: 500
+    seed: 2718
+    weights: [0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64

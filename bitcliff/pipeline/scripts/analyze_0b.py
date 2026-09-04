@@ -54,20 +54,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from bitcliff_pipeline import registered
 from bitcliff_pipeline.analysis import Cell, analyze_cell, cliff, holm
 
 # ---------------------------------------------------------------------------
-# Registered constants
+# Registered constants -- imported from bitcliff_pipeline.registered (the
+# single home of every PREREG-registered constant, pre-rerun hardening,
+# OPEN_QUESTIONS §8) instead of restated here.
 # ---------------------------------------------------------------------------
 
-MARGIN = 0.03
-ALPHA = 0.05
-N_RESAMPLES = 10_000
+MARGIN = registered.MARGIN
+ALPHA = registered.ALPHA
+N_RESAMPLES = registered.N_RESAMPLES
 
 LADDER_ORDER = ["Q8_0", "Q6_K", "Q5_K_M", "Q4_K_M", "Q3_K_M", "Q2_K", "IQ2_M"]
 SUITES = ["longctx_retrieval", "arithmetic", "arithmetic_twins", "factual_qa"]
 
-SEED = "8271"  # ratified (OPEN_QUESTIONS §7); overridable via --seed for robustness sweeps
+SEED = registered.BOOTSTRAP_SEED  # ratified (OPEN_QUESTIONS §7); overridable via --seed for robustness sweeps
 
 
 def seed_rule() -> str:
@@ -854,7 +857,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", default="8271",
+    parser.add_argument("--seed", default=registered.BOOTSTRAP_SEED,
                         help="bootstrap seed prefix (default: ratified 8271)")
     parser.add_argument("--out-dir", default=None,
                         help="output directory (default: analysis/0b)")

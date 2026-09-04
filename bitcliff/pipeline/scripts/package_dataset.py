@@ -62,6 +62,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from bitcliff_pipeline import registered  # noqa: E402
+
 PREREG_COMMIT = "5e6882b7a10c5e4670052855380e8646911db5f3"
 
 RETIRED_RETRIEVAL_SUITE = "retrieval"
@@ -96,20 +103,21 @@ LONGCTX_SAFE_EXTRA_KEYS = (
     "n_answer_tokens",
 )
 
-# Registered corpus hashes for the two longctx configurations (PREREG §3.1).
+# Registered corpus hashes for the two longctx configurations (PREREG §3.1),
+# imported from `bitcliff_pipeline.registered` (the single home of every
+# PREREG-registered constant, pre-rerun hardening, OPEN_QUESTIONS §8) rather
+# than restated here. Names kept as this module's original
+# CORPUS_2A_SHA256 / CORPUS_2B_STRIPPED_SHA256 (tests reference `pkg.
+# CORPUS_2A_SHA256` / `pkg.CORPUS_2B_STRIPPED_SHA256` by these names).
 # 2a (PG-essays): prompts are "never displayed on the site and never
 # published; outputs and statistics only" — any run recording this corpus is
 # refused. 2b (PG-1184 stripped) is the only publishable longctx corpus.
-CORPUS_2A_SHA256 = (
-    "b6135331a3132d08cb84262870ae8f9d9acb6bae4cd7f0278926a64c38f9329e"
-)
+CORPUS_2A_SHA256 = registered.CORPUS_2A_SHA256
 
 # 2b corpus pointer, PREREG §3.1 / CORPUS_MANIFEST.md §1.
 CORPUS_2B_URL = "https://www.gutenberg.org/cache/epub/1184/pg1184.txt"
 CORPUS_2B_NAME = 'Project Gutenberg #1184, "The Count of Monte Cristo"'
-CORPUS_2B_STRIPPED_SHA256 = (
-    "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443"
-)
+CORPUS_2B_STRIPPED_SHA256 = registered.CORPUS_2B_SHA256
 
 LONGCTX_ID_RE = re.compile(
     r"^longctx_retrieval-(?P<variant>.+)-t(?P<target_tokens>\d+)"
