@@ -44,3 +44,33 @@ def verify_manifest(manifest: dict, files: dict[str, Path]) -> None:
             raise ManifestMismatch(
                 f"{label}: expected {entry['sha256'][:12]}..., got {actual[:12]}..."
             )
+
+
+def item_set_sha256(items) -> str:
+    """Deterministic hash over an item set: sorted item ids + each item's
+    token content (prompt_tokens if the item was built in token space, else
+    its text prompt) + its gold answer(s). Order-independent (sorted by id
+    first) so the same item set hashes identically regardless of
+    build/iteration order.
+
+    Moved here (pre-rerun hardening, OPEN_QUESTIONS §8) from
+    `scripts/calibrate_f16.py`, which originated it for its own
+    measurements.jsonl bookkeeping -- this is now the one implementation,
+    reused by `scripts/calibrate_f16.py`, `src/bitcliff_pipeline/registered.py`'s
+    derived-hash provenance, and the boot-time item-set gate in `__main__`.
+    """
+    import hashlib
+    import json
+
+    h = hashlib.sha256()
+    for it in sorted(items, key=lambda i: i.id):
+        h.update(it.id.encode())
+        h.update(b"\x00")
+        if it.prompt_tokens is not None:
+            h.update(json.dumps(list(it.prompt_tokens)).encode())
+        else:
+            h.update(it.prompt.encode())
+        h.update(b"\x00")
+        h.update(json.dumps(sorted(it.expected or ())).encode())
+        h.update(b"\x01")
+    return h.hexdigest()
