@@ -79,45 +79,51 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from bitcliff_pipeline import generate as gen_mod  # noqa: E402
+from bitcliff_pipeline import registered  # noqa: E402
 from bitcliff_pipeline.config import GenSettings  # noqa: E402
-from bitcliff_pipeline.hashing import sha256_file  # noqa: E402
+from bitcliff_pipeline.hashing import item_set_sha256, sha256_file  # noqa: E402
 from bitcliff_pipeline.suites import factual_qa, longctx_retrieval  # noqa: E402
 from bitcliff_pipeline.vendor import generate_multivalue2 as mv2  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Registered constants
+# Registered constants -- imported from bitcliff_pipeline.registered (the
+# single home of every PREREG-registered constant, pre-rerun hardening,
+# OPEN_QUESTIONS §8), kept under this module's original names so nothing
+# else in this file (or its tests, which import this module by path and
+# read `cal.BAND_LOW` / `cal.M3_WEIGHTS` / etc.) has to change.
 # ---------------------------------------------------------------------------
 
-BAND_LOW = 0.6
-BAND_HIGH = 0.85
+BAND_LOW = registered.BAND_LOW
+BAND_HIGH = registered.BAND_HIGH
 MONOTONICITY_NOISE = 0.05
 
 CORPUS_PATH = REPO_ROOT / "corpora" / "pg1184-monte-cristo.txt"
-CORPUS_SHA256 = "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443"
+CORPUS_SHA256 = registered.CORPUS_2B_SHA256
 
 LONGCTX_LADDER: tuple[str, ...] = mv2.DIFFICULTY_ORDER
-LONGCTX_N_ITEMS = 96
-LONGCTX_SEED = 2024
-LONGCTX_ANSWER_BUDGET = 32
+LONGCTX_N_ITEMS = registered.LONGCTX_N
+LONGCTX_SEED = registered.LONGCTX_SEED
+LONGCTX_ANSWER_BUDGET = registered.LONGCTX_MAX_TOKENS
 LONGCTX_TARGET_TOKENS = (4096, 8192)
 LONGCTX_N_CTX_HEADROOM = 1024  # n_ctx = target_tokens + this
 PROVISIONAL_LONGCTX_NOTE = (
     "provisional (pending 2b n/seed registration — OPEN_QUESTIONS §2)"
 )
 
-FACTUAL_QA_N_ITEMS = 500
-FACTUAL_QA_SEED = 2718
+FACTUAL_QA_N_ITEMS = registered.FACTUAL_QA_N
+FACTUAL_QA_SEED = registered.FACTUAL_QA_SEED
 FACTUAL_QA_CHARACTERIZATION_SEED = 7411  # NOT used for item construction here
-FACTUAL_QA_ANSWER_BUDGET = 64
+FACTUAL_QA_ANSWER_BUDGET = registered.FACTUAL_QA_MAX_TOKENS
 FACTUAL_QA_N_CTX = 2048
 
-# See the module docstring's "Weight-vector direction note": these are
+# See the module docstring's "Weight-vector direction note" (now also
+# documented at the top of `bitcliff_pipeline.registered`): these are
 # PREREG §7's listed vectors, reversed into the ascending-`s_pop` decile
 # index order that `factual_qa.items_from_records`'s `weights[i]` actually
 # applies to (index 0 = least-popular decile, index 9 = most-popular).
-M1_WEIGHTS: tuple[float, ...] = (0.1,) * 10
-M2_WEIGHTS: tuple[float, ...] = tuple((i + 1) / 55 for i in range(10))
-M3_WEIGHTS: tuple[float, ...] = (0.04,) * 5 + (0.16,) * 5
+M1_WEIGHTS: tuple[float, ...] = registered.M1_WEIGHTS
+M2_WEIGHTS: tuple[float, ...] = registered.M2_WEIGHTS
+M3_WEIGHTS: tuple[float, ...] = registered.M3_WEIGHTS_CONVENTION
 FACTUAL_QA_MIXES: tuple[tuple[str, tuple[float, ...]], ...] = (
     ("M1", M1_WEIGHTS),
     ("M2", M2_WEIGHTS),
@@ -127,7 +133,7 @@ FACTUAL_QA_MIXES: tuple[tuple[str, tuple[float, ...]], ...] = (
 FETCH_ALIASES_SCRIPT = REPO_ROOT / "scripts" / "fetch_wikidata_aliases.py"
 ALIAS_MAPPING_PATH_SEED2718 = REPO_ROOT / "data" / "popqa_wikidata_aliases_seed2718.json"
 
-GEN_SEED = 42  # generation seed (distinct from every item-construction seed)
+GEN_SEED = registered.GEN_SEED  # generation seed (distinct from every item-construction seed)
 
 
 # ---------------------------------------------------------------------------
@@ -139,27 +145,10 @@ def in_band(acc: float, low: float = BAND_LOW, high: float = BAND_HIGH) -> bool:
     return low <= acc <= high
 
 
-def item_set_sha256(items) -> str:
-    """Deterministic hash over an item set: sorted item ids + each item's
-    token content (prompt_tokens if the item was built in token space,
-    else its text prompt) + its gold answer(s). Order-independent (sorted
-    by id first) so the same item set hashes identically regardless of
-    build/iteration order.
-    """
-    import hashlib
-
-    h = hashlib.sha256()
-    for it in sorted(items, key=lambda i: i.id):
-        h.update(it.id.encode())
-        h.update(b"\x00")
-        if it.prompt_tokens is not None:
-            h.update(json.dumps(list(it.prompt_tokens)).encode())
-        else:
-            h.update(it.prompt.encode())
-        h.update(b"\x00")
-        h.update(json.dumps(sorted(it.expected or ())).encode())
-        h.update(b"\x01")
-    return h.hexdigest()
+# `item_set_sha256` moved to `bitcliff_pipeline.hashing` (pre-rerun
+# hardening, OPEN_QUESTIONS §8): imported above and re-exported under this
+# name so every existing caller in this file (and `tests/test_calibrate_f16.py`,
+# which calls `cal.item_set_sha256(...)`) keeps working unchanged.
 
 
 def calibrate_ladder(

@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Hashable, TypeVar
 
+from . import registered
+
 K = TypeVar("K", bound=Hashable)
 
 
@@ -139,8 +141,8 @@ class Cell:
 def analyze_cell(
     pairs: list[tuple[bool, bool]],
     *,
-    margin: float = 0.03,
-    n_resamples: int = 10_000,
+    margin: float = registered.MARGIN,
+    n_resamples: int = registered.N_RESAMPLES,
     rng: random.Random,
 ) -> Cell:
     """Run the full §8 per-cell pipeline on one (quant, suite) pair set.
@@ -174,7 +176,7 @@ def analyze_cell(
     )
 
 
-def holm(pvalues: dict[K, float], alpha: float = 0.05) -> dict[K, bool]:
+def holm(pvalues: dict[K, float], alpha: float = registered.ALPHA) -> dict[K, bool]:
     """Holm-Bonferroni step-down correction. Returns {key: rejected}."""
     items = sorted(pvalues.items(), key=lambda kv: kv[1])
     m = len(items)
