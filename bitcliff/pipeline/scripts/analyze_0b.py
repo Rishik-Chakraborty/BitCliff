@@ -67,8 +67,20 @@ N_RESAMPLES = 10_000
 LADDER_ORDER = ["Q8_0", "Q6_K", "Q5_K_M", "Q4_K_M", "Q3_K_M", "Q2_K", "IQ2_M"]
 SUITES = ["longctx_retrieval", "arithmetic", "arithmetic_twins", "factual_qa"]
 
-SEED_RULE = 'random.Random(f"8271:{run_id}:{quant_label}:{suite}")'
-PAIR_SEED_RULE = 'random.Random(f"8271:pair:{name_a}:{name_b}:{suite}")  # name_a, name_b sorted alphabetically'
+SEED = "8271"  # ratified (OPEN_QUESTIONS §7); overridable via --seed for robustness sweeps
+
+
+def seed_rule() -> str:
+    return f'random.Random(f"{SEED}:{{run_id}}:{{quant_label}}:{{suite}}")'
+
+
+def pair_seed_rule() -> str:
+    return (f'random.Random(f"{SEED}:pair:{{name_a}}:{{name_b}}:{{suite}}")'
+            "  # name_a, name_b sorted alphabetically")
+
+
+SEED_RULE = seed_rule()
+PAIR_SEED_RULE = pair_seed_rule()
 
 RUN_IDS = [
     "0b-llama-8b-ladder",
@@ -260,7 +272,7 @@ def compute_cell_row(
     n = len(pairs)
     acc_f16 = sum(1 for f16_ok, _ in pairs if f16_ok) / n
     acc_quant = sum(1 for _, quant_ok in pairs if quant_ok) / n
-    rng = random.Random(f"8271:{run_data.run_id}:{quant_label}:{suite}")
+    rng = random.Random(f"{SEED}:{run_data.run_id}:{quant_label}:{suite}")
     cell: Cell = analyze_cell(pairs, margin=margin, n_resamples=n_resamples, rng=rng)
     return CellRow(
         run_id=run_data.run_id,
@@ -469,7 +481,7 @@ def compute_pair(
         map_a, map_b, context=f"shootout {arm} {level} {suite}: {name_a} vs {name_b}"
     )
     seed_a, seed_b = sorted([name_a, name_b])
-    rng = random.Random(f"8271:pair:{seed_a}:{seed_b}:{suite}")
+    rng = random.Random(f"{SEED}:pair:{seed_a}:{seed_b}:{suite}")
     cell = analyze_cell(pairs, margin=margin, n_resamples=n_resamples, rng=rng)
     excludes_zero = cell.ci_lo > 0 or cell.ci_hi < 0
     state_a = cells_by_key[(run_a, suite, label_a)].state
@@ -654,7 +666,7 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
         "PREREG §8 registers the per-cell inference machinery (McNemar exact; "
         "two-sided 95% CI on Δaccuracy via paired bootstrap, 10,000 resamples) "
         "but no RNG seed for the bootstrap — unlike every sampling seed in §3. "
-        "This run uses **seed 8271** (fresh; distinct from every registered "
+        f"This run uses **seed {SEED}** (fresh; distinct from every registered "
         "seed: 42, 1301, 2024, 2718, 3141, 7411, 20260828), applied per cell as:"
     )
     lines.append("")
@@ -839,9 +851,22 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", default="8271",
+                        help="bootstrap seed prefix (default: ratified 8271)")
+    parser.add_argument("--out-dir", default=None,
+                        help="output directory (default: analysis/0b)")
+    args = parser.parse_args()
+    global SEED, SEED_RULE, PAIR_SEED_RULE
+    SEED = args.seed
+    SEED_RULE = seed_rule()
+    PAIR_SEED_RULE = pair_seed_rule()
+
     pipeline_dir = Path(__file__).resolve().parents[1]
     runs_root = pipeline_dir / "runs-cloud" / "pipeline" / "runs"
-    out_dir = pipeline_dir / "analysis" / "0b"
+    out_dir = Path(args.out_dir) if args.out_dir else pipeline_dir / "analysis" / "0b"
 
     result = run_analysis(runs_root)
     write_cells_csv(result.cells, out_dir / "cells.csv")

@@ -292,3 +292,9 @@ deterministic given the seed).
 **Your decision:** ratify seed 8271 (or name another), recorded as a dated
 disclosure in the findings document — the same disclosed-gap treatment as
 §2's 2b n/seed.
+
+**§7 RESOLVED 2026-09-04 (user): seed 8271 RATIFIED**, together with the
+derived per-cell RNG rule (`8271:{run_id}:{quant_label}:{suite}`) and the
+per-pair rule (`8271:pair:{name_a}:{name_b}:{suite}`, names sorted) the
+driver documents in FINDINGS_0B.md. A four-seed robustness sweep (seeds
+1-4) confirming state/cliff/Holm invariance is logged in FINDINGS_0B.md.

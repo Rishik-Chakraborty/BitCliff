@@ -297,3 +297,28 @@ Same-label quant-vs-quant pairs, paired on identical items: Arm 1 (bartowski fro
 
 Zero-discordance cells (b + c = 0, i.e. every resample reproduces the same paired accuracy) produce a degenerate (0, 0) bootstrap CI and classify Equivalent regardless of n under the registered percentile method. This is disclosed here because near-ceiling `longctx_retrieval` cells hit this condition: an exact-binomial upper bound on the discordance rate (e.g. ~3.7% at 0/96) is what the percentile bootstrap cannot see. A cell classified Equivalent under this rule is equivalent under the registered machinery, not necessarily under every alternative inferential lens.
 
+
+---
+
+## Seed robustness sweep (post-ratification annotation, 2026-09-04)
+
+<!-- Maintained by the sweep runner, not by analyze_0b.py's generator; if
+FINDINGS_0B.md is regenerated, re-append this section from
+analysis/0b/sweep/. -->
+
+Seed 8271 was ratified (OPEN_QUESTIONS §7, 2026-09-04). Per the same
+ruling, the full analysis was re-run under bootstrap seed prefixes 1, 2,
+3, and 4 (`scripts/analyze_0b.py --seed N`; per-cell/per-pair rules
+otherwise identical; sweep outputs committed under `analysis/0b/sweep/`).
+
+**Result: 87 of 88 cell states, all 8 cliff rungs, all 7 Holm headline
+verdicts, and the §5 shootout trigger (FIRED) are identical across all
+five seeds.** One cell is seed-marginal and is disclosed:
+
+- `0b-shootout-arm1 / arithmetic / mradermacher_static_Q3_K_M`: Δ =
+  −0.032 (2 items past the −0.03 margin, n=500), CI upper bound −0.002
+  under seeds 8271, 1, 2, and 4 (→ Damaged) but exactly 0.000 under
+  seed 3 (CI touches zero → Indeterminate). The ratified seed's state
+  (Damaged) stands, with this sensitivity noted; the cell is an
+  arm-scoped cell and enters no reference ladder, cliff, or Holm family,
+  and the shootout trigger fires with or without it.
