@@ -64,6 +64,14 @@ class LadderConfig:
     quants: tuple[QuantFile, ...]
     generation: GenSettings
     suites: dict
+    exploratory: bool = False
+    """Pre-rerun hardening (OPEN_QUESTIONS §8): when True, the boot-time
+    item-set hash gate (`bitcliff_pipeline.__main__`'s generate stage) is
+    skipped entirely for this run, with a loud printed warning, instead of
+    refusing to generate. Defaults False so every existing/registered 0B
+    config stays gated; set True only for a deliberately non-registered
+    exploratory config (e.g. a smoke config sampling a registered suite's n
+    at a non-registered seed/weights on purpose)."""
 
 
 def _load_quant(raw_quant: dict) -> QuantFile:
@@ -86,4 +94,5 @@ def load_config(path: str | Path) -> LadderConfig:
         quants=quants,
         generation=GenSettings(**raw["generation"]),
         suites=raw["suites"],
+        exploratory=raw.get("exploratory", False),
     )

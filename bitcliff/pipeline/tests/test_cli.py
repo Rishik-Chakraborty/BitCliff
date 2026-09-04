@@ -9,6 +9,7 @@ import pytest
 import bitcliff_pipeline.__main__ as main_mod
 import bitcliff_pipeline.generate as gen_mod
 import bitcliff_pipeline.grading as grading_mod
+from bitcliff_pipeline import registered
 from bitcliff_pipeline.__main__ import build_items, run_pipeline
 from bitcliff_pipeline.config import GenSettings, LadderConfig, QuantFile
 from bitcliff_pipeline.items import EvalItem
@@ -163,7 +164,7 @@ def test_manifest_records_run_config(tmp_path):
                 "target_tokens": 8192,
                 "seed": 2024,
                 "n_items": 96,
-                "corpus_sha256": "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443",
+                "corpus_sha256": registered.CORPUS_2B_SHA256,
                 "max_tokens": 32,
             },
         },
@@ -182,9 +183,7 @@ def test_manifest_records_run_config(tmp_path):
     manifest = json.loads((runs_dir / "runconfig-test" / "manifest.json").read_text())
     rc = manifest["_run_config"]
     assert rc["model_id"] == "test-model"
-    assert rc["suites"]["longctx_retrieval"]["corpus_sha256"] == (
-        "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443"
-    )
+    assert rc["suites"]["longctx_retrieval"]["corpus_sha256"] == registered.CORPUS_2B_SHA256
     # metadata key must not look like a rung to downstream consumers
     assert set(manifest) - {"_run_config"} == {"F16", "Q4_K_M"}
 
@@ -619,6 +618,184 @@ def test_spectacle_only_flag_in_results(tmp_path):
     assert all(r["spectacle_only"] is False for r in f16_rows)
     # Q4_K_M should have spectacle_only=True
     assert all(r["spectacle_only"] is True for r in q4_rows)
+
+
+# ---------------------------------------------------------------------------
+# Boot-time item-set hash gate (pre-rerun hardening, OPEN_QUESTIONS §8): a
+# mis-sampled (e.g. wrong-weights) factual_qa draw at the REGISTERED n must
+# be refused before any generation, a correctly-hashed draw must pass, an
+# unrecognized (suite, model_id) combo at a registered n must hard-refuse
+# ("unknown = refuse"), and `exploratory: true` must skip the gate entirely
+# with a loud printed warning (e.g. a smoke config's deliberately
+# non-registered n=20 draw).
+# ---------------------------------------------------------------------------
+
+
+def _fake_factual_qa_items(n: int, seed: int, tag: str) -> list[EvalItem]:
+    """A deterministic, controllable stand-in for a real PopQA draw --
+    content depends on `tag` so two different tags never hash the same,
+    modeling "the same n/seed but a different (e.g. wrong-weights) draw"."""
+    return [
+        EvalItem(
+            id=f"factual_qa-{seed}-{i:04d}",
+            suite="factual_qa",
+            prompt=f"{tag} question {i}?",
+            expected=(f"{tag}-answer-{i}",),
+        )
+        for i in range(n)
+    ]
+
+
+def _gate_config(tmp_path: Path, n_items: int = registered.FACTUAL_QA_N) -> LadderConfig:
+    cfg = make_config(tmp_path)
+    return dataclasses.replace(
+        cfg,
+        suites={
+            **cfg.suites,
+            "factual_qa": {"n_items": n_items, "seed": registered.FACTUAL_QA_SEED},
+        },
+    )
+
+
+def _run_gate_test(tmp_path, cfg, items, monkeypatch):
+    monkeypatch.setattr(
+        main_mod, "build_items",
+        lambda config, base_dir, longctx_tokenizer=None, longctx_answer_specs=None: items,
+    )
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+    run_pipeline(
+        cfg, run_id="gate-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+    )
+    return runs_dir / "gate-test"
+
+
+def test_generate_stage_refuses_mis_sampled_factual_qa_item_set(tmp_path, monkeypatch):
+    """A wrong-weights (or otherwise mis-sampled) 500-item factual_qa draw
+    does not hash to the Amendment 1 §C registered value -- refused before
+    any generation, the exact class of bug OPEN_QUESTIONS §8 documents."""
+    cfg = _gate_config(tmp_path)
+    wrong_items = _fake_factual_qa_items(
+        registered.FACTUAL_QA_N, registered.FACTUAL_QA_SEED, tag="wrong-weights-draw"
+    )
+    monkeypatch.setattr(
+        main_mod, "build_items",
+        lambda config, base_dir, longctx_tokenizer=None, longctx_answer_specs=None: wrong_items,
+    )
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+
+    with pytest.raises(RuntimeError, match="factual_qa"):
+        run_pipeline(
+            cfg, run_id="gate-mismatch-test", models_dir=models_dir, runs_dir=runs_dir,
+            stage="all", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+        )
+
+    run = runs_dir / "gate-mismatch-test"
+    assert not (run / "outputs").exists() or not any((run / "outputs").iterdir())
+
+
+def test_generate_stage_passes_when_factual_qa_item_set_hash_matches_registered(tmp_path, monkeypatch):
+    """A correctly-sampled item set (its hash pinned into
+    `registered.ITEM_SET_SHA256` for this test's synthetic (suite,
+    model_id)) generates normally -- the gate is not a blanket refusal."""
+    from bitcliff_pipeline import registered as registered_mod
+    from bitcliff_pipeline.hashing import item_set_sha256
+
+    cfg = _gate_config(tmp_path)
+    correct_items = _fake_factual_qa_items(
+        registered.FACTUAL_QA_N, registered.FACTUAL_QA_SEED, tag="correct-m3-draw"
+    )
+    monkeypatch.setitem(
+        registered_mod.ITEM_SET_SHA256,
+        ("factual_qa", cfg.model_id),
+        item_set_sha256(correct_items),
+    )
+
+    run = _run_gate_test(tmp_path, cfg, correct_items, monkeypatch)
+    assert (run / "outputs" / "F16.jsonl").exists()
+    assert (run / "outputs" / "Q4_K_M.jsonl").exists()
+
+
+def test_generate_stage_refuses_unknown_suite_model_combo_at_registered_n(tmp_path, monkeypatch):
+    """No pinned hash at all (registered OR derived) for this (suite,
+    model_id) at the registered n -- unknown item set, hard refuse, never
+    silently accepted. longctx_retrieval is model-KEYED (unlike factual_qa,
+    which has a model-independent fallback), so an unrecognized model_id has
+    no pinned hash to fall back to."""
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: StubHfTokenizer())
+    cfg = make_config(tmp_path)
+    cfg = dataclasses.replace(
+        cfg,
+        model_id="totally-unrecognized-model",
+        suites={
+            **cfg.suites,
+            "longctx_retrieval": {
+                "variant": "multivalue4", "target_tokens": 8192,
+                "seed": registered.LONGCTX_SEED, "n_items": registered.LONGCTX_N,
+                "tokenizer_path": "tok", "max_tokens": 32,
+            },
+        },
+    )
+    items = [
+        EvalItem(
+            id=f"longctx_retrieval-{registered.LONGCTX_SEED}-{i:04d}",
+            suite="longctx_retrieval",
+            prompt=f"some longctx item {i}",
+            expected=(f"answer-{i}",),
+            prompt_tokens=(1, 2, 3),
+        )
+        for i in range(registered.LONGCTX_N)
+    ]
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+    monkeypatch.setattr(
+        main_mod, "build_items",
+        lambda config, base_dir, longctx_tokenizer=None, longctx_answer_specs=None: items,
+    )
+
+    with pytest.raises(RuntimeError, match="no registered or derived"):
+        run_pipeline(
+            cfg, run_id="gate-unknown-test", models_dir=models_dir, runs_dir=runs_dir,
+            stage="all", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+        )
+
+
+def test_generate_stage_skips_gate_below_registered_n(tmp_path, monkeypatch):
+    """Gates apply to the REGISTERED n only (mind the smoke-config n=20
+    case): a suite sampled at any other n is, by definition, not a
+    confirmatory draw and is left ungated."""
+    cfg = _gate_config(tmp_path, n_items=20)
+    items = _fake_factual_qa_items(20, registered.FACTUAL_QA_SEED, tag="smoke-draw")
+
+    run = _run_gate_test(tmp_path, cfg, items, monkeypatch)
+    assert (run / "outputs" / "F16.jsonl").exists()
+
+
+def test_exploratory_flag_skips_gate_with_loud_warning(tmp_path, monkeypatch, capsys):
+    """`exploratory: true` skips the gate entirely (even at a registered n
+    with a hash that would otherwise mismatch), printing a loud warning."""
+    cfg = _gate_config(tmp_path)
+    cfg = dataclasses.replace(cfg, exploratory=True)
+    mismatching_items = _fake_factual_qa_items(
+        registered.FACTUAL_QA_N, registered.FACTUAL_QA_SEED, tag="deliberately-wrong"
+    )
+
+    run = _run_gate_test(tmp_path, cfg, mismatching_items, monkeypatch)
+    assert (run / "outputs" / "F16.jsonl").exists()
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.out
+    assert "exploratory" in captured.out.lower()
 
 
 def test_main_base_dir_resolves_pipeline_root_for_nested_configs(tmp_path, monkeypatch):

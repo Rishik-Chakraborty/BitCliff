@@ -1,0 +1,52 @@
+# Smoke config: Llama-3.1-8B-Instruct, Q4_K_M only, tiny factual_qa draw.
+#
+# EXPLORATORY -- not a confirmatory run. Purpose: a cheap end-to-end
+# pipeline check (download -> generate -> grade -> report) on a real box
+# before committing to a full ladder run, mirroring the shape of the
+# earlier ad hoc smoke-0b run (runs-cloud/pipeline/runs/smoke-0b) but now
+# as a committed, reviewable config.
+#
+# `factual_qa.n_items: 20` is deliberately NOT the registered n=500
+# (PREREG §3.4) -- this is a fast sanity draw, not a measurement. Because
+# n=20 != the registered FACTUAL_QA_N, the boot-time item-set hash gate
+# (bitcliff_pipeline.__main__.assert_item_sets_match_registered, pre-rerun
+# hardening, OPEN_QUESTIONS §8) would already skip this suite on n alone --
+# `exploratory: true` below is the explicit, config-level belt-and-braces
+# opt-out (loud printed warning, gate skipped for every suite in this
+# config, not just the ones whose n happens to mismatch), so this config
+# can never be mistaken for -- or accidentally graded as -- a confirmatory
+# 0B run. No numbers from a run of this config are publishable.
+
+exploratory: true
+
+model_id: llama-3.1-8b-instruct
+hf_repo: bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
+f16_path: models/f16/Llama-3.1-8B-Instruct-f16.gguf
+
+quants:
+  - label: Q4_K_M
+    filename: Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c
+
+# Same registered generation settings as the real 0B ladder configs
+# (configs/0b/*.yaml) -- only the item-set size differs.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+suites:
+  factual_qa:
+    n_items: 20
+    seed: 2718
+    # Convention-correct M3 (see configs/0b/*.yaml's identical comment /
+    # OPEN_QUESTIONS §8) -- reproducing the registered direction even at
+    # this exploratory n, so a smoke run exercises the same code path a
+    # confirmatory run does.
+    weights: [0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64
