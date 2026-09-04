@@ -298,3 +298,54 @@ derived per-cell RNG rule (`8271:{run_id}:{quant_label}:{suite}`) and the
 per-pair rule (`8271:pair:{name_a}:{name_b}:{suite}`, names sorted) the
 driver documents in FINDINGS_0B.md. A four-seed robustness sweep (seeds
 1-4) confirming state/cliff/Holm invariance is logged in FINDINGS_0B.md.
+
+## 8. factual_qa mix-order bug: every 0B factual_qa cell ran on a NON-registered item set (2026-09-04)
+
+Investigating the F16 cross-machine delta (user request) found its true
+cause — not hardware. `configs/0b/*.yaml` copies PREREG §7's M3 weight
+vector in its prose order (decile 1 = most popular), but
+`factual_qa.items_from_records` indexes weights against deciles built in
+ASCENDING s_pop order (index 0 = least popular). `calibrate_f16.py`
+reverses the vector for this convention; the 0B configs did not, and
+`tests/test_0b_configs.py` asserted the yaml against its own equally
+unreversed constant. Net effect: the cloud confirmatory run sampled a
+DIFFERENT 500-item factual_qa set (item_set sha256 `ac5cb282…`) than the
+registered M3 set Amendment 1 records (`2e53ca0e…`). Verified by
+rebuilding both sets from PopQA. Evidence pack:
+`bitcliff/pipeline/analysis/0b/F16_CROSS_MACHINE.md`.
+
+Cross-machine drift itself is negligible: on identical item sets, Mac
+and cloud F16 grades agree 0/500 discordant for both models, and the Mac
+regen on the registered set reproduces Amendment 1's values exactly
+(0.314 / 0.192).
+
+**Scope of contamination:** all factual_qa cells in FINDINGS_0B.md — 22
+ladder/arm cells + the factual_qa shootout pairs, including both
+factual_qa cliff/Holm verdicts. Internally consistent (every rung graded
+the same wrong set, so paired deltas are honest measurements OF THAT
+SET) but not the registered measurement. longctx (item-set hash matches
+calibration), arithmetic (seed 3141), and twins (fixed 94) are
+unaffected. NLL divergence is longctx-only — unaffected.
+
+**What was fixed in code (no re-run, no silent decision):** configs
+corrected to the convention-reversed vector reproducing the registered
+`2e53ca0e…` set; test now cross-checks against `calibrate_f16.py`'s
+constant. FINDINGS_0B.md carries a prominent caveat on every factual_qa
+result pending this ruling.
+
+NOT decided. **Your options:**
+(a) **Re-run factual_qa generation only, all 26 rungs, on the registered
+    set.** GPU cost ≈ 3-4 h on a fresh box from the CUDA-baked AMI
+    (which already carries the hash-gated F16s; quants re-download in
+    ~15 min) ≈ **$8-12**. Then re-grade, re-analyze (minutes, local),
+    and the published factual_qa cells become the registered
+    measurement. Disclosure: a dated note that the first factual_qa
+    pass ran on a mis-apportioned mix and was repeated on the
+    registered set before any publication.
+(b) **Publish as-is with a deviation disclosure** — factual_qa cells
+    labeled as measured on a disclosed non-registered draw (same rule,
+    wrong apportionment order). Cheaper, permanently ugly for a
+    pre-registered project.
+(c) Anything else you rule.
+
+**NOT RESOLVED — awaiting your ruling. No GPU spend without your go.**

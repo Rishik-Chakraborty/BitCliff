@@ -26,7 +26,25 @@ CANONICAL_LADDER_LABELS = ["Q8_0", "Q6_K", "Q5_K_M", "Q4_K_M", "Q3_K_M", "Q2_K",
 # PREREG §7's registered factual_qa popularity-mix candidates (most
 # tail-heavy first). M3 is the "step-tail-heavy" mix chosen for all three
 # models per Amendment 1 §C ("None in [0.6, 0.85]... Chosen mix: M3").
-M3_WEIGHTS = (0.16, 0.16, 0.16, 0.16, 0.16, 0.04, 0.04, 0.04, 0.04, 0.04)
+# Cross-checked against scripts/calibrate_f16.py's M3_WEIGHTS — the
+# convention-correct vector for factual_qa.items_from_records, whose
+# deciles are built in ASCENDING s_pop order (index 0 = least popular).
+# PREREG §7 writes the vector in prose order (decile 1 = most popular);
+# using it un-reversed sampled a non-registered item set (OPEN_QUESTIONS
+# §8, 2026-09-04). Import, don't restate, so drift is impossible.
+import importlib.util as _ilu
+from pathlib import Path as _P
+
+_spec = _ilu.spec_from_file_location(
+    "calibrate_f16", _P(__file__).resolve().parents[1] / "scripts" / "calibrate_f16.py"
+)
+_cal = _ilu.module_from_spec(_spec)
+try:
+    _spec.loader.exec_module(_cal)
+    M3_WEIGHTS = _cal.M3_WEIGHTS
+except Exception:  # calibrate_f16 imports heavy deps; fall back to verbatim copy
+    M3_WEIGHTS = (0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16)
+assert tuple(M3_WEIGHTS) == (0.04,) * 5 + (0.16,) * 5
 
 # PREREG §3.1 "Configuration 2b": the STRIPPED-text sha256 ("The
 # generator's corpus-hash gate accepts exactly this hash for 2b").
