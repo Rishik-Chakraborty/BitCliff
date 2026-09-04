@@ -274,3 +274,21 @@ rule (quoted in the amendment), the file-level enumeration exists as
 plan.md's pilot-ladder precedent (quoted), and the "roughly sixty" sentence
 was not found anywhere in the repo — flagged inside AMENDMENT2_DRAFT.md
 for the user to source or strike before stamping.
+
+## 7. PREREG §8 registers no RNG seed for the paired-bootstrap CIs (2026-09-03)
+
+§8 registers the machinery (McNemar exact; two-sided 95% CI on Δaccuracy by
+paired bootstrap, 10,000 resamples) but no seed for the bootstrap RNG —
+unlike every sampling seed in §3. The CIs are Monte-Carlo estimates; an
+unseeded run is irreproducible, and seed choice marginally moves CI
+endpoints (hence potentially a cell's state at the margin).
+
+**What was done (labeled provisional):** the analysis runs at **seed 8271**
+(fresh; distinct from every registered seed: 42, 1301, 2024, 2718, 3141,
+7411, 20260828), recorded in every output row. If you ratify it, tonight's
+numbers stand; any other choice re-runs the analysis (cheap, local,
+deterministic given the seed).
+
+**Your decision:** ratify seed 8271 (or name another), recorded as a dated
+disclosure in the findings document — the same disclosed-gap treatment as
+§2's 2b n/seed.
