@@ -1,0 +1,9 @@
+quant_label,suite,n,correct,partial,wrong,truncated,loops,accuracy,spectacle_only,retention
+F16,factual_qa,500,157,0,343,4,0,0.314,False,1.0
+IQ2_M,factual_qa,500,99,0,401,6,3,0.198,False,0.6305732484076434
+Q2_K,factual_qa,500,79,0,421,2,1,0.158,False,0.5031847133757962
+Q3_K_M,factual_qa,500,132,0,368,3,1,0.264,False,0.8407643312101911
+Q4_K_M,factual_qa,500,147,0,353,2,0,0.294,False,0.9363057324840763
+Q5_K_M,factual_qa,500,161,0,339,2,0,0.322,False,1.0254777070063694
+Q6_K,factual_qa,500,161,0,339,2,0,0.322,False,1.0254777070063694
+Q8_0,factual_qa,500,157,0,343,3,0,0.314,False,1.0

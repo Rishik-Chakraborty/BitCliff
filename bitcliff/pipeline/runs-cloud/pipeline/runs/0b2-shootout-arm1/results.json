@@ -1,0 +1,93 @@
+[
+  {
+    "quant_label": "F16",
+    "suite": "factual_qa",
+    "n": 500,
+    "correct": 157,
+    "partial": 0,
+    "wrong": 343,
+    "truncated": 4,
+    "loops": 0,
+    "accuracy": 0.314,
+    "spectacle_only": false,
+    "retention": 1.0
+  },
+  {
+    "quant_label": "mradermacher_i1_Q3_K_M",
+    "suite": "factual_qa",
+    "n": 500,
+    "correct": 139,
+    "partial": 0,
+    "wrong": 361,
+    "truncated": 1,
+    "loops": 0,
+    "accuracy": 0.278,
+    "spectacle_only": false,
+    "retention": 0.8853503184713376
+  },
+  {
+    "quant_label": "mradermacher_i1_Q4_K_M",
+    "suite": "factual_qa",
+    "n": 500,
+    "correct": 153,
+    "partial": 0,
+    "wrong": 347,
+    "truncated": 1,
+    "loops": 0,
+    "accuracy": 0.306,
+    "spectacle_only": false,
+    "retention": 0.9745222929936306
+  },
+  {
+    "quant_label": "mradermacher_static_Q3_K_M",
+    "suite": "factual_qa",
+    "n": 500,
+    "correct": 134,
+    "partial": 0,
+    "wrong": 366,
+    "truncated": 3,
+    "loops": 2,
+    "accuracy": 0.268,
+    "spectacle_only": false,
+    "retention": 0.8535031847133758
+  },
+  {
+    "quant_label": "mradermacher_static_Q4_K_M",
+    "suite": "factual_qa",
+    "n": 500,
+    "correct": 154,
+    "partial": 0,
+    "wrong": 346,
+    "truncated": 1,
+    "loops": 0,
+    "accuracy": 0.308,
+    "spectacle_only": false,
+    "retention": 0.9808917197452229
+  },
+  {
+    "quant_label": "unsloth_Q3_K_M",
+    "suite": "factual_qa",
+    "n": 500,
+    "correct": 136,
+    "partial": 0,
+    "wrong": 364,
+    "truncated": 3,
+    "loops": 1,
+    "accuracy": 0.272,
+    "spectacle_only": false,
+    "retention": 0.8662420382165605
+  },
+  {
+    "quant_label": "unsloth_Q4_K_M",
+    "suite": "factual_qa",
+    "n": 500,
+    "correct": 151,
+    "partial": 0,
+    "wrong": 349,
+    "truncated": 4,
+    "loops": 0,
+    "accuracy": 0.302,
+    "spectacle_only": false,
+    "retention": 0.9617834394904459
+  }
+]

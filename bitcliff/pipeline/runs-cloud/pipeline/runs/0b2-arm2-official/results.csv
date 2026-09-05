@@ -1,0 +1,4 @@
+quant_label,suite,n,correct,partial,wrong,truncated,loops,accuracy,spectacle_only,retention
+F16,factual_qa,500,96,0,404,3,0,0.192,False,1.0
+Q3_K_M,factual_qa,500,80,0,420,1,0,0.16,False,0.8333333333333334
+Q4_K_M,factual_qa,500,92,0,408,1,0,0.184,False,0.9583333333333333

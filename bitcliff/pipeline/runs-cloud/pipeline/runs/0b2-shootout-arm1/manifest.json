@@ -1,0 +1,81 @@
+{
+  "F16": {
+    "filename": "Llama-3.1-8B-Instruct-f16.gguf",
+    "imatrix": false,
+    "sha256": "139c255d857940bc945b2a3242fbbb2641b59191d79413bcad9b74fa1784c7b0",
+    "size_bytes": 16068896352,
+    "spectacle_only": false,
+    "uploader": "bitcliff-local-f16-conversion"
+  },
+  "_run_config": {
+    "model_id": "llama-3.1-8b-instruct",
+    "suites": {
+      "factual_qa": {
+        "alias_augmentation_path": "data/popqa_wikidata_aliases_seed2718.json",
+        "max_tokens": 64,
+        "n_items": 500,
+        "seed": 2718,
+        "weights": [
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.16,
+          0.16,
+          0.16,
+          0.16,
+          0.16
+        ]
+      }
+    }
+  },
+  "mradermacher_i1_Q3_K_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct.i1-Q3_K_M.gguf",
+    "imatrix": true,
+    "sha256": "2571f9e6218ffb56904b6b90a0ebf208956435d725f6c1b2390e049e0b8bf34e",
+    "size_bytes": 4018919072,
+    "spectacle_only": false,
+    "uploader": "mradermacher"
+  },
+  "mradermacher_i1_Q4_K_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct.i1-Q4_K_M.gguf",
+    "imatrix": true,
+    "sha256": "85465a58bf902b8fe36e1e719fd1ddc23305110a6b19233f10560dfd1180f77a",
+    "size_bytes": 4920735392,
+    "spectacle_only": false,
+    "uploader": "mradermacher"
+  },
+  "mradermacher_static_Q3_K_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct.Q3_K_M.gguf",
+    "imatrix": false,
+    "sha256": "c442867e159491ce63159ba45794926ef3a3afaf5f40c91c05a824d8f36faa8e",
+    "size_bytes": 4018918816,
+    "spectacle_only": false,
+    "uploader": "mradermacher"
+  },
+  "mradermacher_static_Q4_K_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct.Q4_K_M.gguf",
+    "imatrix": false,
+    "sha256": "56e1a31ac6e5037174344ac2153c33d873f301f2a312ef2619775190aade51c7",
+    "size_bytes": 4920735136,
+    "spectacle_only": false,
+    "uploader": "mradermacher"
+  },
+  "unsloth_Q3_K_M": {
+    "filename": "Llama-3.1-8B-Instruct-Q3_K_M.gguf",
+    "imatrix": false,
+    "sha256": "71daf40611ec04009c25d81764dc242abcc2d991c801a60f58c19ad856c500fd",
+    "size_bytes": 4018922880,
+    "spectacle_only": false,
+    "uploader": "unsloth"
+  },
+  "unsloth_Q4_K_M": {
+    "filename": "Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+    "imatrix": false,
+    "sha256": "b3bdbf23b47d7e6bb791c99b206deb169cd5a96362a9e3399028df2faacdc506",
+    "size_bytes": 4920739200,
+    "spectacle_only": false,
+    "uploader": "unsloth"
+  }
+}

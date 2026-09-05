@@ -1,0 +1,8 @@
+quant_label,suite,n,correct,partial,wrong,truncated,loops,accuracy,spectacle_only,retention
+F16,factual_qa,500,157,0,343,4,0,0.314,False,1.0
+mradermacher_i1_Q3_K_M,factual_qa,500,139,0,361,1,0,0.278,False,0.8853503184713376
+mradermacher_i1_Q4_K_M,factual_qa,500,153,0,347,1,0,0.306,False,0.9745222929936306
+mradermacher_static_Q3_K_M,factual_qa,500,134,0,366,3,2,0.268,False,0.8535031847133758
+mradermacher_static_Q4_K_M,factual_qa,500,154,0,346,1,0,0.308,False,0.9808917197452229
+unsloth_Q3_K_M,factual_qa,500,136,0,364,3,1,0.272,False,0.8662420382165605
+unsloth_Q4_K_M,factual_qa,500,151,0,349,4,0,0.302,False,0.9617834394904459

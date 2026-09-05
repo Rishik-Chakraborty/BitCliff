@@ -1,0 +1,89 @@
+{
+  "F16": {
+    "filename": "Llama-3.1-8B-Instruct-f16.gguf",
+    "imatrix": false,
+    "sha256": "139c255d857940bc945b2a3242fbbb2641b59191d79413bcad9b74fa1784c7b0",
+    "size_bytes": 16068896352,
+    "spectacle_only": false,
+    "uploader": "bitcliff-local-f16-conversion"
+  },
+  "IQ2_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct-IQ2_M.gguf",
+    "imatrix": true,
+    "sha256": "849856e1e7eff8ea7425a2a4cee50f3d547165194f50ea3112c9fc07cb08daad",
+    "size_bytes": 2948285856,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q2_K": {
+    "filename": "Meta-Llama-3.1-8B-Instruct-Q2_K.gguf",
+    "imatrix": true,
+    "sha256": "3f7f9265554ac91f1fb31c1b63b9cada4362533dfaa3f6e8dfc33c48d36909ce",
+    "size_bytes": 3179136416,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q3_K_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct-Q3_K_M.gguf",
+    "imatrix": true,
+    "sha256": "6be122b5c8f2a33974953e58e0ffd2be505661acc6f4caf733e4bca130e89fea",
+    "size_bytes": 4018922912,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q4_K_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+    "imatrix": true,
+    "sha256": "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c",
+    "size_bytes": 4920739232,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q5_K_M": {
+    "filename": "Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf",
+    "imatrix": true,
+    "sha256": "14e10feba0c82a55da198dcd69d137206ad22d116a809926d27fa5f2398c69c7",
+    "size_bytes": 5732992416,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q6_K": {
+    "filename": "Meta-Llama-3.1-8B-Instruct-Q6_K.gguf",
+    "imatrix": true,
+    "sha256": "33981adf6bae52c503fb5c24f72539010632f7ed290a56c1315a8cd50adca587",
+    "size_bytes": 6596011424,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q8_0": {
+    "filename": "Meta-Llama-3.1-8B-Instruct-Q8_0.gguf",
+    "imatrix": true,
+    "sha256": "9da71c45c90a821809821244d4971e5e5dfad7eb091f0b8ff0546392393b6283",
+    "size_bytes": 8540775840,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "_run_config": {
+    "model_id": "llama-3.1-8b-instruct",
+    "suites": {
+      "factual_qa": {
+        "alias_augmentation_path": "data/popqa_wikidata_aliases_seed2718.json",
+        "max_tokens": 64,
+        "n_items": 500,
+        "seed": 2718,
+        "weights": [
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.16,
+          0.16,
+          0.16,
+          0.16,
+          0.16
+        ]
+      }
+    }
+  }
+}
