@@ -349,3 +349,15 @@ NOT decided. **Your options:**
 (c) Anything else you rule.
 
 **NOT RESOLVED — awaiting your ruling. No GPU spend without your go.**
+
+**§8 RESOLVED 2026-09-05 (user ruling: option (a), executed):** factual_qa
+regenerated for all 26 rungs on the registered item set (run 0b2, box
+i-0ce4aad4171306a13 from the pinned CUDA AMI — same instance class,
+sampling, n_ctx as the first pass; item set the only diff; boot-time
+item-set gate enforced 2e53ca0e… before generation; ~55 min, ≈$2.10 of
+the $25 cap). Both F16 baselines reproduce Amendment 1 §C exactly (llama
+0.314, qwen 0.192 — item-count-identical), confirming machine-independence
+at the grade level. Analysis re-sourced factual_qa from 0b2 (source_run_id
+column); first-pass factual_qa kept as a disclosed sensitivity run in
+FINDINGS_0B.md Appendix A. Cliff/Holm changes vs first pass: llama
+unchanged (Q3_K_M, SURVIVES); qwen cliff IQ2_M → Q2_K (SURVIVES).

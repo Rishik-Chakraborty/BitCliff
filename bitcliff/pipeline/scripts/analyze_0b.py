@@ -50,6 +50,7 @@ import csv
 import itertools
 import json
 import random
+import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -128,6 +129,7 @@ def _arm2_files(level: str) -> list[tuple[str, str, str]]:
 
 CELLS_CSV_FIELDS = [
     "run_id",
+    "source_run_id",
     "model",
     "suite",
     "quant_label",
@@ -168,6 +170,10 @@ class RunData:
     run_id: str
     graded: dict[tuple[str, str], dict[str, tuple[bool, bool]]]
     item_ids: dict[str, set[str]]
+    suite_source: dict[str, str] = dataclasses.field(default_factory=dict)
+    """suite -> run_id the grades/item-ids were actually loaded from, when
+    it differs from ``run_id`` (OPEN_QUESTIONS §8 factual_qa substitution);
+    absent keys mean "this run's own data"."""
 
 
 def load_run(run_id: str, run_dir: Path) -> RunData:
@@ -190,8 +196,47 @@ def load_run(run_id: str, run_dir: Path) -> RunData:
     return RunData(run_id=run_id, graded=graded, item_ids=item_ids)
 
 
+# OPEN_QUESTIONS §8 resolution (user ruling 2026-09-04, option (a)): the
+# first 0B pass sampled a non-registered factual_qa item set (wrong-order
+# M3 weights); the 0b2 rerun regenerated factual_qa for every rung on the
+# registered set (item_set sha256 2e53ca0e…, gate-enforced). The analysis
+# therefore sources factual_qa grades/item-ids from the 0b2 runs; every
+# other suite still comes from the original 0b runs. cells.csv carries a
+# source_run_id column making the substitution auditable per cell.
+FACTUAL_QA_SOURCE = {
+    "0b-llama-8b-ladder": "0b2-llama-8b-ladder",
+    "0b-shootout-arm1": "0b2-shootout-arm1",
+    "0b-qwen-7b-ladder": "0b2-qwen-7b-ladder",
+    "0b-arm2-official": "0b2-arm2-official",
+}
+
+
 def load_all_runs(runs_root: Path, run_ids: list[str] = RUN_IDS) -> dict[str, RunData]:
-    return {run_id: load_run(run_id, runs_root / run_id) for run_id in run_ids}
+    runs = {run_id: load_run(run_id, runs_root / run_id) for run_id in run_ids}
+    for run_id, source_id in FACTUAL_QA_SOURCE.items():
+        if run_id not in runs:
+            continue
+        # Substitution applies only when the run actually carries
+        # factual_qa data (synthetic test trees may not).
+        if not any(k[0] == "factual_qa" for k in runs[run_id].graded):
+            continue
+        src_dir = runs_root / source_id
+        if not src_dir.exists():
+            raise FileNotFoundError(
+                f"factual_qa source run {source_id!r} (OPEN_QUESTIONS §8 "
+                f"substitution for {run_id!r}) not found under {runs_root}"
+            )
+        src = load_run(source_id, src_dir)
+        run = runs[run_id]
+        graded = {k: v for k, v in run.graded.items() if k[0] != "factual_qa"}
+        graded.update({k: v for k, v in src.graded.items() if k[0] == "factual_qa"})
+        item_ids = dict(run.item_ids)
+        item_ids["factual_qa"] = src.item_ids["factual_qa"]
+        runs[run_id] = dataclasses.replace(
+            run, graded=graded, item_ids=item_ids,
+            suite_source={**run.suite_source, "factual_qa": source_id},
+        )
+    return runs
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +284,7 @@ def build_pairs(
 @dataclass(frozen=True)
 class CellRow:
     run_id: str
+    source_run_id: str
     model: str
     suite: str
     quant_label: str
@@ -279,6 +325,7 @@ def compute_cell_row(
     cell: Cell = analyze_cell(pairs, margin=margin, n_resamples=n_resamples, rng=rng)
     return CellRow(
         run_id=run_data.run_id,
+        source_run_id=run_data.suite_source.get(suite, run_data.run_id),
         model=model,
         suite=suite,
         quant_label=quant_label,
@@ -604,6 +651,7 @@ def write_cells_csv(cells: list[CellRow], out_path: Path) -> None:
         for c in cells:
             writer.writerow([
                 c.run_id,
+                c.source_run_id,
                 c.model,
                 c.suite,
                 c.quant_label,

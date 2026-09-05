@@ -452,3 +452,33 @@ def test_findings_md_contains_seed_disclosure_and_trigger_verdict(synthetic_runs
     assert "runs-cloud/fingerprint.txt" in text
     assert "Trigger: FIRED" in text  # this synthetic tree is built to fire it
     assert "zero-discordance" in text
+
+
+def test_factual_qa_cells_sourced_from_0b2_runs(tmp_path):
+    """OPEN_QUESTIONS §8 resolution: when a 0b run carries factual_qa, the
+    analyzer must load those grades/item-ids from the paired 0b2 rerun
+    (registered item set) and stamp source_run_id accordingly; missing 0b2
+    source -> hard error, never silent fallback to the wrong-set grades."""
+    import pytest as _pytest
+
+    root = tmp_path / "runs"
+    n = 4
+    ids_0b = {"factual_qa": [f"fq-old-{i}" for i in range(n)]}
+    ids_0b2 = {"factual_qa": [f"fq-new-{i}" for i in range(n)]}
+    states_0b = {"factual_qa": {"F16": ["correct"] * n, "Q8_0": ["correct"] * n}}
+    states_0b2 = {"factual_qa": {"F16": ["correct"] * n, "Q8_0": ["wrong"] * n}}
+    _write_run(root / "0b-llama-8b-ladder", ids_0b, states_0b)
+
+    with _pytest.raises(FileNotFoundError, match="0b2-llama-8b-ladder"):
+        a0b.load_all_runs(root, run_ids=["0b-llama-8b-ladder"])
+
+    _write_run(root / "0b2-llama-8b-ladder", ids_0b2, states_0b2)
+    runs = a0b.load_all_runs(root, run_ids=["0b-llama-8b-ladder"])
+    run = runs["0b-llama-8b-ladder"]
+    assert run.suite_source["factual_qa"] == "0b2-llama-8b-ladder"
+    assert run.item_ids["factual_qa"] == set(ids_0b2["factual_qa"])
+    assert all(not ok for ok, _ in run.graded[("factual_qa", "Q8_0")].values())
+
+    cell = a0b.compute_cell_row(run, "m", "factual_qa", "Q8_0", margin=0.03, n_resamples=50)
+    assert cell.source_run_id == "0b2-llama-8b-ladder"
+    assert cell.run_id == "0b-llama-8b-ladder"
