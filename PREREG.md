@@ -1,6 +1,6 @@
 # BitCliff — Public Pre-Registration
 
-**STATUS: DRAFT FOR USER EDIT. NOT YET FROZEN. NOT YET TIMESTAMPED.**
+**STATUS: FROZEN 2026-08-26 at commit `5e6882b7a10c5e4670052855380e8646911db5f3` (receipt `freeze/freeze-commit-hash.txt.ots`, Bitcoin-attested). Amended by dated appendix only; the amendments and their receipts are listed at the end of this document. Post-freeze edits to the body above the appendices: one slot-pointer rewrite in §7 (made in the Amendment 1 commit, `00a1228`) and this header line (its commit is visible in `git log -- PREREG.md`). Every other body line is byte-identical to the freeze commit; verify with `git diff 5e6882b7 HEAD -- PREREG.md`.**
 
 This document registers, before any confirmatory data exists, every question
 BitCliff will answer, every suite it will run, every parameter, every grading
@@ -1095,7 +1095,7 @@ amendment's own commit hash and receipt are recorded by the follow-up
 commit:
 
 Amendment 2 commit: `22fbaba04694b3b3ef9701c00802540208ed18f2` (filled by the follow-up commit)
-Amendment 2 OpenTimestamps proof: `freeze/amendment2-commit-hash.txt.ots` (receipt over `freeze/amendment2-commit-hash.txt` containing `22fbaba04694b3b3ef9701c00802540208ed18f2`; submitted to 4 calendar servers 2026-08-31, pending Bitcoin attestation — run `ots upgrade` after ~a day and commit the upgraded receipt)
+Amendment 2 OpenTimestamps proof: `freeze/amendment2-commit-hash.txt.ots` (receipt over `freeze/amendment2-commit-hash.txt` containing `22fbaba04694b3b3ef9701c00802540208ed18f2`; Bitcoin-attested: block headers 964908/964923/964946, upgraded receipt committed 2026-09-04, commit `6092d08`)
 
 ## A. What PREREG omitted
 
