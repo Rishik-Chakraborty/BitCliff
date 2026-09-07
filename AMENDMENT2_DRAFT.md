@@ -1,8 +1,6 @@
 # AMENDMENT2_DRAFT — registered reference ladder (registration-gap fix)
 
-**STATUS: DRAFT FOR USER REVIEW. Not appended to PREREG. Not committed as
-an amendment. Not OTS-stamped. Nothing confirmatory runs before this is
-appended and stamped ("stamp it").**
+**Status: SUPERSEDED — stamped into PREREG.md as Amendment 2 on 2026-08-31 (commit `22fbaba04694b3b3ef9701c00802540208ed18f2`, receipt `freeze/amendment2-commit-hash.txt.ots`, Bitcoin-attested 2026-09-04). This file is the reviewed draft, retained as history; PREREG.md's Amendment 2 is the registered text.**
 
 The text below is what gets appended to PREREG.md, following Amendment 1,
 upon the user's "stamp it".
