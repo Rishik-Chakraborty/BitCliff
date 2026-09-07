@@ -26,7 +26,7 @@
 # document records how Qwen's own team quantized these. Set to `false`
 # here as the conservative default (asserting `true` without evidence would
 # be an unverified provenance claim); logged as an open question rather
-# than silently assumed -- see OPEN_QUESTIONS.md §6. Re-verify (e.g. via
+# than silently assumed -- see OPEN_QUESTIONS.md §10. Re-verify (e.g. via
 # the downloaded GGUF's own `quantize.imatrix.file` metadata key, if
 # present) before this arm actually runs.
 

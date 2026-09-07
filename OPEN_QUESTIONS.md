@@ -168,7 +168,7 @@ setting 0.9896); the §5 decision covers both 8B-class models.
 **RESOLVED 2026-08-28 (user):** option (a) — M3-analogue longctx
 fallback registered via the amendment; t=16384 extension rejected.
 
-## 6. `configs/0b/0b-arm2-official.yaml` (P3): official Qwen GGUFs' imatrix status is undocumented
+## 10. `configs/0b/0b-arm2-official.yaml` (P3): official Qwen GGUFs' imatrix status is undocumented
 
 Building the 0B run configs (RUN_0B.md §2 P3), `reference-manifests/
 qwen2.5-7b-official.json` (the Qwen/Qwen2.5-7B-Instruct-GGUF pin) carries no
@@ -193,6 +193,8 @@ settles it (e.g. Qwen's own model card, a `quantize.imatrix.file` GGUF
 metadata key readable once the file is downloaded) before Arm 2 actually
 runs. Low stakes either way — this only affects a provenance label, not
 which files are compared or how they're scored.
+
+Resolution path chosen 2026-09-07: determine from the GGUF header of the two pinned official files at the pinned revision (quantize.imatrix.* keys); ruling to follow with the evidence.
 
 ## 6. The reference-ladder rung set is not registered; registered expectation vs published files diverge (2026-08-30)
 
@@ -399,3 +401,55 @@ programmatically, 0 diffs across all 88 cells):**
 
 **RESOLVED 2026-09-06 (implemented same day, TDD, states/cliffs/Holm
 unchanged).**
+
+## 11. Post-freeze edits to the PREREG.md body (2026-09-07)
+
+Same disclosure style as §8 and §9 — what the registered text says, what
+was done, what changed. PREREG §15 registers the freeze as a commit
+(`5e6882b7a10c5e4670052855380e8646911db5f3`, receipt
+`freeze/freeze-commit-hash.txt.ots`) and §15.5 says amendments "are
+appended as dated sections … they never alter registered rules." Two
+lines of the PREREG.md body above the appendices have nonetheless been
+edited since the freeze. Both are recorded here so nobody discovers them
+by diffing.
+
+**(a) The §7 amendment-slot pointer, rewritten in the Amendment 1 commit
+(`00a1228ca6df39ddb5971e87920d4d0b78913cf5`, 2026-08-29).** PREREG.md
+line 570. Before (freeze text):
+
+    (`[AMENDMENT SLOT — difficulty calibration, appended and stamped at F4+]`),
+
+After:
+
+    (`[AMENDMENT SLOT — difficulty calibration]` — **filled by Amendment 1, appended at the end of this document, 2026-08-29**),
+
+A slot-pointer edit made while appending the amendment that fills the
+slot; it names where the filled slot lives and changes no rule, value,
+seed, n, or order.
+
+**(b) The line-3 status header, replaced 2026-09-07 by user ruling
+(commit `0285fcdf4c8137128ffbd14b07fdb1b92250b5b0`).** The freeze-era
+header read `**STATUS: DRAFT FOR USER EDIT. NOT YET FROZEN. NOT YET
+TIMESTAMPED.**` — false since 2026-08-26. It now states the freeze
+commit and receipt, that amendments are appended only, and lists exactly
+these two body edits with a verification command. The same commit
+updated the Amendment 2 receipt line (PREREG.md line 1098, inside the
+appendices) from "pending Bitcoin attestation" to the attested state
+(block headers 964908/964923/964946, read from
+`freeze/amendment2-commit-hash.txt.ots` via `ots info`), following the
+precedent of commit `66eefc0` for the freeze and Amendment 1 receipts.
+
+**(c) Verification.** `git diff 5e6882b7 HEAD -- PREREG.md` shows exactly
+three hunks: line 3 (this header), line 570 (the §7 slot pointer), and
+the hunk beginning at line 790 that replaces the two `[TO BE FILLED AT
+F4]` receipt placeholders with the freeze receipt lines and appends
+Amendments 1 and 2 with their receipt lines. No other body line differs
+from the freeze commit.
+
+Execution matches registration: every registered rule, seed, n, candidate
+set, total order, grading rule, and statistical rule is byte-identical to
+the freeze text. No registered rule was touched. This is a disclosure,
+not an amendment; nothing here fills a registered slot or is stamped.
+
+**RESOLVED 2026-09-07 (user ruling; disclosed here, header edited in
+`0285fcd`).**
