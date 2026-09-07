@@ -202,7 +202,9 @@ so that cells are order-independent and reproducible. Every shootout pairwise co
 
 ## Cliffs (ladder runs only)
 
-| run_id | suite | cliff rung | non-monotonic |
+The column below is the STATE-sequence flag: True iff a Damaged rung sits above (higher precision than) a non-Damaged one, i.e. the Damaged cells do not form a contiguous bottom suffix. It reads False for every family in this data. PREREG §8's accuracy-level non-monotonicity (a lower-bits rung scoring above its higher-bits neighbor) is a separate, weaker anomaly, flagged per cell in cells.csv (`acc_inversion`/`inversion_above`) and listed in full in the next section -- earlier drafts' "all 8 families monotonic" statements referred only to the state-sequence definition.
+
+| run_id | suite | cliff rung | state-non-monotonic |
 |---|---|---|---|
 | 0b-llama-8b-ladder | longctx_retrieval | IQ2_M | False |
 | 0b-llama-8b-ladder | arithmetic | Q2_K | False |
@@ -212,6 +214,37 @@ so that cells are order-independent and reproducible. Every shootout pairwise co
 | 0b-qwen-7b-ladder | arithmetic | Q2_K | False |
 | 0b-qwen-7b-ladder | arithmetic_twins | (none) | False |
 | 0b-qwen-7b-ladder | factual_qa | Q2_K | False |
+
+## Accuracy-level non-monotonicity (PREREG §8 flag)
+
+PREREG §8: 'Non-monotonic rungs are flagged, never smoothed (with the IQ-vs-K ~2.5 bpw note where applicable).' Every adjacent-pair accuracy inversion -- a lower-bits rung scoring strictly above its higher-bits neighbor (F16 counts as the neighbor above the top rung; arm Q3_K_M files pair with their own uploader's Q4_K_M) -- is listed here and flagged per cell in cells.csv. Nothing is smoothed; the underlying accuracies stand unaltered in the tables above.
+
+| run_id | suite | flagged rung | scored above | acc (flagged) | acc (neighbor) | note |
+|---|---|---|---|---|---|---|
+| 0b-arm2-official | arithmetic | Q4_K_M | F16 | 0.9220 | 0.9200 |  |
+| 0b-arm2-official | arithmetic_twins | Q4_K_M | F16 | 0.9149 | 0.8936 |  |
+| 0b-llama-8b-ladder | arithmetic | Q4_K_M | Q5_K_M | 0.8620 | 0.8400 |  |
+| 0b-llama-8b-ladder | arithmetic | Q8_0 | F16 | 0.8700 | 0.8640 |  |
+| 0b-llama-8b-ladder | arithmetic_twins | IQ2_M | Q2_K | 0.6702 | 0.6596 | IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at comparable bits -- the registered Q5 exploratory candidate pattern (PREREG SS2/SS5), here in confirmatory data |
+| 0b-llama-8b-ladder | arithmetic_twins | Q5_K_M | Q6_K | 0.8617 | 0.8191 |  |
+| 0b-llama-8b-ladder | arithmetic_twins | Q8_0 | F16 | 0.8936 | 0.8511 |  |
+| 0b-llama-8b-ladder | factual_qa | IQ2_M | Q2_K | 0.1980 | 0.1580 | IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at comparable bits -- the registered Q5 exploratory candidate pattern (PREREG SS2/SS5), here in confirmatory data |
+| 0b-llama-8b-ladder | factual_qa | Q6_K | Q8_0 | 0.3220 | 0.3140 |  |
+| 0b-llama-8b-ladder | longctx_retrieval | Q4_K_M | Q5_K_M | 1.0000 | 0.9896 |  |
+| 0b-llama-8b-ladder | longctx_retrieval | Q6_K | Q8_0 | 0.9896 | 0.9792 |  |
+| 0b-qwen-7b-ladder | arithmetic | Q6_K | Q8_0 | 0.9360 | 0.9200 |  |
+| 0b-qwen-7b-ladder | arithmetic_twins | Q3_K_M | Q4_K_M | 0.9149 | 0.9043 |  |
+| 0b-qwen-7b-ladder | arithmetic_twins | Q4_K_M | Q5_K_M | 0.9043 | 0.8723 |  |
+| 0b-qwen-7b-ladder | arithmetic_twins | Q6_K | Q8_0 | 0.9043 | 0.8936 |  |
+| 0b-qwen-7b-ladder | factual_qa | Q8_0 | F16 | 0.1940 | 0.1920 |  |
+| 0b-shootout-arm1 | arithmetic | mradermacher_i1_Q4_K_M | F16 | 0.8680 | 0.8640 |  |
+| 0b-shootout-arm1 | arithmetic | mradermacher_static_Q4_K_M | F16 | 0.8680 | 0.8640 |  |
+| 0b-shootout-arm1 | arithmetic | unsloth_Q4_K_M | F16 | 0.8680 | 0.8640 |  |
+| 0b-shootout-arm1 | longctx_retrieval | mradermacher_i1_Q4_K_M | F16 | 1.0000 | 0.9896 |  |
+| 0b-shootout-arm1 | longctx_retrieval | mradermacher_static_Q4_K_M | F16 | 1.0000 | 0.9896 |  |
+| 0b-shootout-arm1 | longctx_retrieval | unsloth_Q3_K_M | unsloth_Q4_K_M | 0.9896 | 0.9792 |  |
+
+Total: 22 inversions (14 in ladder families, 8 in arm families).
 
 ## Holm-corrected headline verdicts
 

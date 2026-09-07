@@ -361,3 +361,41 @@ at the grade level. Analysis re-sourced factual_qa from 0b2 (source_run_id
 column); first-pass factual_qa kept as a disclosed sensitivity run in
 FINDINGS_0B.md Appendix A. Cliff/Holm changes vs first pass: llama
 unchanged (Q3_K_M, SURVIVES); qwen cliff IQ2_M → Q2_K (SURVIVES).
+
+## 9. PREREG §8's non-monotonicity flag: definitional gap caught post-analysis (2026-09-06)
+
+Same disclosure style as §8's item-set bug — what the registered sentence
+says, what was implemented, what changed:
+
+**Registered sentence (PREREG §8):** "Non-monotonic rungs are flagged,
+never smoothed (with the IQ-vs-K ~2.5 bpw note where applicable)." The
+parenthetical points at accuracy-ordering anomalies (an i-quant beating a
+k-quant at comparable bits).
+
+**What was implemented (through the first two analysis passes):** a
+STATE-sequence flag only — True iff a Damaged rung sits above a
+non-Damaged one. It correctly read False for all 8 families, and "all 8
+families monotonic" was reported using that narrow definition without
+saying so. Accuracy inversions were visible, unsmoothed, in every
+published table, but carried no per-cell flag, and the IQ-vs-K note
+existed only as boilerplate.
+
+**Ruling (user, 2026-09-06): implement the accuracy-level reading.**
+
+**What changed (no cell state, cliff, or Holm verdict moved — verified
+programmatically, 0 diffs across all 88 cells):**
+- cells.csv gains `acc_inversion`/`inversion_above` per cell (strictly-
+  above comparison vs the higher-bits neighbor; F16 counts as the
+  neighbor above the top rung; arm Q3_K_M files pair with their own
+  uploader's Q4_K_M, arm Q4_K_M files with F16).
+- FINDINGS_0B.md gains a full inversion listing with the IQ-vs-K
+  ~2.5 bpw note attached specifically to the two IQ2_M-above-Q2_K rows
+  (llama twins, llama factual_qa), and the cliff table's flag column is
+  relabeled "state-non-monotonic" with both definitions stated.
+- Count correction, disclosed: the pre-implementation hand count reported
+  15 inversions (14 ladder + 1 arm); the uniform definition finds **22**
+  (14 ladder + 8 arm) — the hand sweep had omitted the seven
+  arm-Q4_K_M-above-F16 pairs. Nothing else differs.
+
+**RESOLVED 2026-09-06 (implemented same day, TDD, states/cliffs/Holm
+unchanged).**

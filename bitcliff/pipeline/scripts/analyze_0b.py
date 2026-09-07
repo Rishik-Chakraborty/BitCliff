@@ -145,6 +145,8 @@ CELLS_CSV_FIELDS = [
     "truncated_f16",
     "truncated_quant",
     "state",
+    "acc_inversion",
+    "inversion_above",
     "seed_rule",
 ]
 
@@ -301,6 +303,47 @@ class CellRow:
     truncated_quant: int
     state: str
     seed_rule: str
+
+
+def accuracy_inversions(cells: list["CellRow"]) -> dict[tuple[str, str, str], str]:
+    """PREREG §8's accuracy-level non-monotonicity flag (user ruling
+    2026-09-06, OPEN_QUESTIONS §9): map (run_id, suite, quant_label) ->
+    the higher-bits neighbor label this cell scored strictly ABOVE.
+
+    Neighbor definition: for ladder runs, the previous rung in the
+    registered LADDER_ORDER (F16 above Q8_0); for arm files, the
+    same-uploader Q4_K_M is Q3_K_M's neighbor and F16 is every arm
+    Q4_K_M's neighbor. Flags attach to the LOWER-bits cell. Strict
+    inequality: ties are not inversions.
+    """
+    by_family: dict[tuple[str, str], dict[str, "CellRow"]] = {}
+    for c in cells:
+        by_family.setdefault((c.run_id, c.suite), {})[c.quant_label] = c
+    out: dict[tuple[str, str, str], str] = {}
+    for (run_id, suite), fam in by_family.items():
+        labels = set(fam)
+        if labels <= set(LADDER_ORDER):
+            chain = ["F16"] + [q for q in LADDER_ORDER if q in fam]
+        else:
+            uploaders = sorted({l.rsplit("_Q", 1)[0] for l in labels if "_Q" in l and not l.startswith("Q")})
+            chain = None
+            pairs = []
+            for l in sorted(labels):
+                if l.endswith("Q4_K_M"):
+                    pairs.append(("F16", l))
+                elif l.endswith("Q3_K_M"):
+                    q4 = l.replace("Q3_K_M", "Q4_K_M")
+                    pairs.append((q4 if q4 in fam else "F16", l))
+            for hi, lo in pairs:
+                hi_acc = fam[lo].acc_f16 if hi == "F16" else fam[hi].acc_quant
+                if fam[lo].acc_quant > hi_acc:
+                    out[(run_id, suite, lo)] = hi
+            continue
+        for hi, lo in zip(chain, chain[1:]):
+            hi_acc = fam[lo].acc_f16 if hi == "F16" else fam[hi].acc_quant
+            if fam[lo].acc_quant > hi_acc:
+                out[(run_id, suite, lo)] = hi
+    return out
 
 
 def compute_cell_row(
@@ -604,6 +647,7 @@ class AnalysisResult:
     cliffs: dict[tuple[str, str], CliffResult]
     holm_verdicts: dict[tuple[str, str], Optional[HolmVerdict]]
     shootout: ShootoutReport
+    inversions: dict[tuple[str, str, str], str] = dataclasses.field(default_factory=dict)
 
 
 def run_analysis(
@@ -631,7 +675,7 @@ def run_analysis(
         runs_data, cells, margin=margin, n_resamples=n_resamples,
         arm1_levels=arm1_levels, arm2_levels=arm2_levels, suites=suites,
     )
-    return AnalysisResult(cells=cells, cliffs=cliffs, holm_verdicts=holm_verdicts, shootout=shootout)
+    return AnalysisResult(cells=cells, cliffs=cliffs, holm_verdicts=holm_verdicts, shootout=shootout, inversions=accuracy_inversions(cells))
 
 
 # ---------------------------------------------------------------------------
@@ -643,7 +687,11 @@ def _fmt(x: float, digits: int = 6) -> str:
     return f"{x:.{digits}f}"
 
 
-def write_cells_csv(cells: list[CellRow], out_path: Path) -> None:
+def write_cells_csv(
+    cells: list[CellRow],
+    out_path: Path,
+    inversions: dict[tuple[str, str, str], str] | None = None,
+) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="") as f:
         writer = csv.writer(f, lineterminator="\n")
@@ -667,6 +715,8 @@ def write_cells_csv(cells: list[CellRow], out_path: Path) -> None:
                 c.truncated_f16,
                 c.truncated_quant,
                 c.state,
+                str((c.run_id, c.suite, c.quant_label) in (inversions or {})),
+                (inversions or {}).get((c.run_id, c.suite, c.quant_label), ""),
                 c.seed_rule,
             ])
 
@@ -787,7 +837,20 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
     # --- Cliff table ---
     lines.append("## Cliffs (ladder runs only)")
     lines.append("")
-    lines.append("| run_id | suite | cliff rung | non-monotonic |")
+    lines.append(
+        "The column below is the STATE-sequence flag: True iff a Damaged "
+        "rung sits above (higher precision than) a non-Damaged one, i.e. "
+        "the Damaged cells do not form a contiguous bottom suffix. It reads "
+        "False for every family in this data. PREREG §8's accuracy-level "
+        "non-monotonicity (a lower-bits rung scoring above its higher-bits "
+        "neighbor) is a separate, weaker anomaly, flagged per cell in "
+        "cells.csv (`acc_inversion`/`inversion_above`) and listed in full "
+        "in the next section -- earlier drafts' \"all 8 families "
+        "monotonic\" statements referred only to the state-sequence "
+        "definition."
+    )
+    lines.append("")
+    lines.append("| run_id | suite | cliff rung | state-non-monotonic |")
     lines.append("|---|---|---|---|")
     for run_id in LADDER_RUN_IDS:
         for suite in SUITES:
@@ -796,6 +859,46 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
                 continue
             rung_str = cr.cliff_rung if cr.cliff_rung is not None else "(none)"
             lines.append(f"| {run_id} | {suite} | {rung_str} | {cr.non_monotonic} |")
+    lines.append("")
+
+    # --- Accuracy-level non-monotonicity (PREREG §8 flag) ---
+    lines.append("## Accuracy-level non-monotonicity (PREREG §8 flag)")
+    lines.append("")
+    lines.append(
+        "PREREG §8: 'Non-monotonic rungs are flagged, never smoothed (with "
+        "the IQ-vs-K ~2.5 bpw note where applicable).' Every adjacent-pair "
+        "accuracy inversion -- a lower-bits rung scoring strictly above its "
+        "higher-bits neighbor (F16 counts as the neighbor above the top "
+        "rung; arm Q3_K_M files pair with their own uploader's Q4_K_M) -- "
+        "is listed here and flagged per cell in cells.csv. Nothing is "
+        "smoothed; the underlying accuracies stand unaltered in the tables "
+        "above."
+    )
+    lines.append("")
+    lines.append("| run_id | suite | flagged rung | scored above | acc (flagged) | acc (neighbor) | note |")
+    lines.append("|---|---|---|---|---|---|---|")
+    cell_by_key = {(c.run_id, c.suite, c.quant_label): c for c in result.cells}
+    inv = result.inversions
+    for (run_id, suite, label) in sorted(inv):
+        hi = inv[(run_id, suite, label)]
+        c = cell_by_key[(run_id, suite, label)]
+        hi_acc = c.acc_f16 if hi == "F16" else cell_by_key[(run_id, suite, hi)].acc_quant
+        note = ""
+        if label == "IQ2_M" and hi == "Q2_K":
+            note = (
+                "IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at "
+                "comparable bits -- the registered Q5 exploratory candidate "
+                "pattern (PREREG SS2/SS5), here in confirmatory data"
+            )
+        lines.append(
+            f"| {run_id} | {suite} | {label} | {hi} | {c.acc_quant:.4f} | {hi_acc:.4f} | {note} |"
+        )
+    n_ladder = sum(1 for k in inv if k[0] in LADDER_RUN_IDS)
+    lines.append("")
+    lines.append(
+        f"Total: {len(inv)} inversions ({n_ladder} in ladder families, "
+        f"{len(inv) - n_ladder} in arm families)."
+    )
     lines.append("")
 
     # --- Holm verdicts ---
@@ -920,7 +1023,7 @@ def main() -> None:
     out_dir = Path(args.out_dir) if args.out_dir else pipeline_dir / "analysis" / "0b"
 
     result = run_analysis(runs_root)
-    write_cells_csv(result.cells, out_dir / "cells.csv")
+    write_cells_csv(result.cells, out_dir / "cells.csv", inversions=result.inversions)
     write_findings_md(result, out_dir / "FINDINGS_0B.md")
     print(f"wrote {len(result.cells)} cells to {out_dir / 'cells.csv'}")
     print(f"wrote findings to {out_dir / 'FINDINGS_0B.md'}")

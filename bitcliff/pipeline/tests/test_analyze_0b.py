@@ -482,3 +482,65 @@ def test_factual_qa_cells_sourced_from_0b2_runs(tmp_path):
     cell = a0b.compute_cell_row(run, "m", "factual_qa", "Q8_0", margin=0.03, n_resamples=50)
     assert cell.source_run_id == "0b2-llama-8b-ladder"
     assert cell.run_id == "0b-llama-8b-ladder"
+
+
+# ---------------------------------------------------------------------------
+# Accuracy-level non-monotonicity flag (PREREG §8 accuracy reading, user
+# ruling 2026-09-06 / OPEN_QUESTIONS §9): a cell is flagged when its rung
+# scores ABOVE its higher-bits neighbor (F16 for the top rung; the previous
+# registered-ladder rung otherwise; for arm files, the same-uploader Q4_K_M
+# is Q3_K_M's neighbor and F16 is Q4_K_M's).
+# ---------------------------------------------------------------------------
+
+
+def _mk_cell(run_id, suite, quant_label, acc_f16, acc_quant):
+    return a0b.CellRow(
+        run_id=run_id, source_run_id=run_id, model="m", suite=suite,
+        quant_label=quant_label, n=10, acc_f16=acc_f16, acc_quant=acc_quant,
+        delta=acc_quant - acc_f16, ci_lo=-1, ci_hi=1, p_mcnemar=1.0,
+        b_lost=0, c_gained=0, truncated_f16=0, truncated_quant=0,
+        state="indeterminate", seed_rule="t",
+    )
+
+
+def test_accuracy_inversions_ladder_chain_including_f16_top():
+    cells = [
+        _mk_cell("0b-llama-8b-ladder", "arithmetic", "Q8_0", 0.80, 0.85),   # > F16 -> flag
+        _mk_cell("0b-llama-8b-ladder", "arithmetic", "Q6_K", 0.80, 0.84),   # < Q8_0 -> no
+        _mk_cell("0b-llama-8b-ladder", "arithmetic", "Q5_K_M", 0.80, 0.86), # > Q6_K -> flag
+        _mk_cell("0b-llama-8b-ladder", "arithmetic", "Q4_K_M", 0.80, 0.86), # == Q5_K_M -> no (strict >)
+    ]
+    flags = a0b.accuracy_inversions(cells)
+    assert flags[("0b-llama-8b-ladder", "arithmetic", "Q8_0")] == "F16"
+    assert ("0b-llama-8b-ladder", "arithmetic", "Q6_K") not in flags
+    assert flags[("0b-llama-8b-ladder", "arithmetic", "Q5_K_M")] == "Q6_K"
+    assert ("0b-llama-8b-ladder", "arithmetic", "Q4_K_M") not in flags
+
+
+def test_accuracy_inversions_arm_pairs_same_uploader_only():
+    cells = [
+        _mk_cell("0b-shootout-arm1", "arithmetic", "unsloth_Q4_K_M", 0.90, 0.80),
+        _mk_cell("0b-shootout-arm1", "arithmetic", "unsloth_Q3_K_M", 0.90, 0.85),          # > own Q4 -> flag
+        _mk_cell("0b-shootout-arm1", "arithmetic", "mradermacher_static_Q4_K_M", 0.90, 0.95),  # > F16 -> flag
+        _mk_cell("0b-shootout-arm1", "arithmetic", "mradermacher_static_Q3_K_M", 0.90, 0.94),  # < own Q4 -> no
+        _mk_cell("0b-arm2-official", "arithmetic", "Q4_K_M", 0.90, 0.80),
+        _mk_cell("0b-arm2-official", "arithmetic", "Q3_K_M", 0.90, 0.81),                  # > own Q4 -> flag
+    ]
+    flags = a0b.accuracy_inversions(cells)
+    assert flags[("0b-shootout-arm1", "arithmetic", "unsloth_Q3_K_M")] == "unsloth_Q4_K_M"
+    assert flags[("0b-shootout-arm1", "arithmetic", "mradermacher_static_Q4_K_M")] == "F16"
+    assert ("0b-shootout-arm1", "arithmetic", "mradermacher_static_Q3_K_M") not in flags
+    assert flags[("0b-arm2-official", "arithmetic", "Q3_K_M")] == "Q4_K_M"
+
+
+def test_cells_csv_carries_acc_inversion_columns(tmp_path):
+    cells = [
+        _mk_cell("0b-llama-8b-ladder", "arithmetic", "Q8_0", 0.80, 0.85),
+        _mk_cell("0b-llama-8b-ladder", "arithmetic", "Q6_K", 0.80, 0.70),
+    ]
+    out = tmp_path / "cells.csv"
+    a0b.write_cells_csv(cells, out, inversions=a0b.accuracy_inversions(cells))
+    import csv as _csv
+    rows = list(_csv.DictReader(out.open()))
+    assert rows[0]["acc_inversion"] == "True" and rows[0]["inversion_above"] == "F16"
+    assert rows[1]["acc_inversion"] == "False" and rows[1]["inversion_above"] == ""
