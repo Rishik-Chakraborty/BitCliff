@@ -9,7 +9,7 @@ upon the user's "stamp it".
 
 ---
 
-# Amendment 3 (2026-09-07): PREREG §5 shootout trigger fired
+# Amendment 3 (2026-09-08): PREREG §5 shootout trigger fired
 
 Appended per §15.5 ("any registered follow-up trigger firing per §5" is
 appended as a dated section, committed, and stamped). Records a fact
@@ -67,14 +67,13 @@ Full table: `bitcliff/pipeline/analysis/0b/FINDINGS_0B.md`, section
 
 ## C. The mandated follow-up (§5, verbatim consequence)
 
-"extending the uploader shootout to Qwen2.5-7B-Instruct becomes a
-registered follow-up measurement under the same rules, run after the
-launch analyses." Same rules = Arm 1's: unsloth vs bartowski vs
-mradermacher (static and i1) at Q4_K_M and Q3_K_M, all four scored
-suites, paired against Qwen2.5-7B-Instruct's F16 on the registered item
-sets, §8 machinery, bootstrap seed 8271 rules. The Qwen2.5-7B shootout
-file manifest will be committed, hashed, and stamped as its own dated
-section before that run; it is not part of this amendment.
+PREREG §5's registered consequence, verbatim:
+
+> extending the
+> uploader shootout to Qwen2.5-7B-Instruct becomes a **registered follow-up
+> measurement** under the same rules, run after the launch analyses.
+
+The Qwen2.5-7B shootout file manifest will be committed, hashed, and stamped as its own dated section before that run; it is not part of this amendment.
 
 ## D. What this amendment does NOT do
 
