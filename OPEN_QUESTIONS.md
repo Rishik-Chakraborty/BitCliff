@@ -464,5 +464,70 @@ set, total order, grading rule, and statistical rule is byte-identical to
 the freeze text. No registered rule was touched. This is a disclosure,
 not an amendment; nothing here fills a registered slot or is stamped.
 
+**(d) Related, outside PREREG.md:** `configs/0b/0b-arm2-official.yaml` comment edited 2026-09-07 (`3a4df1f`), sha256 `f4a52552…3f8f` → `9ad7d085…1563`, comment only (the OPEN_QUESTIONS §6 → §10 cross-reference); no recorded hash referenced the file; the as-run bytes are in the S3 `0b/code/` snapshot.
+
 **RESOLVED 2026-09-07 (user ruling; disclosed here, header edited in
 `0285fcd`).**
+
+## 12. Phase 2 shootout (Amendment 3): what PREREG §5 fixes and what it leaves unspecified (2026-09-08)
+
+Amendment 3 (PREREG.md, appended 2026-09-08, commit `9f94913`) records that
+the §5 trigger fired and that "extending the uploader shootout to
+Qwen2.5-7B-Instruct becomes a registered follow-up measurement under the
+same rules, run after the launch analyses." This section inventories what
+"under the same rules" fixes by inheritance from registered text and what
+it leaves open. It proposes no values.
+
+**Fixed by inheritance (PREREG.md line numbers as of commit `d84d0bd`):**
+
+- **Model:** Qwen2.5-7B-Instruct — §5, lines 478–479.
+- **Labels:** Q4_K_M and Q3_K_M — Arm 1's registered levels, §5 lines
+  456–457, inherited through "under the same rules" (line 479).
+- **Suites:** the four scored suites — §3, line 94; definitions §3.1–§3.4.
+- **Item sets, identical to 0B's Qwen ladder:** longctx_retrieval 2b at
+  n=96, seed 2024 (Amendment 1 §A, lines 832–833), qwen2.5-7b setting
+  multivalue4 @ target_tokens 8192 (Amendment 1 §C, lines 1005 and 1023),
+  registered item-set hash `ed18db13…`; arithmetic n=500, seed 3141 (§3.2,
+  lines 207–208); arithmetic_twins seed 1301, 94 pair items (§3.3, lines
+  242 and 255); factual_qa n=500, seed 2718 (§3.4, lines 284–285), mix M3,
+  item-set hash `2e53ca0e…` (Amendment 1 §C, lines 1008–1009). All pinned
+  in `src/bitcliff_pipeline/registered.py` and gate-enforced at boot.
+- **Generation settings:** max_tokens 1024 (§6, line 489); per-suite
+  budgets 32 / 64 (line 493); greedy, temperature 0.0, top_k 1, seed 42
+  (line 497).
+- **Statistics:** margin M = 3pp (§8, line 583); McNemar exact + paired
+  bootstrap, 10,000 resamples (line 586); the four cell states (lines
+  589–596); the dual multiplicity rule (lines 600–612). The bootstrap seed
+  8271 and its per-cell / per-pair string rules are NOT in PREREG; they are
+  the ratified OPEN_QUESTIONS §7 disclosure and carry over as such.
+- **Baseline:** the F16 local official-repo conversion (Amendment 2 §C,
+  line 1140), i.e. the same Qwen2.5-7B F16 already measured in
+  `0b-qwen-7b-ladder` (sha256 in `registered.py`, not in PREREG).
+- **Timing:** "run after the launch analyses" — §5, line 479. No deadline.
+
+**Left unspecified by the registered text:**
+
+- **Uploader set.** Arm 1's uploaders (unsloth; mradermacher static and
+  i1) were chosen for Llama (§5, lines 457–459). §5 names no Qwen
+  uploaders, and whether "same rules" means those exact uploaders or "the
+  tracked uploaders for this model" is not written. Qwen's official files
+  are already Arm 2 and are not part of the trigger's consequence.
+- **File manifest with hashes and enumeration date.** No
+  `reference-manifests/shootout-7b.json` exists: no repos, revision shas,
+  per-file sha256s, imatrix status, or the date the files were enumerated.
+- **Machine and fingerprint.** §6 (lines 499–504) scopes determinism to a
+  fixed hardware/software configuration; 0B's is recorded in
+  `runs-cloud/fingerprint.txt` (g6e.2xlarge, L40S, llama.cpp `bf942164…`,
+  llama-cpp-python 0.3.35 CUDA). Nothing registers that the shootout must
+  reuse it, and the F16 baseline it pairs against was measured on it.
+- **Reuse vs regeneration of the bartowski side.** Arm 1 reused the
+  Llama ladder run's bartowski rungs (cross-run pairing on identical item
+  ids). Whether the Qwen shootout reuses `0b-qwen-7b-ladder`'s bartowski
+  Q4_K_M/Q3_K_M cells or regenerates them is not stated.
+- **Holm family membership.** Whether the 7B shootout cells enter any
+  headline family or stay arm-scoped like Arm 1's (§8 dual rule).
+- **Consequence of a same-label effect in the 7B shootout.** §5 registers
+  no further follow-up; a fired 7B comparison has no registered next step.
+
+All of the above are to be fixed in the stamped manifest section Amendment 3
+§C commits to, before any shootout run. No values are proposed here.
