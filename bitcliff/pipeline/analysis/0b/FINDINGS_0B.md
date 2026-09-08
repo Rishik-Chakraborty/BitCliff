@@ -172,6 +172,8 @@ so that cells are order-independent and reproducible. Every shootout pairwise co
 
 ### `0b-arm2-official` (qwen2.5-7b-instruct, arm)
 
+Footnote (2026-09-08, OPEN_QUESTIONS §10): the two official Qwen files ran and are reported as `imatrix: false`; confirmed from their GGUF headers at the pinned revision (no `quantize.imatrix.*` keys) — evidence: `reference-manifests/evidence/qwen2.5-7b-official-gguf-headers.md`.
+
 **longctx_retrieval**
 
 | quant_label | n | acc_f16 | acc_quant | delta | 95% CI | p (McNemar) | b (lost) | c (gained) | trunc F16 | trunc quant | state |

@@ -196,6 +196,19 @@ which files are compared or how they're scored.
 
 Resolution path chosen 2026-09-07: determine from the GGUF header of the two pinned official files at the pinned revision (quantize.imatrix.* keys); ruling to follow with the evidence.
 
+**RESOLVED 2026-09-08: `imatrix: false` per evidence.** The GGUF headers of
+both pinned official files (`qwen2.5-7b-instruct-q3_k_m.gguf`,
+`qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf`, revision `bb5d59e0…`) were
+read by HTTP range request (first 16 MiB each; the whole KV block lies within
+the first 6 MiB) and parsed: neither carries any `quantize.imatrix.*` key,
+nor any `quantize.*` key at all; `general.quantization_version = 2` is the
+only quantization-related metadata. Evidence, with the caveat that absence is
+conclusive only for files written by an imatrix-key-recording llama-quantize
+build: `bitcliff/pipeline/reference-manifests/evidence/qwen2.5-7b-official-gguf-headers.md`.
+The value in `configs/0b/0b-arm2-official.yaml` (`imatrix: false`) stays as
+run; the label was correct. No manifest edit. A footnote in FINDINGS_0B.md's
+Arm 2 section records the status and the evidence path.
+
 ## 6. The reference-ladder rung set is not registered; registered expectation vs published files diverge (2026-08-30)
 
 PREREG §4 registers ladders only as "pinned to the committed manifests" —
