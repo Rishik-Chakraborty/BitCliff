@@ -1,0 +1,19 @@
+{
+  "scope": "Qwen2.5-1.5B-Instruct in-house spectacle rungs only; spectacle_only, never a confirmatory rung, never in reference tables, cliffs, durability, or download recommendations (PREREG SS4; Amendment 4 exclusion sentence)",
+  "uploader": "bitcliff-inhouse",
+  "repo": null,
+  "hashed_at": "2026-09-08",
+  "hash_method": "shasum -a 256 over the local files in bitcliff/pipeline/models/ (untracked, models/ is gitignored); values match INHOUSE_QUANTS.md lines 98-100 exactly",
+  "build_record": "bitcliff/pipeline/INHOUSE_QUANTS.md (llama.cpp commit bf942164697d2d62c2237a17b677dc2c017ea8e7, llama-imatrix + llama-quantize, wikitext2-raw-v1 train first 500k chars calibration)",
+  "source_f16": {
+    "path": "models/f16/Qwen2.5-1.5B-Instruct-f16.gguf",
+    "sha256": "954b449288dd7989c3ddc193666c88d1bb43857c1a2468d04e422b47cc234fe4",
+    "size_bytes": 3093669536
+  },
+  "imatrix_file": "models/imatrix/qwen2.5-1.5b-wikitext2-first500k.imatrix (untracked; see INHOUSE_QUANTS.md)",
+  "gguf_files": [
+    {"path": "Qwen2.5-1.5B-Instruct-IQ2_XXS-bitcliff-inhouse.gguf", "label": "IQ2_XXS", "size_bytes": 511017888, "sha256": "ddb112eec7dddf10ae1b8c22e23c6ce5b5819a01bb9b3ef1319370f0d0735ea5", "uploader": "bitcliff-inhouse", "imatrix": true, "spectacle_only": true},
+    {"path": "Qwen2.5-1.5B-Instruct-IQ1_M-bitcliff-inhouse.gguf", "label": "IQ1_M", "size_bytes": 464461728, "sha256": "864adcf3f2e1c3c97f42c7424b77d3256004b11314b331b44310b049491cbade", "uploader": "bitcliff-inhouse", "imatrix": true, "spectacle_only": true},
+    {"path": "Qwen2.5-1.5B-Instruct-IQ1_S-bitcliff-inhouse.gguf", "label": "IQ1_S", "size_bytes": 436528032, "sha256": "5f25c4a0228456f01097f9da09d0d76f80c1bf9aea5088f26a978941ad9aae9b", "uploader": "bitcliff-inhouse", "imatrix": true, "spectacle_only": true}
+  ]
+}
