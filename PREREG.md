@@ -1203,7 +1203,7 @@ appended as a dated section, committed, and stamped). Records a fact
 produced by the registered §8 machinery; alters no registered rule.
 
 Amendment 3 commit: `9f94913d322b009b214e2bfde80f1217e9d1da17` (filled by the follow-up commit)
-Amendment 3 OpenTimestamps proof: `freeze/amendment3-commit-hash.txt.ots` (receipt over `freeze/amendment3-commit-hash.txt` containing `9f94913d322b009b214e2bfde80f1217e9d1da17`; submitted to 4 calendar servers 2026-09-08, pending Bitcoin attestation — run `ots upgrade` after ~a day and commit the upgraded receipt)
+Amendment 3 OpenTimestamps proof: `freeze/amendment3-commit-hash.txt.ots` (receipt over `freeze/amendment3-commit-hash.txt` containing `9f94913d322b009b214e2bfde80f1217e9d1da17`; Bitcoin-attested: block headers 966021/966024/966041, upgraded receipt committed 2026-09-10 in the commit carrying this line — hash visible in `git log -- freeze/amendment3-commit-hash.txt.ots`)
 
 ## A. What fired, and when
 
