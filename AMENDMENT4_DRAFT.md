@@ -9,7 +9,7 @@ upon the user's "stamp it".
 
 ---
 
-# Amendment 4 (2026-09-08): the registered 1.5B confirmatory ladder
+# Amendment 4 (2026-09-12): the registered 1.5B confirmatory ladder
 
 Appended per the disclosed-gap mechanics of Amendment 1 §A/§A2 and
 Amendment 2 (a registration-gap fix beyond §7's knob-amendment scope,
@@ -32,8 +32,7 @@ but no manifest for the 1.5B's tracked-uploader repo was ever committed, and
 blind-check materials and §3.1 configuration 2a both presuppose a
 confirmatory 1.5B run, so the 1.5B ladder must be enumerated and pinned
 before that run exists. This amendment fills only that slot: the rung set
-and the file pins. It decides nothing about which suites run, on which
-machine, with which divergence passes, or when.
+and the file pins.
 
 ## B. The rule applied
 
@@ -75,7 +74,7 @@ IQ2_M for the reference models.
 | Q2_K_L | yes | EXCLUDED — size variant, larger than Q2_K, so not "below Q2_K" |
 | IQ3_M, IQ3_XS, IQ4_XS | yes | EXCLUDED — IQ mid-rungs outside the named set (Amendment 2 §E rejected adding them) |
 | Q3_K_S, Q3_K_L, Q3_K_XL, Q4_K_S, Q4_K_L, Q5_K_S, Q5_K_L, Q6_K_L | yes | EXCLUDED — size variants outside the named set |
-| Q4_0, Q4_0_4_4, Q4_0_4_8, Q4_0_8_8 | yes | EXCLUDED — Q4_0 family; the three repacked files are also unloadable by the pinned llama.cpp build |
+| Q4_0, Q4_0_4_4, Q4_0_4_8, Q4_0_8_8 | yes | EXCLUDED — Q4_0 family |
 | f16 (uploader's upload) | yes | EXCLUDED — not a quant; the F16 baseline is the local conversion, per §C convention |
 
 ## C. The registered 1.5B confirmatory ladder (8 rows)
@@ -100,7 +99,7 @@ against this same repo) named the identical seven quant files.
 ## D. The manifest
 
 `bitcliff/pipeline/reference-manifests/qwen2.5-1.5b-bartowski.json`,
-sha256 `d4849ea64d88cc3af14e42c8a6ef0e3a7d49a2fd4f95b7d34899e526118a2b47`:
+sha256 `023a2c0e37031d764a59cbd25e36d1b15d24e8ba35dad1f6ed7e10404b9c6a3f`:
 repo, revision sha, retrieval timestamp, enumeration date, imatrix status
 and its evidence, the rule text, the resulting ladder, the F16 local
 conversion block, and all 25 published GGUF files with size, sha256,
