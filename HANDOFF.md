@@ -1,4 +1,4 @@
-# HANDOFF — BitCliff session handoff (rewritten 2026-09-07)
+# HANDOFF — BitCliff session handoff (rewritten 2026-09-07; updated 2026-09-14)
 
 For a fresh Claude Code session with no memory. This is an index, not an
 archive: every claim below is verifiable in the named files, git history,
@@ -7,14 +7,13 @@ or messages anyone without the user's explicit go.
 
 ## 1. Repo state (as of this handoff's commit)
 
-Local main and origin/main are IN SYNC at the commit preceding this
-handoff commit: local HEAD `47e8462c5b8be7b0b029ee415c153088881b9252` ==
-origin/main (verified 2026-09-07; this handoff commit itself is pushed as
-part of the same instruction). Branch list: `main` only (work branches
-`pre-0b-tickets`, `0b-analysis`, `factualqa-rerun` were merged no-ff and
-deleted). Test suite: 420 passing offline (`uv run pytest -q
---ignore=tests/test_registered.py` in `bitcliff/pipeline/`; the ignored
-file's ~20 tests rebuild item sets from live HF and also pass, slowly).
+Branch list: `main` only (work branches `pre-0b-tickets`, `0b-analysis`,
+`factualqa-rerun` were merged no-ff and deleted). Origin last pushed at
+`1977521e55d92dfda374e7119eb66c1828b6218b` (2026-09-12, Amendment 4 stamp);
+commits after it are local until the user says push — check
+`git rev-list --left-right --count main...origin/main` first. Test suite:
+438 passing (`uv run pytest -q` in `bitcliff/pipeline/`, ~5 s; includes
+`tests/test_registered.py`, which rebuilds item sets from live HF).
 
 ## 2. 0B final state
 
@@ -92,7 +91,44 @@ file's ~20 tests rebuild item sets from live HF and also pass, slowly).
    missed) — with the IQ-vs-K ~2.5 bpw note attached specifically to
    the two IQ2_M-above-Q2_K rows (llama twins, llama factual_qa).
    Verified: zero cell states, cliffs, or Holm verdicts changed.
-6. Older resolved items (§1–§7) live in OPEN_QUESTIONS.md with their
+6. **Amendment 3 (§5 shootout trigger fired):** the trigger fired
+   2026-09-03 (`be3b07d`/`b2f29c1`), held on registered data and all sweep
+   seeds; PREREG §15.5 makes a firing an amendment. Appended 2026-09-08 at
+   commit `9f94913d322b009b214e2bfde80f1217e9d1da17`, receipt
+   `freeze/amendment3-commit-hash.txt.ots`, Bitcoin-attested (block
+   headers 966021/966024/966041; upgraded 2026-09-10). §C quotes §5's consequence
+   clause byte-identically and commits the Qwen-7B shootout file manifest to
+   its own stamped section before any run. OPEN_QUESTIONS §12 inventories
+   what §5 fixes by inheritance and what that manifest section must fix
+   (uploader set, files/hashes/enumeration date, machine, bartowski reuse,
+   Holm membership).
+7. **Amendment 4 (the 1.5B confirmatory ladder):** the slot Amendment 2 §F
+   reserved. Amendment 2 §C's rule applied to
+   `bartowski/Qwen2.5-1.5B-Instruct-GGUF` at revision `9eadc661…`: F16
+   (local, `954b4492…`) + Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q3_K_M, Q2_K, IQ2_M
+   (lowest published below Q2_K; no IQ2_XXS/IQ1 published). Manifest
+   `reference-manifests/qwen2.5-1.5b-bartowski.json`; in-house spectacle
+   files pinned separately in `qwen2.5-1.5b-inhouse.json`, excluded.
+   Appended 2026-09-12 at `3d793e591612082d92fa55f4c64b71416dc33b3a`,
+   receipt `freeze/amendment4-commit-hash.txt.ots`, Bitcoin-attested
+   (966743/966744/966764; upgraded 2026-09-14). Gated append: rule quote
+   byte-identical, every hash re-read from HF at stamp time, content grep
+   for run-plan terms outside §F returned zero.
+8. **Post-freeze PREREG body edits (OPEN_QUESTIONS §11):** exactly two
+   body lines differ from the freeze commit — line 3 (status header,
+   `0285fcd`, 2026-09-07) and line 570 (§7 slot pointer, made in `00a1228`).
+   Every append is gated on `git diff 5e6882b7 HEAD -- PREREG.md` showing
+   only those two body hunks plus the receipt/appendix hunk at 790.
+9. **Official-Qwen imatrix label (OPEN_QUESTIONS §10, RESOLVED
+   2026-09-08):** the config's `imatrix: false` for Arm 2 was asserted
+   without evidence at run time; the GGUF headers of both pinned official
+   files (range-fetched, KV block parsed) carry no `quantize.imatrix.*` key.
+   Evidence `reference-manifests/evidence/qwen2.5-7b-official-gguf-headers.md`;
+   footnote in FINDINGS_0B.md's Arm 2 section (inside the generated body —
+   re-add after any regeneration). The seven bartowski 1.5B rungs were
+   checked the same way and all carry the keys
+   (`…/evidence/qwen2.5-1.5b-bartowski-gguf-headers.md`).
+10. Older resolved items (§1–§7) live in OPEN_QUESTIONS.md with their
    rulings: HF gate, 2b n/seed registration, alias-mapping union,
    packager 4a/4b (+ later positive corpus-provenance check), 8B-class
    longctx out-of-band fallback, ladder rung set (→ Amendment 2),
@@ -150,12 +186,20 @@ file's ~20 tests rebuild item sets from live HF and also pass, slowly).
 - Also NOT run: the §9 durability comparison page-analysis, and 0C
   (blind check) is unstarted with its `[TO BE FILLED before 0C]` slots
   open in PREREG §10.
-- **Qwen-7B uploader shootout: MANDATED by the fired §5 trigger**
-  (registered follow-up measurement, "run after the launch analyses").
-  Not yet scheduled; needs its own config/manifest work + user go for
-  spend.
-- **0B′ parked** (1.5B confirmatory rerun + curated-50 regeneration on
-  the serving machine, per PREREG; explicitly not started, per user).
+- **Qwen-7B uploader shootout: MANDATED by the fired §5 trigger**, now
+  recorded as Amendment 3 (stamped). Before it can run: a stamped
+  `shootout-7b.json` manifest section fixing the items OPEN_QUESTIONS §12
+  lists, then a user go for spend. "Run after the launch analyses."
+- **0B′ (1.5B confirmatory run): ladder registered (Amendment 4), run
+  plan drafted (`RUN_0B_PRIME.md`), NOT started.** Two plan readings await
+  the user's confirmation: twins run for the 1.5B (§3.3 names no model, so
+  the plan reads "runs"); the 2a NLL pass is labeled exploratory per user
+  ruling though §3.1's spec is the 2a configuration. Cap line blank.
+  Before "proceed", per RUN_0B_PRIME.md §9: 2a item-set hash in
+  `registered.py`, `configs/0b-prime/` + cross-check tests, a per-item
+  timing field in the runner (no run to date recorded timing), and the
+  reproduction-gate script (Qwen-7B Q4_K_M, first 25 longctx items, empty
+  diff required). Machine ruling: the 0B fingerprint / CUDA AMI.
 - **Site/launch work not started.** `site/` still serves PILOT fixtures
   only (exploratory data, browse-only banners, 50 items × 11 rungs from
   pilot-0a); no confirmatory fixtures exported, no cliff tables,
@@ -180,9 +224,18 @@ file's ~20 tests rebuild item sets from live HF and also pass, slowly).
   `analysis/0b/F16_CROSS_MACHINE.md`,
   `analysis/0b/sweep/cells-seed{1..4}.csv`; `configs/0b/`,
   `configs/0b2/`, `configs/smoke/`; `OPEN_QUESTIONS.md` (repo root —
-  §1–§9 all resolved); `PREREG.md` + `freeze/*.ots`; `RUN_0B.md`
-  (executed plan); `claude/IDEA.md` (v2, context) + `claude/IDEA-v1.md`
-  (freeze-era design doc, Amendment 2's citation source).
+  §1–§10 resolved; §11 and §12 are disclosures; note the file has two
+  sections numbered §6, the imatrix one was renumbered §10);
+  `PREREG.md` (freeze + Amendments 1–4) + `freeze/*.ots` (four receipts,
+  all Bitcoin-attested; `.ots.bak` files are the pre-upgrade receipts);
+  `AMENDMENT{,2,3,4}_DRAFT.md` (reviewed drafts, superseded banners);
+  `reference-manifests/` (8B ladders, official Qwen, shootout-8b,
+  `qwen2.5-1.5b-bartowski.json`, `qwen2.5-1.5b-inhouse.json`) and
+  `reference-manifests/evidence/` (GGUF-header imatrix evidence);
+  `RUN_0B.md` (executed plan); `RUN_0B_PRIME.md` (0B′ plan, working
+  doc); `docs/superpowers/plans/` (historical plans, audit trail);
+  `claude/IDEA.md` (v2, context) + `claude/IDEA-v1.md` (freeze-era design
+  doc, Amendment 2's citation source).
 - **AWS kept deliberately (user ruling):** AMIs
   `ami-036a0dda7513b8f1c` (staged pre-CUDA) and
   `ami-0dc0c90fcfca46f7c` (CUDA-baked, hash-gated F16s included — the
