@@ -1281,7 +1281,7 @@ and OpenTimestamps-stamped like the original; this amendment's own commit
 hash and receipt are recorded by the follow-up commit:
 
 Amendment 4 commit: `3d793e591612082d92fa55f4c64b71416dc33b3a` (filled by the follow-up commit)
-Amendment 4 OpenTimestamps proof: `freeze/amendment4-commit-hash.txt.ots` (receipt over `freeze/amendment4-commit-hash.txt` containing `3d793e591612082d92fa55f4c64b71416dc33b3a`; submitted to 4 calendar servers 2026-09-12, pending Bitcoin attestation — run `ots upgrade` after ~a day and commit the upgraded receipt)
+Amendment 4 OpenTimestamps proof: `freeze/amendment4-commit-hash.txt.ots` (receipt over `freeze/amendment4-commit-hash.txt` containing `3d793e591612082d92fa55f4c64b71416dc33b3a`; Bitcoin-attested: block headers 966743/966744/966764, upgraded receipt committed 2026-09-14 in the commit carrying this line — hash visible in `git log -- freeze/amendment4-commit-hash.txt.ots`)
 
 ## A. The slot this fills
 
