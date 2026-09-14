@@ -1,6 +1,6 @@
 # AMENDMENT4_DRAFT — the 1.5B confirmatory ladder (slot fill)
 
-**Status: SUPERSEDED — stamped into PREREG.md as Amendment 4 on 2026-09-12 (commit `3d793e591612082d92fa55f4c64b71416dc33b3a`, receipt `freeze/amendment4-commit-hash.txt.ots`, pending Bitcoin attestation). This file is the reviewed draft, retained as history; PREREG.md's Amendment 4 is the registered text.**
+**Status: SUPERSEDED — stamped into PREREG.md as Amendment 4 on 2026-09-12 (commit `3d793e591612082d92fa55f4c64b71416dc33b3a`, receipt `freeze/amendment4-commit-hash.txt.ots`, Bitcoin-attested 2026-09-14). This file is the reviewed draft, retained as history; PREREG.md's Amendment 4 is the registered text.**
 
 The text below is what gets appended to PREREG.md, following Amendment 3,
 upon the user's "stamp it".

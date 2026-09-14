@@ -1,6 +1,6 @@
 # AMENDMENT3_DRAFT — PREREG §5 shootout trigger fired
 
-**Status: SUPERSEDED — stamped into PREREG.md as Amendment 3 on 2026-09-08 (commit `9f94913d322b009b214e2bfde80f1217e9d1da17`, receipt `freeze/amendment3-commit-hash.txt.ots`, pending Bitcoin attestation). This file is the reviewed draft, retained as history; PREREG.md's Amendment 3 is the registered text.**
+**Status: SUPERSEDED — stamped into PREREG.md as Amendment 3 on 2026-09-08 (commit `9f94913d322b009b214e2bfde80f1217e9d1da17`, receipt `freeze/amendment3-commit-hash.txt.ots`, Bitcoin-attested 2026-09-10). This file is the reviewed draft, retained as history; PREREG.md's Amendment 3 is the registered text.**
 
 The text below is what gets appended to PREREG.md, following Amendment 2,
 upon the user's "stamp it".
