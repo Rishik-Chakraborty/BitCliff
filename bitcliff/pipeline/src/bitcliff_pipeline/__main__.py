@@ -26,6 +26,7 @@ REGISTERED_SUITE_N: dict[str, int] = {
     "arithmetic_twins": registered.TWINS_N,
     "factual_qa": registered.FACTUAL_QA_N,
     "longctx_retrieval": registered.LONGCTX_N,
+    "longctx_retrieval_2a": registered.LONGCTX_2A_N,
 }
 
 

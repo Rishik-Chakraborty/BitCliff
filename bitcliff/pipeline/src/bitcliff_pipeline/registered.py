@@ -17,9 +17,15 @@ refuses to generate if it doesn't match the value pinned here.
 
 No I/O. Plain constants only, each cited to the PREREG/Amendment section (or
 external file) it comes from. Values were re-verified against PREREG.md and
-its Amendments 1-2 (and, for the two constants PREREG never registers,
-computed locally — see `DERIVED_ITEM_SET_SHA256` below) while writing this
-module, not copied blind from any prior draft.
+its Amendments 1-4 (and, for the constants PREREG never registers, computed
+locally — see `DERIVED_ITEM_SET_SHA256` below, and the 2a full-set entry in
+`ITEM_SET_SHA256`) while writing this module, not copied blind from any
+prior draft.
+
+Through Amendment 4 (2026-09-12, "the registered 1.5B confirmatory ladder"):
+adds the 1.5B's stamped manifest hash, its 8-row (F16 + 7 rungs) file-hash
+ladder (`QWEN15B_LADDER_SHA256`), and the 2a (`longctx_retrieval_2a`)
+first-20-item digest + full n=96 item-set hash for `qwen2.5-1.5b-instruct`.
 """
 
 from __future__ import annotations
@@ -40,7 +46,10 @@ ARITHMETIC_SEED = 3141
 TWINS_SEED = 1301
 
 # PREREG §3.1 Amendment 1 §A: "2b longctx_retrieval registered n=96,
-# seed=2024."
+# seed=2024." PREREG §3.1's Configuration 2a subsection registers the same
+# seed for the 1.5B comparability run ("seed 2024, n=96") -- one seed
+# constant, shared by both suite keys (`longctx_retrieval` for 2b,
+# `longctx_retrieval_2a` for 2a; see LONGCTX_2A_N below).
 LONGCTX_SEED = 2024
 
 # PREREG §3.4: "confirmatory fixed seed 2718."
@@ -68,6 +77,13 @@ FACTUAL_QA_N = 500
 
 # PREREG §3.1 Amendment 1 §A: 2b n=96.
 LONGCTX_N = 96
+
+# PREREG §3.1 Configuration 2a: "seed 2024, n=96" -- same n as 2b's
+# LONGCTX_N (and the same LONGCTX_SEED), but kept as its own constant
+# because 2a is a distinct suite key (`longctx_retrieval_2a`, controller
+# ruling 2026-09-27 -- 2a/2b item ids differ and the gate checks each
+# suite's n independently; see REGISTERED_SUITE_N in __main__.py).
+LONGCTX_2A_N = 96
 
 # PREREG §3.3: all 47 verified templates -> 94 (original, twin) items. Not a
 # config knob -- fixed by the verified template set itself.
@@ -147,6 +163,54 @@ LLAMA_F16_SHA256 = "139c255d857940bc945b2a3242fbbb2641b59191d79413bcad9b74fa1784
 QWEN7B_F16_SHA256 = "970ccec3ad83bb62aa25ce585bed4ebd297963257442afe697d350465933f2c5"
 
 # ---------------------------------------------------------------------------
+# 1.5B confirmatory ladder -- Amendment 4 (2026-09-12), "the registered 1.5B
+# confirmatory ladder". Unlike the 7B/8B reference models (whose non-F16
+# rungs are pinned only in their own reference-manifests/*.json +
+# configs/0b/*.yaml, cross-checked in tests/test_0b_configs.py), the 1.5B
+# has no 0b config yet, so its whole 8-row ladder (F16 + the 7 rungs
+# Amendment 4 §B's rule selects) is pinned here, following the same
+# F16-then-ladder structure as LLAMA_F16_SHA256 / QWEN7B_F16_SHA256 above.
+# ---------------------------------------------------------------------------
+
+# Amendment 4 §D: the stamped manifest's own file sha256 --
+# `reference-manifests/qwen2.5-1.5b-bartowski.json`.
+QWEN15B_MANIFEST_SHA256 = "023a2c0e37031d764a59cbd25e36d1b15d24e8ba35dad1f6ed7e10404b9c6a3f"
+
+# Amendment 4 §C: F16 (local official-repo conversion, baseline only, never
+# a download recommendation) -- same value as the manifest's `f16.sha256`.
+QWEN15B_F16_SHA256 = "954b449288dd7989c3ddc193666c88d1bb43857c1a2468d04e422b47cc234fe4"
+
+# Amendment 4 §C's 8-row table (label -> sha256), quoted verbatim and
+# cross-checked in tests/test_registered.py against the manifest JSON
+# itself (`gguf_files[*].rung` / `.sha256` for the 7 `in_ladder` rows, plus
+# `f16.sha256`) -- never a second hand-typed copy trusted on its own.
+QWEN15B_LADDER_SHA256: dict[str, str] = {
+    "F16": QWEN15B_F16_SHA256,
+    "Q8_0": "7185d306cf45956c8c017cd0d3b05ecc6bc18b3ea8eb5c240dce40e87563db7f",
+    "Q6_K": "1b01b4ea4ccdd5aa6a5972790002e120a5d500a5175be571114d642a8db4d14e",
+    "Q5_K_M": "cf240adc57e126e86102335f6565fb23e523b28d287c75bdb0759f064e8bb572",
+    "Q4_K_M": "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
+    "Q3_K_M": "7437ad04011a14fb890074cc783df4c1d537197942337353a824ff7e6115ef9b",
+    "Q2_K": "a8880f0de2348db67d00519ef7f4b40326ef67012bf5f2e90bd1d47474e2355c",
+    "IQ2_M": "cee720c998e71ff3f02fbb3d392c7598bc0f845ae08bbb585ef2ff5fcbd45b81",
+}
+
+# PREREG §3.1 Configuration 2a: the vendored generator's own registered
+# first-20-item digest ("item-construction fidelity is verified by digest
+# -- the vendored generator with the real tokenizer reproduces the bundle's
+# first-20-item digest ... exactly"), i.e.
+# `mv2.items_digest(mv2.build_items(tokenizer, "multivalue2", 20, 4096,
+# 2024))` over the real Qwen2.5-1.5B-Instruct tokenizer. This one IS
+# PREREG-registered (quoted verbatim from §3.1); contrast with the full
+# n=96 ITEM_SET_SHA256 entry below, which is self-declared. Also used
+# (independently, as its own literal) by
+# `scripts/package_dataset.py::CONFIG_2A_REFERENCE_DIGEST` -- pre-existing,
+# not touched by this module.
+LONGCTX_2A_FIRST20_DIGEST_SHA256 = (
+    "9220589bd8607bd0ff3be5bdcfecd23df07cac82d354d992468b15b60f398972"
+)
+
+# ---------------------------------------------------------------------------
 # Registered item-set hashes -- Amendment 1 §C's per-cell calibration
 # results. Keyed (suite, model_id); a model-INDEPENDENT suite (factual_qa:
 # "item construction is model-independent", Amendment 1 §C) is keyed
@@ -168,6 +232,24 @@ ITEM_SET_SHA256: dict[tuple[str, str | None], str] = {
     ),
     ("longctx_retrieval", "llama-3.1-8b-instruct"): (
         "9973be4a98d860e84f8002be91a80b2808a371466c0f60d6a2f073e79ad59bff"
+    ),
+    # PREREG §3.1 Configuration 2a, qwen2.5-1.5b-instruct only (the 2a run
+    # is 1.5B-only, per §3.1: "Q5 comparability run (Qwen2.5-1.5B-Instruct
+    # only)"). UNLIKE every other entry in this dict, this hash is NOT
+    # itself quoted in PREREG/its Amendments -- only the first-20-item
+    # digest above (LONGCTX_2A_FIRST20_DIGEST_SHA256) is PREREG-registered.
+    # This full n=96 item-set hash is self-declared: computed 2026-09-27
+    # from the registered builder (`suites.longctx_retrieval.build_items`,
+    # the tokenizer at models/hf/Qwen2.5-1.5B-Instruct, the verified 2a
+    # corpus, LONGCTX_2A_N=96, LONGCTX_SEED=2024, variant "multivalue2",
+    # target_tokens 4096) -- ONLY after independently reproducing the
+    # registered first-20-item digest above and confirming it matched
+    # (tests/test_registered.py reproduces both). Suite-retagged from
+    # "longctx_retrieval" to "longctx_retrieval_2a" per the controller's
+    # 2a/2b naming ruling; `hashing.item_set_sha256` does not cover the
+    # suite name, so the hash is identical either way.
+    ("longctx_retrieval_2a", "qwen2.5-1.5b-instruct"): (
+        "5404e813edbc881306fd3aee25372dd95f8ed297bd705a5d3765b903a1712104"
     ),
 }
 

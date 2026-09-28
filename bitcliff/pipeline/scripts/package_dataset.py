@@ -913,15 +913,25 @@ def _verify_longctx_recipe(
     )
 
 
-def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:
+def load_2a_corpus_text() -> str:
+    """Load the 2a corpus (`sgoel9/paul_graham_essays`, PREREG §3.1
+    Configuration 2a) exactly as `_verify_2a_machinery` needs it:
+    `load_dataset(mv2.CORPUS_DATASET, split="train")`, joined
+    `"\\n\\n".join(ds["text"])`. Forces HF_HUB_OFFLINE / HF_DATASETS_OFFLINE
+    for the duration of the call, restoring whatever was set before --
+    same behavior as the inline version this replaces.
+
+    Extracted so a second caller (tests/test_registered.py's 2a
+    item-set-hash reproduction test) reuses this loader instead of
+    duplicating the load_dataset/join logic -- registered.py's own rule
+    ("never hand-copy a registered value ... into code") extends to not
+    hand-copying the *derivation recipe* for one either.
+    """
     import os
 
-    tokenizer_path = pipeline_root / "models" / "hf" / "Qwen2.5-1.5B-Instruct"
-    if not tokenizer_path.exists():
-        return (
-            "SKIPPED",
-            f"tokenizer not cached locally at {tokenizer_path}; not downloading",
-        )
+    from datasets import load_dataset
+
+    from bitcliff_pipeline.vendor import generate_multivalue2 as mv2
 
     old_env = {
         k: os.environ.get(k) for k in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE")
@@ -929,25 +939,32 @@ def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["HF_DATASETS_OFFLINE"] = "1"
     try:
-        try:
-            from datasets import load_dataset
-
-            from bitcliff_pipeline.vendor import generate_multivalue2 as mv2
-
-            ds = load_dataset(mv2.CORPUS_DATASET, split="train")
-            corpus_text = "\n\n".join(ds["text"])
-        except Exception as exc:
-            return (
-                "SKIPPED",
-                f"2a corpus (sgoel9/paul_graham_essays) not cached locally; "
-                f"not downloading ({exc})",
-            )
+        ds = load_dataset(mv2.CORPUS_DATASET, split="train")
+        return "\n\n".join(ds["text"])
     finally:
         for k, v in old_env.items():
             if v is None:
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
+
+
+def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:
+    tokenizer_path = pipeline_root / "models" / "hf" / "Qwen2.5-1.5B-Instruct"
+    if not tokenizer_path.exists():
+        return (
+            "SKIPPED",
+            f"tokenizer not cached locally at {tokenizer_path}; not downloading",
+        )
+
+    try:
+        corpus_text = load_2a_corpus_text()
+    except Exception as exc:
+        return (
+            "SKIPPED",
+            f"2a corpus (sgoel9/paul_graham_essays) not cached locally; "
+            f"not downloading ({exc})",
+        )
 
     actual_sha = hashlib.sha256(corpus_text.encode("utf-8")).hexdigest()
     if actual_sha != CORPUS_2A_SHA256:
