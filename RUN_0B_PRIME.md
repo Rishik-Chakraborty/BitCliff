@@ -55,8 +55,9 @@ Twins and factual_qa are therefore registered for the 1.5B and run.
 **Machinery:** §8 per-cell inference (margin 0.03, McNemar exact, paired
 bootstrap 10,000; lines 583–612); boot-time item-set hash gates from
 `registered.py` (`2e53ca0e…` factual_qa, `ed18db13…` longctx 2b for the
-1.5B, derived gates for arithmetic and twins; 2a's item-set hash is not yet
-pinned in `registered.py` and must be added before the run); bootstrap seed
+1.5B, derived gates for arithmetic and twins; 2a's item-set hash
+`5404e813…` is pinned in `registered.py` (commit `05537fe`; first-20 digest
+verified)); bootstrap seed
 8271 with the ratified per-cell and per-pair string rules (OPEN_QUESTIONS
 §7). The 2a tokenizer-match assertion (§3.1 lines 111–120) and the
 first-20-item digest `9220589b…` (§3.1 lines 130–135) must pass before the

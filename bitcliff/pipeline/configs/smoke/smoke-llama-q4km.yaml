@@ -10,12 +10,13 @@
 # (PREREG §3.4) -- this is a fast sanity draw, not a measurement. Because
 # n=20 != the registered FACTUAL_QA_N, the boot-time item-set hash gate
 # (bitcliff_pipeline.__main__.assert_item_sets_match_registered, pre-rerun
-# hardening, OPEN_QUESTIONS §8) would already skip this suite on n alone --
-# `exploratory: true` below is the explicit, config-level belt-and-braces
-# opt-out (loud printed warning, gate skipped for every suite in this
-# config, not just the ones whose n happens to mismatch), so this config
-# can never be mistaken for -- or accidentally graded as -- a confirmatory
-# 0B run. No numbers from a run of this config are publishable.
+# hardening, OPEN_QUESTIONS §8) now fails loudly on a registered suite run
+# at a non-registered n -- `exploratory: true` below is the explicit,
+# config-level opt-out that skips the gate entirely (loud printed warning,
+# gate skipped for every suite in this config, not just the ones whose n
+# happens to mismatch), so this config can never be mistaken for -- or
+# accidentally graded as -- a confirmatory 0B run. No numbers from a run of
+# this config are publishable.
 
 exploratory: true
 

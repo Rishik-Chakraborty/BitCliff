@@ -803,15 +803,16 @@ RUN_FOOTNOTES = {
     ),
 }
 
-# OPEN_QUESTIONS §15(c): the sentence added by hand on 2026-09-27 (0B run
-# set only), kept byte-identical -- including its now-fulfilled forward
-# reference to this script.
+# OPEN_QUESTIONS §15(c): the sentence originally added by hand on
+# 2026-09-27 (0B run set only). Its own text promised it would "move into
+# scripts/analyze_0b.py in the next code turn" -- reworded 2026-09-28 (code
+# turn "deferred items") to say it is now emitted by this generator, which
+# fulfills that promise.
 SIGN_CONVENTION_0B = (
-    'Sign convention (added 2026-09-27, OPEN_QUESTIONS §15(c)): for a row "A vs B", '
-    "delta = acc(B) minus acc(A). All {n} rows below were checked against the "
-    "per-file accuracies in `cells.csv`, and none contradicts it. This sentence was "
-    "added by hand; it moves into `scripts/analyze_0b.py` in the next code turn so a "
-    "regeneration keeps it."
+    'Sign convention (OPEN_QUESTIONS §15(c); emitted by `scripts/analyze_0b.py` '
+    'since 2026-09-28): for a row "A vs B", delta = acc(B) minus acc(A). All {n} '
+    "rows below were checked against the per-file accuracies in `cells.csv`, and "
+    "none contradicts it."
 )
 SIGN_CONVENTION_GENERIC = (
     'Sign convention (OPEN_QUESTIONS §15(c)): for a row "A vs B", delta = acc(B) '
@@ -1278,17 +1279,76 @@ CELL_TABLE_HEADER = (
 )
 
 
+def _fingerprint_section_lines(result: AnalysisResult, runs_root: Optional[Path]) -> list[str]:
+    """``## Machine / software fingerprint`` (PREREG §6). The 0B run set is
+    one machine/session, documented at the shared ``runs-cloud/
+    fingerprint.txt``; this text is unconditional and byte-identical to the
+    committed section regardless of ``runs_root`` (deferred-items code
+    turn, 2026-09-28). Any other run set must NOT be described by that
+    file -- it names only the 0B machine, and silently pointing another run
+    set at it would imply a fingerprint that was never recorded for it -- so
+    each run id's own ``<run_dir>/fingerprint.txt`` is read instead, and a
+    missing one fails loudly (naming the expected path) rather than
+    dropping the section."""
+    is_0b = is_0b_run_set(result.run_ids, result.ladder_run_ids)
+    lines = ["## Machine / software fingerprint", ""]
+    if is_0b:
+        lines.append(
+            "Every generation run's determinism scope (PREREG §6) is bounded by the "
+            "serving machine's hardware/software fingerprint, recorded at "
+            "`runs-cloud/fingerprint.txt`. See that file for instance type, GPU, "
+            "CUDA, llama.cpp commit, and llama-cpp-python build. Not restated here "
+            "to avoid a second copy drifting out of sync."
+        )
+        lines.append("")
+        return lines
+
+    if runs_root is None:
+        raise RuntimeError(
+            "fingerprint section: runs_root is required for a non-0B run set "
+            "(each run id's own <run_dir>/fingerprint.txt must be located -- "
+            "the shared runs-cloud/fingerprint.txt is never substituted, since "
+            "it documents only the 0B machine)."
+        )
+    missing = [
+        str(runs_root / run_id / "fingerprint.txt")
+        for run_id in result.run_ids
+        if not (runs_root / run_id / "fingerprint.txt").is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "fingerprint section: missing per-run fingerprint file(s) for a "
+            "non-0B run set -- expected: " + ", ".join(missing) + " (never "
+            "falls back to the shared runs-cloud/fingerprint.txt, which "
+            "documents only the 0B machine, for another run set)."
+        )
+    lines.append(
+        "This is not the 0B run set, so the shared `runs-cloud/fingerprint.txt` "
+        "(which documents only the 0B machine) is not used here. Each run's own "
+        "determinism scope (PREREG §6) is bounded by the hardware/software "
+        "fingerprint recorded at its own run directory:"
+    )
+    lines.append("")
+    for run_id in result.run_ids:
+        lines.append(f"- `{run_id}`: `{runs_root / run_id / 'fingerprint.txt'}`")
+    lines.append("")
+    return lines
+
+
 def write_findings_md(
     result: AnalysisResult,
     out_path: Path,
     *,
     sweep: Optional[dict[str, list[CellRow]]] = None,
     first_pass: Optional[AnalysisResult] = None,
+    runs_root: Optional[Path] = None,
 ) -> None:
     """Render FINDINGS markdown off ``result``. ``sweep`` (seed prefix ->
     cells, ``load_sweep``) and ``first_pass`` (``compute_first_pass_factual_qa``)
     feed the 0B-only seed-sweep section and Appendix A; both are emitted
-    only for the 0B run set at the ratified seed (ignored otherwise)."""
+    only for the 0B run set at the ratified seed (ignored otherwise).
+    ``runs_root`` locates each run's own fingerprint file for a non-0B run
+    set (see ``_fingerprint_section_lines``); unused for the 0B run set."""
     is_0b = is_0b_run_set(result.run_ids, result.ladder_run_ids)
     ratified = str(SEED) == registered.BOOTSTRAP_SEED
     lines: list[str] = []
@@ -1311,16 +1371,7 @@ def write_findings_md(
     lines.append("")
 
     # --- Fingerprint reference ---
-    lines.append("## Machine / software fingerprint")
-    lines.append("")
-    lines.append(
-        "Every generation run's determinism scope (PREREG §6) is bounded by the "
-        "serving machine's hardware/software fingerprint, recorded at "
-        "`runs-cloud/fingerprint.txt`. See that file for instance type, GPU, "
-        "CUDA, llama.cpp commit, and llama-cpp-python build. Not restated here "
-        "to avoid a second copy drifting out of sync."
-    )
-    lines.append("")
+    lines.extend(_fingerprint_section_lines(result, runs_root))
 
     # --- Seed disclosure ---
     if ratified:
@@ -1702,15 +1753,27 @@ def main() -> None:
     sweep = first_pass = None
     if is_0b and str(SEED) == registered.BOOTSTRAP_SEED:
         sweep_dir = Path(args.sweep_dir) if args.sweep_dir else pipeline_dir / "analysis" / "0b" / "sweep"
-        if sweep_dir.is_dir():
-            sweep = load_sweep(sweep_dir) or None
+        # The 0B run set at the ratified seed always has a seed-robustness
+        # sweep section (Task 8); a missing directory -- default or
+        # explicit -- is a configuration error, not "no sweep to report",
+        # so it fails loudly here rather than silently dropping the section.
+        if not sweep_dir.is_dir():
+            parser.error(
+                f"--sweep-dir {sweep_dir} not found -- the 0B run set at the "
+                "ratified seed requires the seed-robustness sweep section; "
+                "pass an existing --sweep-dir or restore analysis/0b/sweep/"
+            )
+        sweep = load_sweep(sweep_dir) or None
         if "factual_qa" in args.suites and args.factual_qa_source:
             first_pass = compute_first_pass_factual_qa(
                 runs_root, ladder_run_ids=args.ladder_run_ids,
                 ladder_order=args.ladder_order, run_model=args.run_model,
             )
     write_cells_csv(result.cells, out_dir / "cells.csv", inversions=result.inversions)
-    write_findings_md(result, out_dir / findings_name, sweep=sweep, first_pass=first_pass)
+    write_findings_md(
+        result, out_dir / findings_name, sweep=sweep, first_pass=first_pass,
+        runs_root=runs_root,
+    )
     print(f"wrote {len(result.cells)} cells to {out_dir / 'cells.csv'}")
     print(f"wrote findings to {out_dir / findings_name}")
     n_cliffs = sum(1 for cr in result.cliffs.values() if cr.cliff_rung is not None)
