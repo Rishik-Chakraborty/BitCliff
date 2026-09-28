@@ -202,10 +202,9 @@ QWEN15B_LADDER_SHA256: dict[str, str] = {
 # `mv2.items_digest(mv2.build_items(tokenizer, "multivalue2", 20, 4096,
 # 2024))` over the real Qwen2.5-1.5B-Instruct tokenizer. This one IS
 # PREREG-registered (quoted verbatim from §3.1); contrast with the full
-# n=96 ITEM_SET_SHA256 entry below, which is self-declared. Also used
-# (independently, as its own literal) by
-# `scripts/package_dataset.py::CONFIG_2A_REFERENCE_DIGEST` -- pre-existing,
-# not touched by this module.
+# n=96 ITEM_SET_SHA256 entry below, which is self-declared. Also used by
+# `scripts/package_dataset.py::CONFIG_2A_REFERENCE_DIGEST`, which imports
+# (aliases) this constant rather than restating the literal.
 LONGCTX_2A_FIRST20_DIGEST_SHA256 = (
     "9220589bd8607bd0ff3be5bdcfecd23df07cac82d354d992468b15b60f398972"
 )

@@ -614,7 +614,8 @@ def test_build_arg_parser_overrides_for_a_single_ladder_run_no_arms():
 def test_run_analysis_single_ladder_run_no_arms_does_not_crash(tmp_path):
     """Shootout/trigger logic only applies when arm runs are given; with
     none (arm1_levels=[] and arm2_levels=[]), the shootout section must be
-    empty and the trigger must read "not fired", never crash."""
+    empty and the §5 trigger must read "not applicable" (not "not fired",
+    which would imply a comparison was made), never crash."""
     root = tmp_path / "runs"
     suite = "arithmetic"
     ids = [f"i{n}" for n in range(10)]
@@ -642,7 +643,8 @@ def test_run_analysis_single_ladder_run_no_arms_does_not_crash(tmp_path):
     a0b.write_findings_md(result, out_path)  # must not raise
     text = out_path.read_text()
     assert "### `1p5b-ladder` (qwen2.5-1.5b-instruct, ladder)" in text
-    assert "Trigger: not fired" in text
+    assert "**Trigger: not applicable.**" in text
+    assert "Trigger: not fired" not in text
 
 
 def test_write_findings_md_uses_result_run_model_not_module_global(tmp_path):
@@ -894,3 +896,177 @@ def test_appendix_a_raises_when_cliff_comparison_prose_no_longer_holds(tmp_path)
     )
     with pytest.raises(ValueError, match="Appendix A"):
         _findings(result, tmp_path, first_pass=first_pass)
+
+
+# ---------------------------------------------------------------------------
+# Final review (code turn 2026-09-27), Important 1 + 2: a non-0B run set
+# (the 1.5B/0B-prime shape: one ladder run, five suites, no arms) gets a
+# neutral title, no 0B scope note, no unverified 0B data claims, and the §5
+# trigger "not applicable" with no Arm prose; a non-0B CLI invocation must
+# name its own --out-dir and never writes analysis/0b/.
+# ---------------------------------------------------------------------------
+
+PRIME_RUN = "0b-prime-qwen-1.5b-ladder"
+PRIME_SUITES = ["longctx_retrieval_2a", "longctx_retrieval", "arithmetic", "arithmetic_twins", "factual_qa"]
+
+# Every string below is 0B-only prose (or a 0B data claim) that must never
+# appear for a non-0B run set. (The cliff-flag "reads False for every
+# family" sentence is data-derived, so it is checked per data, not here.)
+ZERO_B_ONLY_STRINGS = [
+    "# 0B Confirmatory Findings",
+    "## Scope note (PREREG §4)",
+    "0B covers only",
+    "The 1.5B spectacle model",
+    "this analysis touches none of them",
+    "all 8 families",
+    "Arm 1",
+    "Arm 2",
+    "Trigger: not fired",
+    "Trigger: FIRED",
+    "Absent the trigger",
+    "no 7B uploader shootout runs",
+    "near-ceiling",
+    "0/96",
+    "~3.7%",
+    "first ran (2026-09-03)",
+    "Footnote (2026-09-08",
+    "## Seed robustness sweep",
+    "## Appendix A",
+]
+
+
+def _prime_result(tmp_path, n=10):
+    """Synthetic single-ladder five-suite no-arm run. F16 and the top four
+    rungs are all correct (zero discordance), the bottom three all wrong
+    (a cliff in every suite)."""
+    root = tmp_path / "prime-runs"
+    ids = {s: [f"{s}-{k}" for k in range(n)] for s in PRIME_SUITES}
+    top = set(a0b.LADDER_ORDER[:4])
+    labels = {
+        s: {"F16": ["correct"] * n, **{
+            r: (["correct"] if r in top else ["incorrect"]) * n for r in a0b.LADDER_ORDER
+        }}
+        for s in PRIME_SUITES
+    }
+    _write_run(root / PRIME_RUN, ids, labels)
+    return a0b.run_analysis(
+        root, n_resamples=50, run_ids=[PRIME_RUN], ladder_run_ids=[PRIME_RUN],
+        suites=PRIME_SUITES, arm1_levels=[], arm2_levels=[],
+        run_model={PRIME_RUN: "qwen2.5-1.5b-instruct"}, factual_qa_source={},
+    )
+
+
+def test_non_0b_single_ladder_five_suite_run_has_neutral_title_and_scope(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    assert text.startswith(f"# Confirmatory Findings — `{PRIME_RUN}` (PREREG §8)\n")
+    assert "## Scope\n\nRuns analyzed: `0b-prime-qwen-1.5b-ladder` (qwen2.5-1.5b-instruct, ladder). " in text
+    assert "Suites scored: `longctx_retrieval_2a`, `longctx_retrieval`, `arithmetic`, " in text
+
+
+def test_non_0b_run_prints_none_of_the_0b_only_strings(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    for s in ZERO_B_ONLY_STRINGS:
+        assert s not in text, s
+
+
+def test_non_0b_shootout_section_is_not_applicable_without_arm_prose(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    section = text[text.index("## Uploader shootout trigger (PREREG §5)"):
+                   text.index("## Disclosure: zero-discordance")]
+    assert section == (
+        "## Uploader shootout trigger (PREREG §5)\n\n"
+        "**Trigger: not applicable.** This run set contains no uploader-shootout "
+        "arm runs, so no same-label quant-vs-quant pair is computed and the "
+        "PREREG §5 trigger is not evaluated here.\n\n"
+    )
+    assert "| arm | level |" not in text
+
+
+def test_non_0b_cliff_and_zero_discordance_claims_are_data_derived(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    # Bottom-three-rungs-Damaged is a contiguous suffix: flag False everywhere.
+    assert "It reads False for every family in this data." in text
+    assert "the Damaged cells do not form a contiguous bottom suffix. " in text
+    assert "listed in full in the next section.\n" in text
+    # 4 zero-discordance rungs x 5 suites, counted per suite.
+    assert (
+        "This is disclosed here because 20 cell(s) in this data hit this condition "
+        "(`longctx_retrieval_2a`: 4, `longctx_retrieval`: 4, `arithmetic`: 4, "
+        "`arithmetic_twins`: 4, `factual_qa`: 4)"
+    ) in text
+
+
+def test_cliff_flag_sentence_counts_non_monotonic_families(tmp_path):
+    result = _prime_result(tmp_path)
+    k = (PRIME_RUN, "arithmetic")
+    result.cliffs[k] = _dc.replace(result.cliffs[k], non_monotonic=True)
+    assert "It reads True for 1 of 5 families in this data." in a0b._cliff_flag_sentence(result)
+
+
+def test_zero_discordance_paragraph_when_no_cell_hits_it(tmp_path):
+    result = _prime_result(tmp_path)
+    result = _dc.replace(result, cells=[c for c in result.cells if c.b_lost + c.c_gained > 0])
+    assert "No cell in this data hits this condition" in a0b._zero_discordance_paragraph(result)
+
+
+def test_real_0b_gated_prose_matches_committed_text(tmp_path):
+    """The 0B run set keeps the committed title, scope note, cliff sentence
+    and zero-discordance paragraph byte for byte."""
+    text = _findings(_committed_result(), tmp_path)
+    assert text.startswith("# 0B Confirmatory Findings (PREREG §8)\n")
+    for start, end in [
+        ("## Scope note (PREREG §4)", "## Per-cell results"),
+        ("## Cliffs (ladder runs only)", "| run_id | suite | cliff rung |"),
+        ("## Disclosure: zero-discordance", "\n\n---"),
+    ]:
+        assert _committed_section(start, end) in text, start
+
+
+def _run_main(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["analyze_0b.py", *argv])
+    a0b.main()
+
+
+NON_0B_ARGV = [
+    "--run-ids", PRIME_RUN, "--ladder-run-ids", PRIME_RUN,
+    "--suites", ",".join(PRIME_SUITES),
+    "--run-model", f"{PRIME_RUN}=qwen2.5-1.5b-instruct",
+    "--factual-qa-source", "", "--arm1-levels", "", "--arm2-levels", "",
+]
+
+
+def _forbid_work(monkeypatch):
+    calls = []
+    for name in ("run_analysis", "write_cells_csv", "write_findings_md"):
+        monkeypatch.setattr(a0b, name, lambda *a, _n=name, **k: calls.append(_n))
+    return calls
+
+
+def test_main_non_0b_without_out_dir_errors_and_writes_nothing(monkeypatch, capsys):
+    calls = _forbid_work(monkeypatch)
+    before = {p: p.stat().st_mtime_ns for p in COMMITTED_0B.iterdir() if p.is_file()}
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, NON_0B_ARGV)
+    assert exc.value.code == 2
+    assert "--out-dir is required" in capsys.readouterr().err
+    assert calls == []
+    assert {p: p.stat().st_mtime_ns for p in COMMITTED_0B.iterdir() if p.is_file()} == before
+
+
+def test_main_non_0b_refuses_analysis_0b_as_out_dir(monkeypatch, capsys):
+    calls = _forbid_work(monkeypatch)
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, [*NON_0B_ARGV, "--out-dir", str(COMMITTED_0B)])
+    assert exc.value.code == 2
+    assert "must not be analysis/0b/" in capsys.readouterr().err
+    assert calls == []
+
+
+def test_main_non_0b_with_out_dir_writes_findings_md_there(monkeypatch, tmp_path, capsys):
+    prime = _prime_result(tmp_path)
+    monkeypatch.setattr(a0b, "run_analysis", lambda *a, **k: prime)
+    out = tmp_path / "out"
+    _run_main(monkeypatch, [*NON_0B_ARGV, "--out-dir", str(out)])
+    assert sorted(p.name for p in out.iterdir()) == ["FINDINGS.md", "cells.csv"]
+    assert (out / "FINDINGS.md").read_text().startswith("# Confirmatory Findings — ")
+    assert "shootout trigger: not applicable" in capsys.readouterr().out

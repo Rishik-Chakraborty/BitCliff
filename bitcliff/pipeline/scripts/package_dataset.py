@@ -833,10 +833,10 @@ def package(
 
 # CORPUS_MANIFEST.md §3's registered reference: real Qwen2.5-1.5B-Instruct
 # tokenizer, real (verified) 2a corpus, mv2.build_items(tokenizer,
-# "multivalue2", 20, 4096, 2024), mv2.items_digest(items).
-CONFIG_2A_REFERENCE_DIGEST = (
-    "9220589bd8607bd0ff3be5bdcfecd23df07cac82d354d992468b15b60f398972"
-)
+# "multivalue2", 20, 4096, 2024), mv2.items_digest(items). Imported from
+# registered.py (the single home of registered constants) rather than
+# hand-copied; the public name is kept as an alias for existing callers.
+CONFIG_2A_REFERENCE_DIGEST = registered.LONGCTX_2A_FIRST20_DIGEST_SHA256
 
 
 def _default_pipeline_root(run_dir: Path) -> Path:

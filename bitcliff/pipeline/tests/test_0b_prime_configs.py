@@ -248,3 +248,28 @@ def test_2a_items_built_from_the_ladder_config_pass_the_real_item_set_gate():
     assert [s.item_id for s in specs] == [i.id for i in items]
     assert item_set_sha256(items) == registered.ITEM_SET_SHA256[(SUITE_2A, MODEL_ID)]
     assert_item_sets_match_registered(items, cfg.model_id)  # must not raise
+
+
+def test_2b_items_built_from_the_ladder_config_pass_the_real_item_set_gate():
+    """Sibling of the 2a test for 2b (suite key `longctx_retrieval`,
+    multivalue4 @ 8192 over the committed Monte Cristo corpus, Amendment 1
+    §C): built through the real `build_items` and the real boot-time gate,
+    offline."""
+    from transformers import AutoTokenizer
+
+    from bitcliff_pipeline.__main__ import assert_item_sets_match_registered, build_items
+    from bitcliff_pipeline.hashing import item_set_sha256
+
+    cfg = _load(LADDER_PATH)
+    only_2b = dataclasses.replace(cfg, suites={SUITE_2B: cfg.suites[SUITE_2B]})
+    tokenizer = AutoTokenizer.from_pretrained(
+        str(PIPELINE_ROOT / cfg.suites[SUITE_2B]["tokenizer_path"]), local_files_only=True,
+    )
+    specs: list = []
+    items = build_items(only_2b, PIPELINE_ROOT, longctx_tokenizer=tokenizer, longctx_answer_specs=specs)
+
+    assert len(items) == registered.LONGCTX_N
+    assert {i.suite for i in items} == {SUITE_2B}
+    assert [s.item_id for s in specs] == [i.id for i in items]
+    assert item_set_sha256(items) == registered.ITEM_SET_SHA256[(SUITE_2B, MODEL_ID)]
+    assert_item_sets_match_registered(items, cfg.model_id)  # must not raise

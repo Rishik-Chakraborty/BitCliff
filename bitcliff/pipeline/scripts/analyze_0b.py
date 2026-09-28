@@ -2,7 +2,9 @@
 """0B confirmatory analysis driver, PREREG §8 (+ §5 shootout trigger, §4 ladder).
 
 Reads the four 0B run trees under ``runs-cloud/pipeline/runs/`` and writes
-``analysis/0b/cells.csv`` + ``analysis/0b/FINDINGS_0B.md``:
+``analysis/0b/cells.csv`` + ``analysis/0b/FINDINGS_0B.md`` (any other run
+set -- ``--run-ids`` -- must pass ``--out-dir`` and gets ``FINDINGS.md``
+there; analysis/0b/ is never written for a non-0B run set):
 
 - **Ladder cells**: for each of the two reference models
   (0b-llama-8b-ladder / 0b-qwen-7b-ladder), each of the 7 registered ladder
@@ -47,7 +49,15 @@ content).
 hand-appended to the committed FINDINGS_0B.md after generation is emitted
 here, each gated on the inputs that make it applicable, so a regeneration
 keeps them and a non-0B invocation (e.g. the 1.5B/0B-prime ladder) never
-prints 0B-only prose: the ratified-seed wording (seed ==
+prints 0B-only prose: the title and PREREG §4 scope note (0B run set only;
+otherwise a neutral title naming the run ids and a data-derived scope
+listing), the cliff-flag sentence (its "reads False for every family"
+claim derived from the cliff results; the earlier-drafts clause 0B-only),
+the §5 shootout section (with no shootout pairs it states the trigger is
+not applicable, with no Arm prose), the zero-discordance disclosure (which
+cells hit b + c = 0 derived from the cells; the committed near-ceiling
+`longctx_retrieval` / 0/96 wording only when the 0B data bears it out), the
+ratified-seed wording (seed ==
 ``registered.BOOTSTRAP_SEED``; the 2026-09-03 provisional history only for
 the 0B run set), the Arm 2 imatrix footnote (``RUN_FOOTNOTES``, keyed by
 run id), the pair-delta sign convention (verified row-by-row against the
@@ -1080,6 +1090,136 @@ def _sign_convention_sentence(result: AnalysisResult) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# Run-set-dependent prose (final review of code turn 2026-09-27, Important 1):
+# every sentence below either is 0B-only (gated on ``is_0b_run_set``) or is
+# derived from the result it describes -- no output implies a measurement
+# that was not made. For the 0B run set with the committed data, each helper
+# reproduces the committed FINDINGS_0B.md text byte for byte.
+# ---------------------------------------------------------------------------
+
+
+def _0b_scope_note_lines() -> list[str]:
+    """PREREG §4 scope note for the 0B run set only (names the 0B reference
+    models, ladder and arms; asserts no spectacle rung is touched)."""
+    return [
+        "## Scope note (PREREG §4)",
+        "",
+        "0B covers only the two precompute-only reference models "
+        "(Llama-3.1-8B-Instruct, Qwen2.5-7B-Instruct) at the registered "
+        "7-rung bartowski ladder (Amendment 2 §C: Q8_0, Q6_K, Q5_K_M, "
+        "Q4_K_M, Q3_K_M, Q2_K, IQ2_M) plus the two uploader-shootout arms "
+        "(§5). The 1.5B spectacle model and its in-house sub-2-bit spectacle "
+        "rungs (IQ1_S / IQ1_M / IQ2_XXS; PREREG §4, `INHOUSE_QUANTS.md`) are "
+        "out of scope here by construction — spectacle rungs never appear in "
+        "reference tables, cliff badges, or Holm families (enforced in code, "
+        "not by convention), and this analysis touches none of them.",
+        "",
+    ]
+
+
+def _run_set_scope_lines(result: AnalysisResult) -> list[str]:
+    """Neutral scope listing for a non-0B run set: exactly the runs (model,
+    kind) and suites this invocation analyzed, nothing more."""
+    runs = "; ".join(
+        f"`{r}` ({result.run_model[r]}, "
+        f"{'ladder' if r in result.ladder_run_ids else 'arm'})"
+        for r in result.run_ids
+    )
+    suites = ", ".join(f"`{s}`" for s in result.suites)
+    return [
+        "## Scope",
+        "",
+        f"Runs analyzed: {runs}. Suites scored: {suites}.",
+        "",
+    ]
+
+
+def _cliff_flag_sentence(result: AnalysisResult) -> str:
+    """The Cliffs-section preamble. The "reads False for every family"
+    claim is derived from the cliff results rather than asserted; the
+    earlier-drafts history clause is 0B-only."""
+    flags = [
+        cr.non_monotonic
+        for run_id in result.ladder_run_ids
+        for suite in result.suites
+        if (cr := result.cliffs.get((run_id, suite))) is not None
+    ]
+    n_true = sum(1 for f in flags if f)
+    if not flags:
+        reads = "No ladder family is present in this data."
+    elif n_true == 0:
+        reads = "It reads False for every family in this data."
+    else:
+        reads = f"It reads True for {n_true} of {len(flags)} families in this data."
+    tail = "listed in full in the next section"
+    if is_0b_run_set(result.run_ids, result.ladder_run_ids):
+        tail += (
+            " -- earlier drafts' \"all 8 families "
+            "monotonic\" statements referred only to the state-sequence "
+            "definition."
+        )
+    else:
+        tail += "."
+    return (
+        "The column below is the STATE-sequence flag: True iff a Damaged "
+        "rung sits above (higher precision than) a non-Damaged one, i.e. "
+        f"the Damaged cells do not form a contiguous bottom suffix. {reads} "
+        "PREREG §8's accuracy-level "
+        "non-monotonicity (a lower-bits rung scoring above its higher-bits "
+        "neighbor) is a separate, weaker anomaly, flagged per cell in "
+        "cells.csv (`acc_inversion`/`inversion_above`) and " + tail
+    )
+
+
+def _zero_discordance_paragraph(result: AnalysisResult) -> str:
+    """Zero-discordance disclosure. Which cells hit b + c = 0 is derived
+    from the result; the committed 0B wording (near-ceiling
+    ``longctx_retrieval`` cells, "~3.7% at 0/96") is used only when the 0B
+    run set's data bears out every part of it."""
+    head = (
+        "Zero-discordance cells (b + c = 0, i.e. every resample reproduces "
+        "the same paired accuracy) produce a degenerate (0, 0) bootstrap CI "
+        "and classify Equivalent regardless of n under the registered "
+        "percentile method."
+    )
+    tail = (
+        " A cell classified Equivalent under "
+        "this rule is equivalent under the registered machinery, not "
+        "necessarily under every alternative inferential lens."
+    )
+    zd = [c for c in result.cells if c.b_lost + c.c_gained == 0]
+    if (
+        is_0b_run_set(result.run_ids, result.ladder_run_ids)
+        and zd
+        and {c.suite for c in zd} == {"longctx_retrieval"}
+        and all(c.n == 96 and c.acc_f16 >= 0.95 for c in zd)
+    ):
+        body = (
+            " This is disclosed here because near-ceiling "
+            "`longctx_retrieval` cells hit this condition: an exact-binomial "
+            "upper bound on the discordance rate (e.g. ~3.7% at 0/96) is what the "
+            "percentile bootstrap cannot see."
+        )
+    elif zd:
+        by_suite: dict[str, int] = {}
+        for c in zd:
+            by_suite[c.suite] = by_suite.get(c.suite, 0) + 1
+        where = ", ".join(f"`{s}`: {k}" for s, k in by_suite.items())
+        body = (
+            f" This is disclosed here because {len(zd)} cell(s) in this data "
+            f"hit this condition ({where}): an exact-binomial upper bound on "
+            "the discordance rate at 0/n is what the percentile bootstrap "
+            "cannot see."
+        )
+    else:
+        body = (
+            " No cell in this data hits this condition; it is disclosed as a "
+            "property of the registered machinery."
+        )
+    return head + body + tail
+
+
+# ---------------------------------------------------------------------------
 # Output writers
 # ---------------------------------------------------------------------------
 
@@ -1152,7 +1292,16 @@ def write_findings_md(
     is_0b = is_0b_run_set(result.run_ids, result.ladder_run_ids)
     ratified = str(SEED) == registered.BOOTSTRAP_SEED
     lines: list[str] = []
-    lines.append("# 0B Confirmatory Findings (PREREG §8)")
+    if is_0b:
+        lines.append("# 0B Confirmatory Findings (PREREG §8)")
+    else:
+        # Neutral generated title naming the run ids: nothing 0B-specific is
+        # claimed for a run set that is not the 0B one (final review, Imp. 1).
+        lines.append(
+            "# Confirmatory Findings — "
+            + ", ".join(f"`{r}`" for r in result.run_ids)
+            + " (PREREG §8)"
+        )
     lines.append("")
     lines.append(
         "Generated by `scripts/analyze_0b.py` from `runs-cloud/pipeline/runs/` "
@@ -1228,20 +1377,14 @@ def write_findings_md(
     lines.append("")
 
     # --- Scope note ---
-    lines.append("## Scope note (PREREG §4)")
-    lines.append("")
-    lines.append(
-        "0B covers only the two precompute-only reference models "
-        "(Llama-3.1-8B-Instruct, Qwen2.5-7B-Instruct) at the registered "
-        "7-rung bartowski ladder (Amendment 2 §C: Q8_0, Q6_K, Q5_K_M, "
-        "Q4_K_M, Q3_K_M, Q2_K, IQ2_M) plus the two uploader-shootout arms "
-        "(§5). The 1.5B spectacle model and its in-house sub-2-bit spectacle "
-        "rungs (IQ1_S / IQ1_M / IQ2_XXS; PREREG §4, `INHOUSE_QUANTS.md`) are "
-        "out of scope here by construction — spectacle rungs never appear in "
-        "reference tables, cliff badges, or Holm families (enforced in code, "
-        "not by convention), and this analysis touches none of them."
-    )
-    lines.append("")
+    # The 0B scope note names the 0B models, ladder and arms and asserts the
+    # analysis touches no spectacle rung -- 0B-only prose, emitted only for
+    # the 0B run set. Any other run set gets a neutral, data-derived listing
+    # of exactly what was analyzed.
+    if is_0b:
+        lines += _0b_scope_note_lines()
+    else:
+        lines += _run_set_scope_lines(result)
 
     # --- Per-run cell tables ---
     cells_by_run: dict[str, list[CellRow]] = {}
@@ -1278,18 +1421,7 @@ def write_findings_md(
     # --- Cliff table ---
     lines.append("## Cliffs (ladder runs only)")
     lines.append("")
-    lines.append(
-        "The column below is the STATE-sequence flag: True iff a Damaged "
-        "rung sits above (higher precision than) a non-Damaged one, i.e. "
-        "the Damaged cells do not form a contiguous bottom suffix. It reads "
-        "False for every family in this data. PREREG §8's accuracy-level "
-        "non-monotonicity (a lower-bits rung scoring above its higher-bits "
-        "neighbor) is a separate, weaker anomaly, flagged per cell in "
-        "cells.csv (`acc_inversion`/`inversion_above`) and listed in full "
-        "in the next section -- earlier drafts' \"all 8 families "
-        "monotonic\" statements referred only to the state-sequence "
-        "definition."
-    )
+    lines.append(_cliff_flag_sentence(result))
     lines.append("")
     lines.append("| run_id | suite | cliff rung | state-non-monotonic |")
     lines.append("|---|---|---|---|")
@@ -1372,72 +1504,73 @@ def write_findings_md(
     # --- Shootout trigger ---
     lines.append("## Uploader shootout trigger (PREREG §5)")
     lines.append("")
-    lines.append(
-        "Same-label quant-vs-quant pairs, paired on identical items: Arm 1 "
-        "(bartowski from the ladder run, unsloth, mradermacher_static, "
-        "mradermacher_i1 — 6 unordered pairs per label) at Q4_K_M and "
-        "Q3_K_M; Arm 2 (official vs bartowski) at Q4_K_M and Q3_K_M. A "
-        "cross-run pair is computed only where the two runs' item id sets "
-        "agree for that suite (checked against `items.jsonl`); otherwise it "
-        "is reported not pairable and excluded below."
-    )
-    lines.append("")
-    sign_sentence = _sign_convention_sentence(result)
-    if sign_sentence is not None:
-        lines.append(sign_sentence)
+    if not result.shootout.pairs:
+        # No shootout arm runs in this run set (no arm levels given): the §5
+        # trigger is not applicable -- not "not fired", which would imply the
+        # comparison was made -- and no Arm 1 / Arm 2 prose is printed.
+        lines.append(
+            "**Trigger: not applicable.** This run set contains no uploader-"
+            "shootout arm runs, so no same-label quant-vs-quant pair is "
+            "computed and the PREREG §5 trigger is not evaluated here."
+        )
         lines.append("")
-    lines.append(
-        "| arm | level | suite | pair | pairable | delta | 95% CI | CI excludes 0 "
-        "| state A | state B | states differ |"
-    )
-    lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
-    for pr in result.shootout.pairs:
-        pair_str = f"{pr.name_a} vs {pr.name_b}"
-        if not pr.pairable:
-            lines.append(
-                f"| {pr.arm} | {pr.level} | {pr.suite} | {pair_str} | NO ({pr.reason}) "
-                f"| — | — | — | — | — | — |"
-            )
-            continue
-        ci_str = f"[{_fmt(pr.ci_lo, 4)}, {_fmt(pr.ci_hi, 4)}]"
-        lines.append(
-            f"| {pr.arm} | {pr.level} | {pr.suite} | {pair_str} | yes "
-            f"| {_fmt(pr.delta, 4)} | {ci_str} | {pr.excludes_zero} "
-            f"| {pr.state_a} | {pr.state_b} | {pr.states_differ} |"
-        )
-    lines.append("")
-
-    if result.shootout.triggered:
-        lines.append(
-            "**Trigger: FIRED.** At least one computed same-label pair's CI "
-            "excludes 0, or lands its two files in different §8 cell states "
-            "against their own run's F16. Per PREREG §5, extending the "
-            "uploader shootout to Qwen2.5-7B-Instruct becomes a **registered "
-            "follow-up measurement**, run after the launch analyses."
-        )
     else:
         lines.append(
-            "**Trigger: not fired.** No computed same-label pair's CI "
-            "excludes 0, and no pair's two files land in different §8 cell "
-            "states against their own run's F16. Absent the trigger, no 7B "
-            "uploader shootout runs."
+            "Same-label quant-vs-quant pairs, paired on identical items: Arm 1 "
+            "(bartowski from the ladder run, unsloth, mradermacher_static, "
+            "mradermacher_i1 — 6 unordered pairs per label) at Q4_K_M and "
+            "Q3_K_M; Arm 2 (official vs bartowski) at Q4_K_M and Q3_K_M. A "
+            "cross-run pair is computed only where the two runs' item id sets "
+            "agree for that suite (checked against `items.jsonl`); otherwise it "
+            "is reported not pairable and excluded below."
         )
-    lines.append("")
+        lines.append("")
+        sign_sentence = _sign_convention_sentence(result)
+        if sign_sentence is not None:
+            lines.append(sign_sentence)
+            lines.append("")
+        lines.append(
+            "| arm | level | suite | pair | pairable | delta | 95% CI | CI excludes 0 "
+            "| state A | state B | states differ |"
+        )
+        lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
+        for pr in result.shootout.pairs:
+            pair_str = f"{pr.name_a} vs {pr.name_b}"
+            if not pr.pairable:
+                lines.append(
+                    f"| {pr.arm} | {pr.level} | {pr.suite} | {pair_str} | NO ({pr.reason}) "
+                    f"| — | — | — | — | — | — |"
+                )
+                continue
+            ci_str = f"[{_fmt(pr.ci_lo, 4)}, {_fmt(pr.ci_hi, 4)}]"
+            lines.append(
+                f"| {pr.arm} | {pr.level} | {pr.suite} | {pair_str} | yes "
+                f"| {_fmt(pr.delta, 4)} | {ci_str} | {pr.excludes_zero} "
+                f"| {pr.state_a} | {pr.state_b} | {pr.states_differ} |"
+            )
+        lines.append("")
+
+        if result.shootout.triggered:
+            lines.append(
+                "**Trigger: FIRED.** At least one computed same-label pair's CI "
+                "excludes 0, or lands its two files in different §8 cell states "
+                "against their own run's F16. Per PREREG §5, extending the "
+                "uploader shootout to Qwen2.5-7B-Instruct becomes a **registered "
+                "follow-up measurement**, run after the launch analyses."
+            )
+        else:
+            lines.append(
+                "**Trigger: not fired.** No computed same-label pair's CI "
+                "excludes 0, and no pair's two files land in different §8 cell "
+                "states against their own run's F16. Absent the trigger, no 7B "
+                "uploader shootout runs."
+            )
+        lines.append("")
 
     # --- Registered-machinery disclosure ---
     lines.append("## Disclosure: zero-discordance cells and the percentile bootstrap")
     lines.append("")
-    lines.append(
-        "Zero-discordance cells (b + c = 0, i.e. every resample reproduces "
-        "the same paired accuracy) produce a degenerate (0, 0) bootstrap CI "
-        "and classify Equivalent regardless of n under the registered "
-        "percentile method. This is disclosed here because near-ceiling "
-        "`longctx_retrieval` cells hit this condition: an exact-binomial "
-        "upper bound on the discordance rate (e.g. ~3.7% at 0/96) is what the "
-        "percentile bootstrap cannot see. A cell classified Equivalent under "
-        "this rule is equivalent under the registered machinery, not "
-        "necessarily under every alternative inferential lens."
-    )
+    lines.append(_zero_discordance_paragraph(result))
     lines.append("")
 
     # --- 0B-only annotations: seed sweep + Appendix A (see docstring) ---
@@ -1463,8 +1596,8 @@ def write_findings_md(
 
 def _parse_list(s: str) -> list[str]:
     """Comma-separated CLI list; "" -> [] (used to disable arm1/arm2 levels
-    when no arm runs are given -- the shootout section then reports "not
-    fired" instead of crashing)."""
+    when no arm runs are given -- the shootout section then reports the §5
+    trigger "not applicable" instead of crashing)."""
     return [] if not s else s.split(",")
 
 
@@ -1486,7 +1619,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", default=registered.BOOTSTRAP_SEED,
                         help="bootstrap seed prefix (default: ratified 8271)")
     parser.add_argument("--out-dir", default=None,
-                        help="output directory (default: analysis/0b)")
+                        help="output directory (default: analysis/0b for the "
+                             "0B run set; REQUIRED for any other run set, "
+                             "which writes FINDINGS.md + cells.csv there)")
     parser.add_argument("--sweep-dir", default=None,
                         help="seed-sweep cells-seed*.csv directory feeding the "
                              "0B seed-sweep section (default: analysis/0b/sweep; "
@@ -1530,7 +1665,26 @@ def main() -> None:
 
     pipeline_dir = Path(__file__).resolve().parents[1]
     runs_root = pipeline_dir / "runs-cloud" / "pipeline" / "runs"
-    out_dir = Path(args.out_dir) if args.out_dir else pipeline_dir / "analysis" / "0b"
+    committed_0b_dir = pipeline_dir / "analysis" / "0b"
+    is_0b = is_0b_run_set(args.run_ids, args.ladder_run_ids)
+    # Final review, Important 2: only the 0B run set may default to (or
+    # write into) analysis/0b/ -- a non-0B invocation must name its own
+    # --out-dir, checked before any analysis or write so a refusal writes
+    # nothing and the committed 0B analysis cannot be silently overwritten.
+    if not is_0b:
+        if not args.out_dir:
+            parser.error(
+                "--out-dir is required when --run-ids/--ladder-run-ids are not "
+                "the 0B run set (the default analysis/0b/ holds the committed "
+                "0B analysis and is never written by a non-0B invocation)"
+            )
+        if Path(args.out_dir).resolve() == committed_0b_dir.resolve():
+            parser.error(
+                "--out-dir must not be analysis/0b/ for a non-0B run set "
+                "(it holds the committed 0B analysis)"
+            )
+    out_dir = Path(args.out_dir) if args.out_dir else committed_0b_dir
+    findings_name = "FINDINGS_0B.md" if is_0b else "FINDINGS.md"
 
     result = run_analysis(
         runs_root,
@@ -1546,7 +1700,7 @@ def main() -> None:
     # 0B-only annotation inputs (Task 8): gated exactly as write_findings_md
     # gates their sections, so a non-0B invocation never reads them.
     sweep = first_pass = None
-    if is_0b_run_set(args.run_ids, args.ladder_run_ids) and str(SEED) == registered.BOOTSTRAP_SEED:
+    if is_0b and str(SEED) == registered.BOOTSTRAP_SEED:
         sweep_dir = Path(args.sweep_dir) if args.sweep_dir else pipeline_dir / "analysis" / "0b" / "sweep"
         if sweep_dir.is_dir():
             sweep = load_sweep(sweep_dir) or None
@@ -1556,12 +1710,15 @@ def main() -> None:
                 ladder_order=args.ladder_order, run_model=args.run_model,
             )
     write_cells_csv(result.cells, out_dir / "cells.csv", inversions=result.inversions)
-    write_findings_md(result, out_dir / "FINDINGS_0B.md", sweep=sweep, first_pass=first_pass)
+    write_findings_md(result, out_dir / findings_name, sweep=sweep, first_pass=first_pass)
     print(f"wrote {len(result.cells)} cells to {out_dir / 'cells.csv'}")
-    print(f"wrote findings to {out_dir / 'FINDINGS_0B.md'}")
+    print(f"wrote findings to {out_dir / findings_name}")
     n_cliffs = sum(1 for cr in result.cliffs.values() if cr.cliff_rung is not None)
     print(f"cliffs found: {n_cliffs} / {len(result.cliffs)} (ladder run, suite) pairs")
-    print(f"shootout trigger: {'FIRED' if result.shootout.triggered else 'not fired'}")
+    if not result.shootout.pairs:
+        print("shootout trigger: not applicable (no shootout arm runs)")
+    else:
+        print(f"shootout trigger: {'FIRED' if result.shootout.triggered else 'not fired'}")
 
 
 if __name__ == "__main__":

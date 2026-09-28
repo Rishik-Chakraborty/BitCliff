@@ -94,14 +94,14 @@ def select_first_n(items: list[EvalItem], suite: str, n: int) -> list[EvalItem]:
 
 def _read_output_dicts(path: Path) -> list[dict]:
     """Raw JSON rows of an `outputs/<rung>.jsonl` file, as plain dicts
-    rather than `generate.OutputRecord` instances. Deliberately NOT
-    `generate.read_records`: this run's committed `outputs/Q4_K_M.jsonl`
-    predates Task 5's `gen_wall_seconds`/`gen_tokens` fields, and
-    `OutputRecord(**json.loads(line))` (what `read_records` does) requires
-    every dataclass field -- it would raise on that older, still-valid
-    file. Nothing this script reads from a row (`item_id`, `suite`,
-    `text`, `finish_reason`, `gen_settings`) depends on those two fields,
-    so plain dict access reads any generation of this file."""
+    rather than `generate.OutputRecord` instances. This run's committed
+    `outputs/Q4_K_M.jsonl` predates Task 5's `gen_wall_seconds`/`gen_tokens`
+    fields; since 9546a93 those fields default to None, so
+    `generate.read_records` also reads such legacy files. Plain dicts are
+    kept because nothing this script reads from a row (`item_id`, `suite`,
+    `text`, `finish_reason`, `gen_settings`) needs the dataclass, and dict
+    access reads any generation of this file without depending on
+    `OutputRecord`'s field set."""
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
@@ -131,7 +131,7 @@ def load_expected_from_run(
     from the committed run's `outputs/<rung>.jsonl` (text, finish_reason)
     and `grades.jsonl` (state, truncated) via `grading.read_grades` (grade
     reading is reused as-is) and `_read_output_dicts` (plain-dict output
-    reading -- see its docstring for why not `generate.read_records`)."""
+    reading -- see its docstring for why plain dicts)."""
     wanted = set(item_ids)
     outputs = {
         d["item_id"]: d
