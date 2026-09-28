@@ -46,6 +46,16 @@ def make_config(tmp_path: Path, spectacle_only: bool = False) -> LadderConfig:
             "arithmetic": {"n_items": 4, "seed": 1},
             "spectacle": {"path": "configs/prompts_spectacle.yaml"},
         },
+        # This fixture's n=4 arithmetic draw is deliberately non-registered
+        # (a fast local fixture, not a confirmatory sample) -- the boot-time
+        # item-set hash gate (OPEN_QUESTIONS §8) now fails loudly on a
+        # registered suite sampled at any non-registered n, so every
+        # end-to-end test built on this helper must mark itself
+        # `exploratory: true`, exactly like the real smoke config
+        # (`configs/smoke/smoke-llama-q4km.yaml`) does for its own
+        # deliberate n=20 draw. Tests that specifically exercise the gate
+        # ITSELF override this back to False (see `_gate_config` below).
+        exploratory=True,
     )
 
 
@@ -646,6 +656,22 @@ def _fake_factual_qa_items(n: int, seed: int, tag: str) -> list[EvalItem]:
     ]
 
 
+def _fake_arithmetic_items(n: int, seed: int, tag: str) -> list[EvalItem]:
+    """Same shape as `_fake_factual_qa_items`, for the arithmetic suite --
+    used to exercise the item-COUNT branch of the gate (arithmetic has a
+    DERIVED, not registered, item-set hash, but the same registered n=500
+    applies to the count check either way)."""
+    return [
+        EvalItem(
+            id=f"arithmetic-{seed}-{i:04d}",
+            suite="arithmetic",
+            prompt=f"{tag} problem {i}?",
+            expected=(f"{i}",),
+        )
+        for i in range(n)
+    ]
+
+
 def _gate_config(tmp_path: Path, n_items: int = registered.FACTUAL_QA_N) -> LadderConfig:
     cfg = make_config(tmp_path)
     return dataclasses.replace(
@@ -654,6 +680,11 @@ def _gate_config(tmp_path: Path, n_items: int = registered.FACTUAL_QA_N) -> Ladd
             **cfg.suites,
             "factual_qa": {"n_items": n_items, "seed": registered.FACTUAL_QA_SEED},
         },
+        # These tests exercise the gate itself (not the "deliberately
+        # non-registered fixture" default `make_config` sets) -- force it
+        # back on. A test that wants the exploratory skip path re-enables
+        # it explicitly (dataclasses.replace(cfg, exploratory=True)).
+        exploratory=False,
     )
 
 
@@ -735,6 +766,7 @@ def test_generate_stage_refuses_unknown_suite_model_combo_at_registered_n(tmp_pa
     cfg = dataclasses.replace(
         cfg,
         model_id="totally-unrecognized-model",
+        exploratory=False,  # this test exercises the gate itself
         suites={
             **cfg.suites,
             "longctx_retrieval": {
@@ -771,11 +803,64 @@ def test_generate_stage_refuses_unknown_suite_model_combo_at_registered_n(tmp_pa
         )
 
 
-def test_generate_stage_skips_gate_below_registered_n(tmp_path, monkeypatch):
-    """Gates apply to the REGISTERED n only (mind the smoke-config n=20
-    case): a suite sampled at any other n is, by definition, not a
-    confirmatory draw and is left ungated."""
+def test_generate_stage_refuses_arithmetic_one_below_registered_n(tmp_path, monkeypatch):
+    """A bare item-COUNT mismatch (n=499, not just a same-n wrong-hash
+    draw) on a REGISTERED suite fails loudly, naming the suite and both
+    the observed and registered n -- the item-count check, unlike the hash
+    check, must fire even when the suite's item-set hash is only DERIVED
+    (arithmetic has no PREREG-registered hash, only a derived regression
+    value; the count check applies regardless)."""
+    cfg = dataclasses.replace(make_config(tmp_path), exploratory=False)
+    items = _fake_arithmetic_items(
+        registered.ARITHMETIC_N - 1, registered.ARITHMETIC_SEED, tag="one-short"
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _run_gate_test(tmp_path, cfg, items, monkeypatch)
+    message = str(exc_info.value)
+    assert "arithmetic" in message
+    assert "499" in message
+    assert "500" in message
+
+
+def test_generate_stage_refuses_arithmetic_at_registered_n_with_wrong_hash(tmp_path, monkeypatch):
+    """At the registered n=500 but a mis-sampled draw (different content,
+    same count), the arithmetic suite is still refused on the item-set
+    hash mismatch (checked against `registered.DERIVED_ITEM_SET_SHA256`,
+    since arithmetic has no PREREG-registered hash, only a derived one)."""
+    cfg = dataclasses.replace(make_config(tmp_path), exploratory=False)
+    wrong_items = _fake_arithmetic_items(
+        registered.ARITHMETIC_N, registered.ARITHMETIC_SEED, tag="wrong-draw"
+    )
+
+    with pytest.raises(RuntimeError, match="arithmetic"):
+        _run_gate_test(tmp_path, cfg, wrong_items, monkeypatch)
+
+
+def test_generate_stage_refuses_non_registered_n_without_exploratory(tmp_path, monkeypatch):
+    """Gates apply to every REGISTERED suite, at any n: a suite sampled at
+    a non-registered n (e.g. a smoke config's deliberate n=20) is no
+    longer silently ungated -- it now fails loudly unless the config is
+    marked `exploratory: true` (see the next test)."""
     cfg = _gate_config(tmp_path, n_items=20)
+    items = _fake_factual_qa_items(20, registered.FACTUAL_QA_SEED, tag="smoke-draw")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _run_gate_test(tmp_path, cfg, items, monkeypatch)
+    message = str(exc_info.value)
+    assert "factual_qa" in message
+    assert "20" in message
+    assert "500" in message
+
+
+def test_generate_stage_allows_non_registered_n_when_exploratory(tmp_path, monkeypatch):
+    """The real smoke config (`configs/smoke/smoke-llama-q4km.yaml`) draws
+    factual_qa at a deliberate non-registered n=20 and marks itself
+    `exploratory: true` for exactly this reason -- that combination must
+    still run end-to-end (the whole gate is skipped, per the loud-warning
+    test below), not be refused."""
+    cfg = _gate_config(tmp_path, n_items=20)
+    cfg = dataclasses.replace(cfg, exploratory=True)
     items = _fake_factual_qa_items(20, registered.FACTUAL_QA_SEED, tag="smoke-draw")
 
     run = _run_gate_test(tmp_path, cfg, items, monkeypatch)

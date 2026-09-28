@@ -36,25 +36,30 @@ def assert_item_sets_match_registered(items: list[EvalItem], model_id: str) -> N
     the tokenizer-match gate below, but for item-set identity rather than
     tokenizer agreement.
 
-    Groups `items` by suite. A suite whose item count does not equal that
-    suite's REGISTERED n (`REGISTERED_SUITE_N`) is left ungated -- a
-    non-registered n (a smoke config's n=20, a unit test's n=4, ...) is by
-    construction not a confirmatory draw, so there is nothing registered to
-    check it against. For every suite AT its registered n, this recomputes
-    the item-set hash (`hashing.item_set_sha256`) and compares it against
-    `registered.expected_item_set_sha256(suite, model_id)`:
+    Groups `items` by suite. A suite with NO entry in `REGISTERED_SUITE_N`
+    (e.g. "spectacle", which is unscored and has no registered item set) is
+    left ungated entirely, at any n. Every suite that DOES have a
+    registered n is checked at any n it appears at:
 
-    - No pinned hash at all (neither registered nor derived) for that
-      (suite, model_id): refuses outright -- unknown item sets are never
-      silently accepted.
-    - A pinned hash that does not match: refuses, naming suite/expected/
-      actual -- this is the exact class of bug OPEN_QUESTIONS §8 documents
-      (a hand-copied M3 weight vector sampling a non-registered factual_qa
-      item set) made structurally impossible.
-    - A pinned hash that matches: no-op.
-
-    A config with `exploratory: true` skips calling this function entirely
-    (see `run_pipeline` below), printing a loud warning instead.
+    - Item count != that suite's registered n: refuses outright, naming
+      the suite and both the observed and registered n -- a non-registered
+      n (a smoke config's deliberate n=20, ...) is by construction not a
+      confirmatory draw, so it is loud-refused rather than silently
+      skipped (the prior behavior; OPEN_QUESTIONS §8 pre-rerun hardening).
+      Mark the config `exploratory: true` to run one on purpose (see
+      `run_pipeline` below, which skips calling this function entirely --
+      and prints a loud warning naming the skip -- for such a config).
+    - Item count == that suite's registered n: recomputes the item-set
+      hash (`hashing.item_set_sha256`) and compares it against
+      `registered.expected_item_set_sha256(suite, model_id)`:
+      - No pinned hash at all (neither registered nor derived) for that
+        (suite, model_id): refuses outright -- unknown item sets are
+        never silently accepted.
+      - A pinned hash that does not match: refuses, naming suite/expected/
+        actual -- this is the exact class of bug OPEN_QUESTIONS §8
+        documents (a hand-copied M3 weight vector sampling a
+        non-registered factual_qa item set) made structurally impossible.
+      - A pinned hash that matches: no-op.
     """
     by_suite: dict[str, list[EvalItem]] = defaultdict(list)
     for it in items:
@@ -62,8 +67,17 @@ def assert_item_sets_match_registered(items: list[EvalItem], model_id: str) -> N
 
     for suite, suite_items in by_suite.items():
         expected_n = REGISTERED_SUITE_N.get(suite)
-        if expected_n is None or len(suite_items) != expected_n:
-            continue  # not a registered-n draw for this suite -- ungated
+        if expected_n is None:
+            continue  # no registered n for this suite -- ungated (e.g. spectacle)
+        observed_n = len(suite_items)
+        if observed_n != expected_n:
+            raise RuntimeError(
+                f"item-set hash gate: suite={suite!r} has {observed_n} "
+                f"items, but the registered n for this suite is "
+                f"{expected_n} -- refusing to generate on a non-registered "
+                f"item COUNT (OPEN_QUESTIONS §8). Mark this config "
+                f"`exploratory: true` if it is deliberately non-registered."
+            )
         expected = registered.expected_item_set_sha256(suite, model_id)
         if expected is None:
             raise RuntimeError(
