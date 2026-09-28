@@ -642,7 +642,7 @@ def test_run_analysis_single_ladder_run_no_arms_does_not_crash(tmp_path):
     assert len(result.cells) == len(a0b.LADDER_ORDER)  # one suite, one ladder run
 
     out_path = tmp_path / "FINDINGS_0B.md"
-    a0b.write_findings_md(result, out_path, runs_root=root)  # must not raise
+    a0b.write_findings_md(result, out_path, runs_root=root, pipeline_dir=tmp_path)  # must not raise
     text = out_path.read_text()
     assert "### `1p5b-ladder` (qwen2.5-1.5b-instruct, ladder)" in text
     assert "**Trigger: not applicable.**" in text
@@ -675,7 +675,7 @@ def test_write_findings_md_uses_result_run_model_not_module_global(tmp_path):
         factual_qa_source={},
     )
     out_path = tmp_path / "FINDINGS_0B.md"
-    a0b.write_findings_md(result, out_path, runs_root=root)
+    a0b.write_findings_md(result, out_path, runs_root=root, pipeline_dir=tmp_path)
     text = out_path.read_text()
     assert f"### `{custom_run_id}` (some-custom-model, ladder)" in text
     assert "**custom_suite**" in text
@@ -708,6 +708,8 @@ def _findings(result, tmp_path, **kw):
             if candidate.is_dir():
                 kw["runs_root"] = candidate
                 break
+    if not a0b.is_0b_run_set(result.run_ids, result.ladder_run_ids):
+        kw.setdefault("pipeline_dir", tmp_path)
     a0b.write_findings_md(result, out, **kw)
     return out.read_text()
 
@@ -1171,9 +1173,9 @@ def test_fingerprint_section_non_0b_missing_per_run_file_fails_loudly(tmp_path):
     # _single_run_result already wrote fingerprint.txt for its run id;
     # delete it to exercise the missing-file path.
     (runs_root / "missing-fp-run" / "fingerprint.txt").unlink()
-    expected_path = runs_root / "missing-fp-run" / "fingerprint.txt"
-    with pytest.raises(RuntimeError, match=re.escape(str(expected_path))):
-        a0b.write_findings_md(result, tmp_path / "F.md", runs_root=runs_root)
+    expected_path = "runs1/missing-fp-run/fingerprint.txt"  # relative to the pipeline dir
+    with pytest.raises(RuntimeError, match=re.escape(expected_path)):
+        a0b.write_findings_md(result, tmp_path / "F.md", runs_root=runs_root, pipeline_dir=tmp_path)
 
 
 def test_fingerprint_section_non_0b_reads_own_fingerprint_never_shared_file(tmp_path):
@@ -1182,5 +1184,45 @@ def test_fingerprint_section_non_0b_reads_own_fingerprint_never_shared_file(tmp_
     fp_path = runs_root / "own-fp-run" / "fingerprint.txt"
     assert fp_path.is_file()  # written by _single_run_result
     text = _findings(result, tmp_path, runs_root=runs_root)
-    assert f"`{fp_path}`" in text
+    # Final review Minor 3: the path is printed relative to the pipeline
+    # dir, never as an absolute path.
+    assert "`runs1/own-fp-run/fingerprint.txt`" in text
+    assert str(tmp_path) not in text
     assert "Not restated here to avoid a second copy drifting out of sync." not in text
+
+
+def test_fingerprint_section_non_0b_empty_file_fails_loudly(tmp_path):
+    result = _single_run_result(tmp_path, run_id="empty-fp-run")
+    runs_root = tmp_path / "runs1"
+    fp_path = runs_root / "empty-fp-run" / "fingerprint.txt"
+    for content in ("", "  \n\n"):
+        fp_path.write_text(content)
+        with pytest.raises(RuntimeError, match="empty") as exc:
+            a0b.write_findings_md(result, tmp_path / "F.md", runs_root=runs_root, pipeline_dir=tmp_path)
+        assert "runs1/empty-fp-run/fingerprint.txt" in str(exc.value)
+    assert not (tmp_path / "F.md").exists()
+
+
+def test_fingerprint_section_non_0b_runs_root_outside_pipeline_dir_fails(tmp_path):
+    result = _single_run_result(tmp_path, run_id="outside-run")
+    elsewhere = tmp_path / "pipeline"
+    elsewhere.mkdir()
+    with pytest.raises(RuntimeError, match="pipeline dir"):
+        a0b.write_findings_md(
+            result, tmp_path / "F.md", runs_root=tmp_path / "runs1", pipeline_dir=elsewhere
+        )
+
+
+def test_main_non_0b_fingerprint_path_relative_to_pipeline_dir(monkeypatch, tmp_path):
+    prime = _prime_result(tmp_path)
+    monkeypatch.setattr(a0b, "run_analysis", lambda *a, **k: prime)
+    fake_pipeline_dir = tmp_path / "fake_pipeline"
+    fp_dir = fake_pipeline_dir / "runs-cloud" / "pipeline" / "runs" / PRIME_RUN
+    fp_dir.mkdir(parents=True)
+    (fp_dir / "fingerprint.txt").write_text("instance=i-test\n")
+    monkeypatch.setattr(a0b, "__file__", str(fake_pipeline_dir / "scripts" / "analyze_0b.py"))
+    out = tmp_path / "out"
+    _run_main(monkeypatch, [*NON_0B_ARGV, "--out-dir", str(out)])
+    text = (out / "FINDINGS.md").read_text()
+    assert f"`runs-cloud/pipeline/runs/{PRIME_RUN}/fingerprint.txt`" in text
+    assert str(tmp_path) not in text

@@ -400,11 +400,115 @@ def test_suites_override_validation(tmp_path, tok):
         _run(tmp_path, tok, suites=["arithmetic"])
 
 
+def _write_run_manifest(tmp_path, labels=("F16", "Q4_K_M", "Q3_K_M")):
+    """A generate-stage-shaped run manifest.json (label -> filename/sha256)
+    for run id r1, as `hashing.write_manifest` writes it."""
+    fnames = {"F16": "f16.gguf", "Q4_K_M": "m-Q4_K_M.gguf", "Q3_K_M": "m-Q3_K_M.gguf"}
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    write_manifest(
+        {
+            lab: {"filename": fnames[lab], "sha256": sha256_file(tmp_path / "models" / fnames[lab])}
+            for lab in labels
+        },
+        run_dir / "manifest.json",
+    )
+
+
 def test_item_set_gate_runs_for_non_exploratory_config(tmp_path, tok):
     cfg = _config(tmp_path, exploratory=False)
+    _write_run_manifest(tmp_path)
     with pytest.raises(RuntimeError, match="item-set hash gate"):
         _run(tmp_path, tok, cfg=cfg)
     assert not (tmp_path / "runs" / "r1" / "nll" / "F16.jsonl").exists()
+
+
+# ---------------------------------------------------------------------------
+# Final review fixes (2026-09-28): run-manifest requirement for confirmatory
+# configs (Important 3), resume id check and runs-cloud refusal (Minor 6).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def no_item_gate(monkeypatch):
+    """The synthetic items cannot match a registered item-set hash; stub the
+    gate so the non-exploratory manifest paths can be exercised."""
+    monkeypatch.setattr(main_mod, "assert_item_sets_match_registered", lambda items, model_id: None)
+
+
+def test_non_exploratory_without_run_manifest_refused(tmp_path, tok, no_item_gate):
+    cfg = _config(tmp_path, exploratory=False)
+    with pytest.raises(RuntimeError, match="generate stage first"):
+        _run(tmp_path, tok, cfg=cfg)
+    with pytest.raises(RuntimeError, match="generate stage first"):
+        _run(tmp_path, tok, cfg=cfg, labels=["Q4_K_M"])  # --labels alone is not enough
+    assert not (tmp_path / "runs" / "r1" / "nll").exists()
+
+
+def test_allow_no_manifest_requires_labels(tmp_path, tok, no_item_gate):
+    cfg = _config(tmp_path, exploratory=False)
+    with pytest.raises(ValueError, match="--labels"):
+        _run(tmp_path, tok, cfg=cfg, allow_no_manifest=True)
+    assert not (tmp_path / "runs" / "r1" / "nll").exists()
+
+
+def test_allow_no_manifest_with_labels_scores_gate_run(tmp_path, tok, no_item_gate):
+    cfg = _config(tmp_path, exploratory=False)
+    out = _run(tmp_path, tok, cfg=cfg, labels=["Q4_K_M"], allow_no_manifest=True)
+    assert sorted(p.name for p in out.glob("*.jsonl")) == ["Q4_K_M.jsonl"]
+    m = json.loads((out / "manifest.json").read_text())
+    assert m["item_set_gate"] == "passed"
+    assert m["labels"]["Q4_K_M"]["sha256_source"] == "hashed (no run manifest.json; --allow-no-manifest)"
+    assert m["labels"]["Q4_K_M"]["model_sha256"] == sha256_file(tmp_path / "models" / "m-Q4_K_M.gguf")
+
+
+def test_non_exploratory_with_run_manifest_verifies_every_label(tmp_path, tok, no_item_gate):
+    cfg = _config(tmp_path, exploratory=False)
+    _write_run_manifest(tmp_path)
+    out = _run(tmp_path, tok, cfg=cfg)
+    m = json.loads((out / "manifest.json").read_text())
+    assert {v["sha256_source"] for v in m["labels"].values()} == {"run manifest.json (verified)"}
+
+
+def test_non_exploratory_label_absent_from_run_manifest_refused(tmp_path, tok, no_item_gate):
+    cfg = _config(tmp_path, exploratory=False)
+    _write_run_manifest(tmp_path, labels=("F16", "Q4_K_M"))
+    with pytest.raises(RuntimeError, match="Q3_K_M"):
+        _run(tmp_path, tok, cfg=cfg)
+    assert not (tmp_path / "runs" / "r1" / "nll").exists()
+
+
+def test_resume_refuses_existing_file_with_wrong_item_ids(tmp_path, tok):
+    out = _run(tmp_path, tok, labels=["F16"])
+    lines = (out / "F16.jsonl").read_text().splitlines()
+    (out / "F16.jsonl").write_text("\n".join(lines[1:] + lines[:1]) + "\n")  # reordered
+    with pytest.raises(RuntimeError, match="item ids"):
+        _run(tmp_path, tok)
+    (out / "F16.jsonl").write_text("\n".join(lines[:-1]) + "\n")  # truncated
+    with pytest.raises(RuntimeError, match="item ids"):
+        _run(tmp_path, tok)
+    assert not (out / "Q4_K_M.jsonl").exists()
+
+
+def test_resume_accepts_existing_file_with_expected_ids(tmp_path, tok, capsys):
+    out = _run(tmp_path, tok, labels=["F16"])
+    _run(tmp_path, tok)
+    assert "skip F16:" in capsys.readouterr().out
+    assert (out / "Q3_K_M.jsonl").exists()
+
+
+def test_runs_dir_inside_runs_cloud_refused(tmp_path, tok):
+    cfg = _config(tmp_path)
+    for runs_dir in (
+        tmp_path / "runs-cloud" / "pipeline" / "runs",
+        PIPELINE_ROOT / "runs-cloud" / "pipeline" / "runs",
+    ):
+        with pytest.raises(ValueError, match="runs-cloud"):
+            nd.run_nll(
+                cfg, run_id="r1", runs_dir=runs_dir, models_dir=tmp_path / "models",
+                base_dir=tmp_path, llm_factory=_factory(tok),
+            )
+    assert not (tmp_path / "runs-cloud").exists()
 
 
 def test_cli_main_parses_and_dispatches(tmp_path, monkeypatch):
@@ -433,5 +537,10 @@ def test_cli_main_parses_and_dispatches(tmp_path, monkeypatch):
     assert seen["models_dir"] == Path("mm")
     assert seen["suites"] == ["longctx_retrieval"]
     assert seen["labels"] == ["Q4_K_M"]
+    assert seen["allow_no_manifest"] is False
     assert seen["base_dir"] == tmp_path.resolve()
     assert seen["config_sha256"] == sha256_file(cfg_path)
+    nd.main([
+        str(cfg_path), "--run-id", "g1", "--labels", "Q4_K_M", "--allow-no-manifest",
+    ])
+    assert seen["allow_no_manifest"] is True

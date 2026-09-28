@@ -56,16 +56,33 @@ timestamps and exit codes only, no settings):
 
 Determinism: identical inputs give byte-identical `<label>.jsonl` and
 `manifest.json` (no timestamps anywhere; keys sorted). Resume: a label
-whose `<label>.jsonl` already exists is skipped (generate-stage pattern);
-the manifest is merged, and a resumed invocation whose settings differ
-from the existing manifest's is refused.
+whose `<label>.jsonl` already exists is skipped (generate-stage pattern)
+only if that file's records carry exactly the expected item ids, in
+order, under that label (refused otherwise -- a truncated or foreign file
+is never silently kept); the manifest is merged, and a resumed invocation
+whose settings differ from the existing manifest's is refused.
 
-Usage (from bitcliff/pipeline; the box reproduction gate for Qwen-7B
-Q4_K_M, Configuration 2b)::
+Guards (final review, 2026-09-28):
 
-    uv run python scripts/nll_driver.py configs/0b/0b-qwen-7b-ladder.yaml \\
+- a `--runs-dir` resolving inside any `runs-cloud/` directory is refused
+  -- the driver never writes into the committed run records;
+- a non-exploratory config requires the run dir's generate-stage
+  `manifest.json` (same `--run-id` as generation), and every scored label
+  must be in it: each model file's sha256 is checked against the sha the
+  download stage recorded and the generate stage verified before
+  generating from it. The single exception is the 0B reproduction gate
+  (RUN_0B_PRIME.md §4), whose scratch run dirs have no manifest.json:
+  `--labels` together with `--allow-no-manifest` scores those labels with
+  the file hashed directly (`sha256_source` records that).
+
+Usage (from bitcliff/pipeline, on the box -- always `uv run --no-sync`
+there, HANDOFF §7: a sync can replace the hand-built CUDA
+llama-cpp-python; the reproduction gate for Qwen-7B Q4_K_M,
+Configuration 2b)::
+
+    uv run --no-sync python scripts/nll_driver.py configs/0b/0b-qwen-7b-ladder.yaml \\
         --run-id 0b-qwen-7b-ladder-nllgate --runs-dir runs --models-dir models \\
-        --suites longctx_retrieval --labels Q4_K_M
+        --suites longctx_retrieval --labels Q4_K_M --allow-no-manifest
     cmp runs/0b-qwen-7b-ladder-nllgate/nll/Q4_K_M.jsonl \\
         runs-cloud/pipeline/runs/0b-qwen-7b-ladder/nll/Q4_K_M.jsonl
 """
@@ -181,7 +198,70 @@ def build_nll_items(config: LadderConfig, suites: list[str], base_dir: Path):
     return items, nll_items, tokenizer
 
 
-def _model_sha256(label: str, path: Path, run_manifest: dict | None) -> tuple[str, str]:
+NO_MANIFEST_SHA_SOURCE = "hashed (no run manifest.json; --allow-no-manifest)"
+
+
+def _refuse_runs_cloud(runs_dir: Path) -> None:
+    """Never write into committed run records: any `--runs-dir` whose
+    resolved path passes through a `runs-cloud` directory is refused."""
+    if "runs-cloud" in runs_dir.resolve().parts:
+        raise ValueError(
+            f"--runs-dir {runs_dir} resolves inside runs-cloud/ (the committed "
+            f"run records) -- refusing to write there; use a scratch runs dir"
+        )
+
+
+def _check_run_manifest(
+    config: LadderConfig, run_manifest: dict | None, labels_given: bool,
+    allow_no_manifest: bool, run_manifest_path: Path, paths: dict[str, Path],
+) -> None:
+    """Confirmatory (non-exploratory) configs score only files the generate
+    stage verified: the run's manifest.json must exist and name every
+    selected label. `--allow-no-manifest` (only with `--labels`) exempts the
+    0B reproduction gate's scratch run dirs, which have no manifest.json."""
+    if allow_no_manifest and not labels_given:
+        raise ValueError(
+            "--allow-no-manifest is only valid together with --labels (the 0B "
+            "reproduction gate, RUN_0B_PRIME.md §4); a full pass must run "
+            "against the generate stage's manifest.json"
+        )
+    if config.exploratory:
+        return
+    if run_manifest is None:
+        if allow_no_manifest:
+            return
+        raise RuntimeError(
+            f"{run_manifest_path} not found: a non-exploratory config is scored "
+            f"only against the generate stage's manifest.json -- run the "
+            f"generate stage first, with the same --run-id (the 0B reproduction "
+            f"gate alone passes --labels with --allow-no-manifest)"
+        )
+    absent = [lab for lab in paths if lab not in run_manifest]
+    if absent:
+        raise RuntimeError(
+            f"{run_manifest_path} has no entry for {absent} -- refusing to score "
+            f"a file the generate stage never recorded/verified"
+        )
+
+
+def _check_existing_records(out_path: Path, label: str, nll_items) -> None:
+    """Resume guard: an existing `<label>.jsonl` is kept only if it holds
+    exactly the expected item ids, in order, under this label."""
+    records = nll_scorer.read_records(out_path)
+    got = [r.item_id for r in records]
+    expected = [i.id for i in nll_items]
+    if got != expected or any(r.quant_label != label for r in records):
+        raise RuntimeError(
+            f"{out_path} exists but its records do not carry the expected item "
+            f"ids in order under label {label!r} ({len(got)} records, "
+            f"{len(expected)} expected) -- refusing to resume over it; move it "
+            f"aside and re-run"
+        )
+
+
+def _model_sha256(
+    label: str, path: Path, run_manifest: dict | None, no_manifest_source: str = "hashed"
+) -> tuple[str, str]:
     actual = sha256_file(path)
     if run_manifest is not None and label in run_manifest:
         recorded = run_manifest[label]["sha256"]
@@ -191,7 +271,7 @@ def _model_sha256(label: str, path: Path, run_manifest: dict | None) -> tuple[st
                 f"{path} hashes to {actual} -- refusing to score a different file"
             )
         return actual, "run manifest.json (verified)"
-    return actual, "hashed"
+    return actual, no_manifest_source
 
 
 def run_nll(
@@ -205,11 +285,21 @@ def run_nll(
     labels: list[str] | None = None,
     llm_factory=make_nll_llm,
     config_sha256: str | None = None,
+    allow_no_manifest: bool = False,
 ) -> None:
+    _refuse_runs_cloud(runs_dir)
     suites = resolve_suites(config, suites)
     paths = resolve_labels(config, models_dir, labels)
     run_dir = runs_dir / run_id
     out_dir = run_dir / "nll"
+    run_manifest_path = run_dir / "manifest.json"
+    run_manifest = load_manifest(run_manifest_path) if run_manifest_path.exists() else None
+    _check_run_manifest(
+        config, run_manifest, labels is not None, allow_no_manifest, run_manifest_path, paths
+    )
+    no_manifest_source = (
+        NO_MANIFEST_SHA_SOURCE if (run_manifest is None and allow_no_manifest) else "hashed"
+    )
 
     items, nll_items, tokenizer = build_nll_items(config, suites, base_dir)
     if config.exploratory:
@@ -269,9 +359,6 @@ def run_nll(
             )
         label_entries = dict(existing.get("labels", {}))
 
-    run_manifest_path = run_dir / "manifest.json"
-    run_manifest = load_manifest(run_manifest_path) if run_manifest_path.exists() else None
-
     def write_manifest() -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(
@@ -281,9 +368,10 @@ def run_nll(
     for label, path in paths.items():
         out_path = out_dir / f"{label}.jsonl"
         if out_path.exists():
+            _check_existing_records(out_path, label, nll_items)
             print(f"skip {label}: {out_path} exists")
             continue
-        model_sha, source = _model_sha256(label, path, run_manifest)
+        model_sha, source = _model_sha256(label, path, run_manifest, no_manifest_source)
         print(f"NLL_START {label} {path.name}")
         llm = llm_factory(path, n_ctx, seed)
         try:
@@ -323,6 +411,12 @@ def main(argv: list[str] | None = None) -> int:
         "--labels", type=_csv, default=None,
         help="comma-separated load labels to score (default: F16 + every quant)",
     )
+    parser.add_argument(
+        "--allow-no-manifest", action="store_true",
+        help="with --labels only: score a non-exploratory config in a run dir "
+             "with no generate-stage manifest.json (the 0B NLL reproduction "
+             "gate, RUN_0B_PRIME.md §4); files are hashed directly",
+    )
     args = parser.parse_args(argv)
     config = load_config(args.config)
     run_nll(
@@ -334,6 +428,7 @@ def main(argv: list[str] | None = None) -> int:
         suites=args.suites,
         labels=args.labels,
         config_sha256=sha256_file(args.config),
+        allow_no_manifest=args.allow_no_manifest,
     )
     return 0
 

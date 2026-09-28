@@ -1279,7 +1279,9 @@ CELL_TABLE_HEADER = (
 )
 
 
-def _fingerprint_section_lines(result: AnalysisResult, runs_root: Optional[Path]) -> list[str]:
+def _fingerprint_section_lines(
+    result: AnalysisResult, runs_root: Optional[Path], pipeline_dir: Optional[Path] = None
+) -> list[str]:
     """``## Machine / software fingerprint`` (PREREG §6). The 0B run set is
     one machine/session, documented at the shared ``runs-cloud/
     fingerprint.txt``; this text is unconditional and byte-identical to the
@@ -1310,17 +1312,36 @@ def _fingerprint_section_lines(result: AnalysisResult, runs_root: Optional[Path]
             "the shared runs-cloud/fingerprint.txt is never substituted, since "
             "it documents only the 0B machine)."
         )
-    missing = [
-        str(runs_root / run_id / "fingerprint.txt")
-        for run_id in result.run_ids
-        if not (runs_root / run_id / "fingerprint.txt").is_file()
-    ]
-    if missing:
+    # Final review Minor 3: paths are printed relative to the pipeline dir
+    # (never an absolute, machine-specific path), and an empty or
+    # whitespace-only fingerprint.txt records nothing, so it counts as
+    # missing (fails loudly) rather than being cited as a fingerprint.
+    if pipeline_dir is None:
+        pipeline_dir = Path(__file__).resolve().parents[1]
+    try:
+        rel_root = runs_root.resolve().relative_to(pipeline_dir.resolve())
+    except ValueError:
         raise RuntimeError(
-            "fingerprint section: missing per-run fingerprint file(s) for a "
-            "non-0B run set -- expected: " + ", ".join(missing) + " (never "
-            "falls back to the shared runs-cloud/fingerprint.txt, which "
-            "documents only the 0B machine, for another run set)."
+            f"fingerprint section: runs_root {runs_root} is not under the "
+            f"pipeline dir {pipeline_dir} -- per-run fingerprint paths are "
+            f"printed relative to the pipeline dir"
+        ) from None
+    missing, empty = [], []
+    for run_id in result.run_ids:
+        fp = runs_root / run_id / "fingerprint.txt"
+        shown = (rel_root / run_id / "fingerprint.txt").as_posix()
+        if not fp.is_file():
+            missing.append(shown)
+        elif not fp.read_text().strip():
+            empty.append(shown)
+    if missing or empty:
+        raise RuntimeError(
+            "fingerprint section: missing or empty per-run fingerprint file(s) "
+            "for a non-0B run set -- missing: " + (", ".join(missing) or "none")
+            + "; empty: " + (", ".join(empty) or "none") + " (relative to the "
+            "pipeline dir; never falls back to the shared "
+            "runs-cloud/fingerprint.txt, which documents only the 0B machine, "
+            "for another run set)."
         )
     lines.append(
         "This is not the 0B run set, so the shared `runs-cloud/fingerprint.txt` "
@@ -1330,7 +1351,7 @@ def _fingerprint_section_lines(result: AnalysisResult, runs_root: Optional[Path]
     )
     lines.append("")
     for run_id in result.run_ids:
-        lines.append(f"- `{run_id}`: `{runs_root / run_id / 'fingerprint.txt'}`")
+        lines.append(f"- `{run_id}`: `{(rel_root / run_id / 'fingerprint.txt').as_posix()}`")
     lines.append("")
     return lines
 
@@ -1342,13 +1363,16 @@ def write_findings_md(
     sweep: Optional[dict[str, list[CellRow]]] = None,
     first_pass: Optional[AnalysisResult] = None,
     runs_root: Optional[Path] = None,
+    pipeline_dir: Optional[Path] = None,
 ) -> None:
     """Render FINDINGS markdown off ``result``. ``sweep`` (seed prefix ->
     cells, ``load_sweep``) and ``first_pass`` (``compute_first_pass_factual_qa``)
     feed the 0B-only seed-sweep section and Appendix A; both are emitted
     only for the 0B run set at the ratified seed (ignored otherwise).
     ``runs_root`` locates each run's own fingerprint file for a non-0B run
-    set (see ``_fingerprint_section_lines``); unused for the 0B run set."""
+    set (see ``_fingerprint_section_lines``); unused for the 0B run set.
+    ``pipeline_dir`` (default: this script's pipeline dir) is the root those
+    per-run paths are printed relative to."""
     is_0b = is_0b_run_set(result.run_ids, result.ladder_run_ids)
     ratified = str(SEED) == registered.BOOTSTRAP_SEED
     lines: list[str] = []
@@ -1371,7 +1395,7 @@ def write_findings_md(
     lines.append("")
 
     # --- Fingerprint reference ---
-    lines.extend(_fingerprint_section_lines(result, runs_root))
+    lines.extend(_fingerprint_section_lines(result, runs_root, pipeline_dir))
 
     # --- Seed disclosure ---
     if ratified:
@@ -1772,7 +1796,7 @@ def main() -> None:
     write_cells_csv(result.cells, out_dir / "cells.csv", inversions=result.inversions)
     write_findings_md(
         result, out_dir / findings_name, sweep=sweep, first_pass=first_pass,
-        runs_root=runs_root,
+        runs_root=runs_root, pipeline_dir=pipeline_dir,
     )
     print(f"wrote {len(result.cells)} cells to {out_dir / 'cells.csv'}")
     print(f"wrote findings to {out_dir / findings_name}")

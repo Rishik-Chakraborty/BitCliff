@@ -66,7 +66,7 @@ suites:
     alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
     max_tokens: 64
 
-# Declarative only, as in the ladder config: no driver consumes it
-# (OPEN_QUESTIONS §16).
+# As in the ladder config: the default --suites of scripts/nll_driver.py
+# (commit ba146e7; OPEN_QUESTIONS §16); run_pipeline never reads it.
 nll:
   suites: [longctx_retrieval_2a, longctx_retrieval]
