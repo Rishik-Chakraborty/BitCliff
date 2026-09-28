@@ -1,6 +1,13 @@
-# OPEN QUESTIONS — overnight run 2026-08-26/27
+# OPEN QUESTIONS — decisions PREREG does not cover (opened 2026-08-26/27; current 2026-09-27)
 
-## RESOLUTIONS (2026-08-27, user rulings — all four entries below are now closed)
+Status as of 2026-09-27: §1–§10 are resolved, each with its dated ruling in
+place. §11 is a disclosure. §12 is an inventory that stays an open pre-run
+obligation until the stamped Qwen-7B shootout manifest section exists.
+§13–§16 were added 2026-09-27: two scope readings, a taxonomy note, stamped
+wording left unedited, and the missing NLL driver. Numbering note: §10 sits
+between §5 and §6; it was renumbered from a second §6.
+
+## RESOLUTIONS (2026-08-27, user rulings — the four overnight entries §1–§4 below are closed)
 
 1. **§1 HF gate:** resolved — user logged in, Llama-3.1 gate access approved;
    Llama-8B calibration resumed under official-repo provenance.
@@ -456,7 +463,7 @@ precedent of commit `66eefc0` for the freeze and Amendment 1 receipts.
 three hunks: line 3 (this header), line 570 (the §7 slot pointer), and
 the hunk beginning at line 790 that replaces the two `[TO BE FILLED AT
 F4]` receipt placeholders with the freeze receipt lines and appends
-Amendments 1 and 2 with their receipt lines. No other body line differs
+Amendments 1 to 4 with their receipt lines. No other body line differs
 from the freeze commit.
 
 Execution matches registration: every registered rule, seed, n, candidate
@@ -531,3 +538,103 @@ it leaves open. It proposes no values.
 
 All of the above are to be fixed in the stamped manifest section Amendment 3
 §C commits to, before any shootout run. No values are proposed here.
+
+## 13. 0B-prime scope readings (2026-09-27)
+
+Two readings of registered text for the 1.5B confirmatory run
+(RUN_0B_PRIME.md §2, §3), each ruled by the user from the text itself:
+
+- **Twins run on the 1.5B.** PREREG §3.3 (lines 247–262) registers the
+  `arithmetic_twins` suite, its 94 pair items, and its within-pair analysis
+  with no model restriction. Nothing in the text excludes the 1.5B, so the
+  suite runs.
+- **The NLL pass is registered Q2 data for the 1.5B.** PREREG §3.1 (lines
+  186–195) registers the answer-token spec and both aggregations (full-span
+  primary, digits-only sensitivity) with no model restriction. The pass
+  runs on both the 2a and 2b items for all 8 loads. Q2's analysis
+  population is fixed in the Q2 pre-specification before any Q2 analysis
+  runs.
+
+**User rulings from the text, 2026-09-27. Disclosure only:** no registered
+slot is filled, nothing is amended, and nothing here is stamped.
+
+## 14. State taxonomy note (2026-09-27)
+
+Under the registered §8 definitions (PREREG lines 589–596), a cell whose CI
+excludes 0 with a **gain** beyond M is not Damaged (not a loss), not Small
+real loss (the point estimate is not within M), and not Equivalent (the CI
+excludes 0). It therefore falls to **Indeterminate**. The code does the same:
+`cell_state` in `src/bitcliff_pipeline/analysis.py` (lines 110–123) states
+it and returns "indeterminate".
+
+No 0B cell does this. Across all 88 rows of `analysis/0b/cells.csv` no CI
+lies entirely above 0, under the ratified seed or any of the four sweep
+seeds (`analysis/0b/sweep/cells-seed{1..4}.csv`). Any future such cell is
+displayed with a gain flag beside its unchanged state; the state itself is
+not changed.
+
+## 15. Wording inside stamped text, not edited (2026-09-27)
+
+Three places where stamped PREREG text reads stale or leaves something
+implicit. They are recorded here; the stamped text is not edited.
+
+**(a) Amendment 1 §E.** PREREG.md lines 1074–1075 read "Does not modify
+PREREG.md." and "Is not OpenTimestamps-stamped." These lines were carried
+over from AMENDMENT_DRAFT.md and appended in `00a1228` (2026-08-29). They
+have been stale since that commit: the append modified PREREG.md, and the
+receipt `freeze/amendment1-commit-hash.txt.ots` stamps it
+(Bitcoin-attested, blocks 964530/964545/964549).
+
+**(b) §12 round-3 text.** PREREG.md lines 713–716, frozen body:
+
+    **Round 3** — a fresh 30-item sample, new seed, same adjudication
+    method, bar FP <= 1/15 AND FN <= 2/15 — runs on the augmented alias lists
+    as a separate, later step; its outcome (and, if it fails, the TriviaQA
+    fallback it triggers) is appended here as a dated amendment.
+
+What is stale: round 3 had already run and passed before the freeze
+(commit `3f183b0`, 2026-08-26 19:01, an ancestor of freeze commit
+`5e6882b7`, 23:23). Its result (seed `20260828`, FP 0/15, FN 0/15, PASS; the
+TriviaQA fallback does not execute) is recorded in §3.4, lines 394–397, not
+appended to §12 as a dated amendment. The "later step" wording and the
+"appended here" pointer were already stale when the body was frozen.
+
+**(c) The pair-Δ sign convention.** Neither FINDINGS_0B.md nor Amendment 3
+states it. From `scripts/analyze_0b.py`: `compute_pair` builds
+`pairs[i] = (a_correct, b_correct)` via `build_pairs`, and `analyze_cell`
+(`src/bitcliff_pipeline/analysis.py` line 158) computes
+`delta = quant_acc − f16_acc`, where the first element sits in the "f16"
+slot and the second in the "quant" slot. For a row written "A vs B":
+
+    Δ = acc(B) minus acc(A)
+
+Checked against every row of the FINDINGS_0B.md trigger table: all 56 rows
+(48 Arm 1, 8 Arm 2), each Δ recomputed from the two files' `acc_quant` in
+`analysis/0b/cells.csv`, and each state A / state B against the file's own
+cell. Also checked: all 16 rows of Amendment 3 §B. **No row's sign
+contradicts the convention.** The condition-(i) pair (unsloth_Q3_K_M vs
+mradermacher_static_Q3_K_M, Δ −0.0957) reads mradermacher_static 0.7447
+minus unsloth 0.8404, consistent with its states (indeterminate / damaged).
+Amendment 3 §B reproduces the FINDINGS table as of `9f94913` and is not
+edited. Since then the FINDINGS file has changed only by the §10 imatrix
+footnote, which is outside the trigger table.
+
+## 16. NLL driver not in repo (2026-09-27)
+
+The teacher-forced NLL records exist: `runs-cloud/pipeline/runs/*/nll/*.jsonl`
+(26 rungs × 96 items) plus `runs-cloud/0b-nll.log` and the `NLLCFG_*` lines
+in `runs-cloud/0b-full.log`. No committed script or CLI stage produces
+them. `nll_scorer.py` is a library only (`score_records`,
+`make_llama_logits_provider`), and `make_llm` in `generate.py` does not set
+`logits_all=True`. The driver that ran on the 0B box is therefore not in
+the repo.
+
+**Next step (first step of the next code turn):** recover the driver from
+the S3 `0b/code/` snapshot and record its sha256 on recovery, then commit
+it.
+
+**Related generator note:** the FINDINGS_0B.md shootout trigger table is
+emitted by `scripts/analyze_0b.py` (the "Uploader shootout trigger (PREREG
+§5)" block). The sign-convention sentence from §15(c), added by hand beside
+that table on 2026-09-27, moves into the generator in the code turn so a
+regeneration keeps it.
