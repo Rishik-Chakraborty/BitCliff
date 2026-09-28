@@ -46,6 +46,7 @@ content).
 
 from __future__ import annotations
 
+import argparse
 import csv
 import itertools
 import json
@@ -93,12 +94,9 @@ RUN_IDS = [
     "0b-arm2-official",
 ]
 LADDER_RUN_IDS = ["0b-llama-8b-ladder", "0b-qwen-7b-ladder"]
-RUN_KIND = {
-    "0b-llama-8b-ladder": "ladder",
-    "0b-qwen-7b-ladder": "ladder",
-    "0b-shootout-arm1": "arm",
-    "0b-arm2-official": "arm",
-}
+# A run_id's kind ("ladder" vs "arm") is derived as membership in
+# ladder_run_ids (Task 7) rather than kept as a separate hardcoded table --
+# see compute_all_cells / write_findings_md.
 RUN_MODEL = {
     "0b-llama-8b-ladder": "llama-3.1-8b-instruct",
     "0b-qwen-7b-ladder": "qwen2.5-7b-instruct",
@@ -213,9 +211,13 @@ FACTUAL_QA_SOURCE = {
 }
 
 
-def load_all_runs(runs_root: Path, run_ids: list[str] = RUN_IDS) -> dict[str, RunData]:
+def load_all_runs(
+    runs_root: Path,
+    run_ids: list[str] = RUN_IDS,
+    factual_qa_source: dict[str, str] = FACTUAL_QA_SOURCE,
+) -> dict[str, RunData]:
     runs = {run_id: load_run(run_id, runs_root / run_id) for run_id in run_ids}
-    for run_id, source_id in FACTUAL_QA_SOURCE.items():
+    for run_id, source_id in factual_qa_source.items():
         if run_id not in runs:
             continue
         # Substitution applies only when the run actually carries
@@ -305,7 +307,9 @@ class CellRow:
     seed_rule: str
 
 
-def accuracy_inversions(cells: list["CellRow"]) -> dict[tuple[str, str, str], str]:
+def accuracy_inversions(
+    cells: list["CellRow"], *, ladder_order: list[str] = LADDER_ORDER
+) -> dict[tuple[str, str, str], str]:
     """PREREG §8's accuracy-level non-monotonicity flag (user ruling
     2026-09-06, OPEN_QUESTIONS §9): map (run_id, suite, quant_label) ->
     the higher-bits neighbor label this cell scored strictly ABOVE.
@@ -322,8 +326,8 @@ def accuracy_inversions(cells: list["CellRow"]) -> dict[tuple[str, str, str], st
     out: dict[tuple[str, str, str], str] = {}
     for (run_id, suite), fam in by_family.items():
         labels = set(fam)
-        if labels <= set(LADDER_ORDER):
-            chain = ["F16"] + [q for q in LADDER_ORDER if q in fam]
+        if labels <= set(ladder_order):
+            chain = ["F16"] + [q for q in ladder_order if q in fam]
         else:
             uploaders = sorted({l.rsplit("_Q", 1)[0] for l in labels if "_Q" in l and not l.startswith("Q")})
             chain = None
@@ -400,18 +404,23 @@ def compute_all_cells(
     suites: list[str] = SUITES,
     ladder_order: list[str] = LADDER_ORDER,
     run_ids: list[str] = RUN_IDS,
+    ladder_run_ids: list[str] = LADDER_RUN_IDS,
+    run_model: dict[str, str] = RUN_MODEL,
 ) -> list[CellRow]:
     """Every ladder + arm cell, in deterministic (run, suite, quant_label) order.
 
     Ladder runs: hard error if a suite's non-F16 labels don't exactly match
     ``ladder_order`` (a missing or extra rung must not be silently dropped
-    or silently included).
+    or silently included). A run_id's kind is "ladder" iff it is in
+    ``ladder_run_ids`` -- not a separate hardcoded table -- so a caller
+    supplying new run ids (Task 7: the 1.5B/0B-prime single-ladder-run
+    shape) never needs a matching RUN_KIND entry.
     """
     rows: list[CellRow] = []
     for run_id in run_ids:
         run_data = runs_data[run_id]
-        model = RUN_MODEL[run_id]
-        kind = RUN_KIND[run_id]
+        model = run_model[run_id]
+        kind = "ladder" if run_id in ladder_run_ids else "arm"
         for suite in suites:
             available = _quant_labels_for(run_data, suite)
             if kind == "ladder":
@@ -648,6 +657,13 @@ class AnalysisResult:
     holm_verdicts: dict[tuple[str, str], Optional[HolmVerdict]]
     shootout: ShootoutReport
     inversions: dict[tuple[str, str, str], str] = dataclasses.field(default_factory=dict)
+    # Task 7: the run/suite shape actually used to build this result, carried
+    # alongside it so write_findings_md (and any other consumer) renders off
+    # this run's shape instead of the module-level 0B defaults.
+    run_ids: list[str] = dataclasses.field(default_factory=lambda: list(RUN_IDS))
+    ladder_run_ids: list[str] = dataclasses.field(default_factory=lambda: list(LADDER_RUN_IDS))
+    suites: list[str] = dataclasses.field(default_factory=lambda: list(SUITES))
+    run_model: dict[str, str] = dataclasses.field(default_factory=lambda: dict(RUN_MODEL))
 
 
 def run_analysis(
@@ -661,11 +677,14 @@ def run_analysis(
     ladder_order: list[str] = LADDER_ORDER,
     arm1_levels: list[str] = ARM1_LEVELS,
     arm2_levels: list[str] = ARM2_LEVELS,
+    run_model: dict[str, str] = RUN_MODEL,
+    factual_qa_source: dict[str, str] = FACTUAL_QA_SOURCE,
 ) -> AnalysisResult:
-    runs_data = load_all_runs(runs_root, run_ids)
+    runs_data = load_all_runs(runs_root, run_ids, factual_qa_source=factual_qa_source)
     cells = compute_all_cells(
         runs_data, margin=margin, n_resamples=n_resamples,
         suites=suites, ladder_order=ladder_order, run_ids=run_ids,
+        ladder_run_ids=ladder_run_ids, run_model=run_model,
     )
     cliffs = compute_cliffs(
         cells, ladder_run_ids=ladder_run_ids, suites=suites, ladder_order=ladder_order,
@@ -675,7 +694,12 @@ def run_analysis(
         runs_data, cells, margin=margin, n_resamples=n_resamples,
         arm1_levels=arm1_levels, arm2_levels=arm2_levels, suites=suites,
     )
-    return AnalysisResult(cells=cells, cliffs=cliffs, holm_verdicts=holm_verdicts, shootout=shootout, inversions=accuracy_inversions(cells))
+    return AnalysisResult(
+        cells=cells, cliffs=cliffs, holm_verdicts=holm_verdicts, shootout=shootout,
+        inversions=accuracy_inversions(cells, ladder_order=ladder_order),
+        run_ids=list(run_ids), ladder_run_ids=list(ladder_run_ids), suites=list(suites),
+        run_model=dict(run_model),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -812,18 +836,18 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
 
     lines.append("## Per-cell results")
     lines.append("")
-    for run_id in RUN_IDS:
+    for run_id in result.run_ids:
         run_cells = cells_by_run.get(run_id, [])
         if not run_cells:
             continue
-        model = RUN_MODEL[run_id]
-        kind = RUN_KIND[run_id]
+        model = result.run_model[run_id]
+        kind = "ladder" if run_id in result.ladder_run_ids else "arm"
         lines.append(f"### `{run_id}` ({model}, {kind})")
         lines.append("")
         cells_by_suite: dict[str, list[CellRow]] = {}
         for c in run_cells:
             cells_by_suite.setdefault(c.suite, []).append(c)
-        for suite in SUITES:
+        for suite in result.suites:
             suite_cells = cells_by_suite.get(suite)
             if not suite_cells:
                 continue
@@ -852,8 +876,8 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
     lines.append("")
     lines.append("| run_id | suite | cliff rung | state-non-monotonic |")
     lines.append("|---|---|---|---|")
-    for run_id in LADDER_RUN_IDS:
-        for suite in SUITES:
+    for run_id in result.ladder_run_ids:
+        for suite in result.suites:
             cr = result.cliffs.get((run_id, suite))
             if cr is None:
                 continue
@@ -893,7 +917,7 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
         lines.append(
             f"| {run_id} | {suite} | {label} | {hi} | {c.acc_quant:.4f} | {hi_acc:.4f} | {note} |"
         )
-    n_ladder = sum(1 for k in inv if k[0] in LADDER_RUN_IDS)
+    n_ladder = sum(1 for k in inv if k[0] in result.ladder_run_ids)
     lines.append("")
     lines.append(
         f"Total: {len(inv)} inversions ({n_ladder} in ladder families, "
@@ -913,8 +937,8 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
     lines.append("")
     lines.append("| run_id | suite | cliff rung | rungs at/below cliff | verdict | failing rungs |")
     lines.append("|---|---|---|---|---|---|")
-    for run_id in LADDER_RUN_IDS:
-        for suite in SUITES:
+    for run_id in result.ladder_run_ids:
+        for suite in result.suites:
             verdict = result.holm_verdicts.get((run_id, suite))
             if verdict is None:
                 lines.append(f"| {run_id} | {suite} | (none) | — | no candidate (no cliff) | — |")
@@ -1000,18 +1024,71 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CLI
+# CLI (Task 7: takes run ids -- ladder runs, arm runs, and the factual_qa
+# source substitution -- as arguments, with the 0B set as the documented
+# default, so a future non-0B analysis (e.g. the 1.5B/0B-prime single-ladder-
+# run, five-suite, no-arms shape) can reuse this script unchanged. With no
+# arguments this is byte-identical to the pre-Task-7 hardcoded behavior.
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    import argparse
+def _parse_list(s: str) -> list[str]:
+    """Comma-separated CLI list; "" -> [] (used to disable arm1/arm2 levels
+    when no arm runs are given -- the shootout section then reports "not
+    fired" instead of crashing)."""
+    return [] if not s else s.split(",")
 
+
+def _parse_kv(s: str) -> dict[str, str]:
+    """Comma-separated ``k=v`` CLI mapping; "" -> {} (used to disable the
+    factual_qa source substitution for runs that never sampled the
+    wrong-order set, e.g. a 1.5B/0B-prime run)."""
+    if not s:
+        return {}
+    out: dict[str, str] = {}
+    for pair in s.split(","):
+        k, _, v = pair.partition("=")
+        out[k] = v
+    return out
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", default=registered.BOOTSTRAP_SEED,
                         help="bootstrap seed prefix (default: ratified 8271)")
     parser.add_argument("--out-dir", default=None,
                         help="output directory (default: analysis/0b)")
+    parser.add_argument("--run-ids", type=_parse_list, default=RUN_IDS,
+                        help="comma-separated run ids to analyze "
+                             "(default: the 0B set)")
+    parser.add_argument("--ladder-run-ids", type=_parse_list, default=LADDER_RUN_IDS,
+                        help="comma-separated subset of --run-ids treated as "
+                             "ladder runs; every other run id is an 'arm' run "
+                             "(default: the 0B ladder pair)")
+    parser.add_argument("--suites", type=_parse_list, default=SUITES,
+                        help="comma-separated suite keys to score "
+                             "(default: the 0B four-suite set)")
+    parser.add_argument("--ladder-order", type=_parse_list, default=LADDER_ORDER,
+                        help="comma-separated ladder rung order "
+                             "(default: the registered 7-rung order)")
+    parser.add_argument("--arm1-levels", type=_parse_list, default=ARM1_LEVELS,
+                        help="comma-separated Arm-1 shootout levels; pass "
+                             "\"\" to disable Arm-1 (no arm runs given)")
+    parser.add_argument("--arm2-levels", type=_parse_list, default=ARM2_LEVELS,
+                        help="comma-separated Arm-2 shootout levels; pass "
+                             "\"\" to disable Arm-2 (no arm runs given)")
+    parser.add_argument("--run-model", type=_parse_kv, default=RUN_MODEL,
+                        help="comma-separated run_id=model_id pairs "
+                             "(default: the 0B mapping)")
+    parser.add_argument("--factual-qa-source", type=_parse_kv, default=FACTUAL_QA_SOURCE,
+                        help="comma-separated run_id=source_run_id factual_qa "
+                             "substitution pairs (OPEN_QUESTIONS §8); pass "
+                             "\"\" to disable the substitution")
+    return parser
+
+
+def main() -> None:
+    parser = build_arg_parser()
     args = parser.parse_args()
     global SEED, SEED_RULE, PAIR_SEED_RULE
     SEED = args.seed
@@ -1022,7 +1099,17 @@ def main() -> None:
     runs_root = pipeline_dir / "runs-cloud" / "pipeline" / "runs"
     out_dir = Path(args.out_dir) if args.out_dir else pipeline_dir / "analysis" / "0b"
 
-    result = run_analysis(runs_root)
+    result = run_analysis(
+        runs_root,
+        run_ids=args.run_ids,
+        ladder_run_ids=args.ladder_run_ids,
+        suites=args.suites,
+        ladder_order=args.ladder_order,
+        arm1_levels=args.arm1_levels,
+        arm2_levels=args.arm2_levels,
+        run_model=args.run_model,
+        factual_qa_source=args.factual_qa_source,
+    )
     write_cells_csv(result.cells, out_dir / "cells.csv", inversions=result.inversions)
     write_findings_md(result, out_dir / "FINDINGS_0B.md")
     print(f"wrote {len(result.cells)} cells to {out_dir / 'cells.csv'}")

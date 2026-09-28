@@ -544,3 +544,132 @@ def test_cells_csv_carries_acc_inversion_columns(tmp_path):
     rows = list(_csv.DictReader(out.open()))
     assert rows[0]["acc_inversion"] == "True" and rows[0]["inversion_above"] == "F16"
     assert rows[1]["acc_inversion"] == "False" and rows[1]["inversion_above"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Task 7: analyze_0b.py takes run ids -- CLI arg parsing + defaults, and the
+# generalized (run_ids/ladder_run_ids/suites/run_model/factual_qa_source)
+# plumbing that lets a non-0B run (e.g. the 1.5B single-ladder-run, five
+# -suite, no-arms 0B-prime analysis) reuse this script without editing it.
+# ---------------------------------------------------------------------------
+
+
+def test_parse_list_splits_on_comma():
+    assert a0b._parse_list("a,b,c") == ["a", "b", "c"]
+
+
+def test_parse_list_empty_string_is_empty_list():
+    assert a0b._parse_list("") == []
+
+
+def test_parse_kv_splits_pairs():
+    assert a0b._parse_kv("x=1,y=2") == {"x": "1", "y": "2"}
+
+
+def test_parse_kv_empty_string_is_empty_dict():
+    assert a0b._parse_kv("") == {}
+
+
+def test_build_arg_parser_defaults_are_the_0b_set():
+    parser = a0b.build_arg_parser()
+    args = parser.parse_args([])
+    assert args.run_ids == a0b.RUN_IDS
+    assert args.ladder_run_ids == a0b.LADDER_RUN_IDS
+    assert args.suites == a0b.SUITES
+    assert args.ladder_order == a0b.LADDER_ORDER
+    assert args.arm1_levels == a0b.ARM1_LEVELS
+    assert args.arm2_levels == a0b.ARM2_LEVELS
+    assert args.run_model == a0b.RUN_MODEL
+    assert args.factual_qa_source == a0b.FACTUAL_QA_SOURCE
+    assert args.seed == a0b.registered.BOOTSTRAP_SEED
+    assert args.out_dir is None
+
+
+def test_build_arg_parser_overrides_for_a_single_ladder_run_no_arms():
+    """The 1.5B (0B-prime) shape: one ladder run, five suites, no arm runs,
+    no factual_qa substitution -- exactly what a future 1.5B invocation
+    would pass, without editing this script."""
+    parser = a0b.build_arg_parser()
+    args = parser.parse_args([
+        "--run-ids", "0b-prime-qwen-1.5b-ladder",
+        "--ladder-run-ids", "0b-prime-qwen-1.5b-ladder",
+        "--suites", "longctx_retrieval_2a,longctx_retrieval,arithmetic,arithmetic_twins,factual_qa",
+        "--run-model", "0b-prime-qwen-1.5b-ladder=qwen2.5-1.5b-instruct",
+        "--factual-qa-source", "",
+        "--arm1-levels", "",
+        "--arm2-levels", "",
+    ])
+    assert args.run_ids == ["0b-prime-qwen-1.5b-ladder"]
+    assert args.ladder_run_ids == ["0b-prime-qwen-1.5b-ladder"]
+    assert args.suites == [
+        "longctx_retrieval_2a", "longctx_retrieval", "arithmetic", "arithmetic_twins", "factual_qa",
+    ]
+    assert args.run_model == {"0b-prime-qwen-1.5b-ladder": "qwen2.5-1.5b-instruct"}
+    assert args.factual_qa_source == {}
+    assert args.arm1_levels == []
+    assert args.arm2_levels == []
+
+
+def test_run_analysis_single_ladder_run_no_arms_does_not_crash(tmp_path):
+    """Shootout/trigger logic only applies when arm runs are given; with
+    none (arm1_levels=[] and arm2_levels=[]), the shootout section must be
+    empty and the trigger must read "not fired", never crash."""
+    root = tmp_path / "runs"
+    suite = "arithmetic"
+    ids = [f"i{n}" for n in range(10)]
+    labels = {"F16": ["correct"] * 10}
+    for rung in a0b.LADDER_ORDER:
+        labels[rung] = ["correct"] * 10
+    _write_run(root / "1p5b-ladder", {suite: ids}, {suite: labels})
+
+    result = a0b.run_analysis(
+        root,
+        n_resamples=50,
+        run_ids=["1p5b-ladder"],
+        ladder_run_ids=["1p5b-ladder"],
+        suites=[suite],
+        arm1_levels=[],
+        arm2_levels=[],
+        run_model={"1p5b-ladder": "qwen2.5-1.5b-instruct"},
+        factual_qa_source={},
+    )
+    assert result.shootout.pairs == []
+    assert result.shootout.triggered is False
+    assert len(result.cells) == len(a0b.LADDER_ORDER)  # one suite, one ladder run
+
+    out_path = tmp_path / "FINDINGS_0B.md"
+    a0b.write_findings_md(result, out_path)  # must not raise
+    text = out_path.read_text()
+    assert "### `1p5b-ladder` (qwen2.5-1.5b-instruct, ladder)" in text
+    assert "Trigger: not fired" in text
+
+
+def test_write_findings_md_uses_result_run_model_not_module_global(tmp_path):
+    """Regression: write_findings_md must read model/kind/suites off the
+    AnalysisResult it's given, not off the module-level RUN_MODEL/RUN_KIND/
+    SUITES globals -- otherwise a non-0B run_id crashes with a KeyError."""
+    root = tmp_path / "runs"
+    suite = "custom_suite"
+    ids = [f"i{n}" for n in range(6)]
+    labels = {"F16": ["correct"] * 6}
+    for rung in a0b.LADDER_ORDER:
+        labels[rung] = ["correct"] * 6
+    custom_run_id = "not-a-0b-run-id"
+    _write_run(root / custom_run_id, {suite: ids}, {suite: labels})
+
+    result = a0b.run_analysis(
+        root,
+        n_resamples=50,
+        run_ids=[custom_run_id],
+        ladder_run_ids=[custom_run_id],
+        suites=[suite],
+        arm1_levels=[],
+        arm2_levels=[],
+        run_model={custom_run_id: "some-custom-model"},
+        factual_qa_source={},
+    )
+    out_path = tmp_path / "FINDINGS_0B.md"
+    a0b.write_findings_md(result, out_path)
+    text = out_path.read_text()
+    assert f"### `{custom_run_id}` (some-custom-model, ladder)" in text
+    assert "**custom_suite**" in text
