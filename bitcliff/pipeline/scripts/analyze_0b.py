@@ -31,8 +31,8 @@ Reads the four 0B run trees under ``runs-cloud/pipeline/runs/`` and writes
 No I/O happens in ``bitcliff_pipeline.analysis`` (the pure §8 stats core);
 all file reading/writing lives here.
 
-**Seed rule (PROVISIONAL pending OPEN_QUESTIONS.md §7 ratification):**
-every per-cell bootstrap uses ``random.Random(f"8271:{run_id}:{quant_label}:{suite}")``.
+**Seed rule (RATIFIED 2026-09-04, OPEN_QUESTIONS.md §7; seed in
+``registered.BOOTSTRAP_SEED``):** every per-cell bootstrap uses ``random.Random(f"8271:{run_id}:{quant_label}:{suite}")``.
 Every shootout pairwise comparison uses
 ``random.Random(f"8271:pair:{name_a}:{name_b}:{suite}")`` where
 ``name_a``/``name_b`` are the two files' shootout display names
@@ -42,6 +42,21 @@ the seed does not depend on enumeration order.
 Deterministic: two runs over the same data produce byte-identical
 ``cells.csv`` / ``FINDINGS_0B.md`` (no timestamps, no commit hashes in the
 content).
+
+**Annotations (Task 8, code turn 2026-09-27):** every note that used to be
+hand-appended to the committed FINDINGS_0B.md after generation is emitted
+here, each gated on the inputs that make it applicable, so a regeneration
+keeps them and a non-0B invocation (e.g. the 1.5B/0B-prime ladder) never
+prints 0B-only prose: the ratified-seed wording (seed ==
+``registered.BOOTSTRAP_SEED``; the 2026-09-03 provisional history only for
+the 0B run set), the Arm 2 imatrix footnote (``RUN_FOOTNOTES``, keyed by
+run id), the pair-delta sign convention (verified row-by-row against the
+per-file accuracies; the dated 2026-09-27 sentence only for the 0B run
+set), the seed-robustness sweep section (0B run set + ratified seed +
+``analysis/0b/sweep/`` data) and Appendix A (0B run set + ratified seed +
+the first-pass factual_qa measurement). Where the committed text is fixed
+prose, every data claim it makes is re-derived and checked here, and a
+mismatch is a hard error rather than a silently stale sentence.
 """
 
 from __future__ import annotations
@@ -123,6 +138,18 @@ def _arm2_files(level: str) -> list[tuple[str, str, str]]:
         (f"official_{level}", "0b-arm2-official", level),
         (f"bartowski_{level}", "0b-qwen-7b-ladder", level),
     ]
+
+
+def shootout_files(arm: str, level: str) -> list[tuple[str, str, str]]:
+    """(display name, run_id, quant_label) for every file in ``arm`` at ``level``."""
+    return {"arm1": _arm1_files, "arm2": _arm2_files}[arm](level)
+
+
+def is_0b_run_set(run_ids: list[str], ladder_run_ids: list[str]) -> bool:
+    """True iff this invocation analyzes exactly the 0B run set -- the gate
+    for every 0B-only FINDINGS annotation (dated 0B prose, the seed sweep,
+    Appendix A)."""
+    return list(run_ids) == RUN_IDS and list(ladder_run_ids) == LADDER_RUN_IDS
 
 
 CELLS_CSV_FIELDS = [
@@ -702,6 +729,356 @@ def run_analysis(
     )
 
 
+def compute_first_pass_factual_qa(
+    runs_root: Path,
+    *,
+    ladder_run_ids: list[str] = LADDER_RUN_IDS,
+    ladder_order: list[str] = LADDER_ORDER,
+    run_model: dict[str, str] = RUN_MODEL,
+) -> AnalysisResult:
+    """The first 0B pass's factual_qa ladder cells -- the NON-registered
+    item set each 0b run itself sampled (OPEN_QUESTIONS §8), i.e. the same
+    analysis with the 0b2 substitution switched off. Feeds Appendix A only;
+    never enters a headline table."""
+    return run_analysis(
+        runs_root, run_ids=ladder_run_ids, ladder_run_ids=ladder_run_ids,
+        suites=["factual_qa"], ladder_order=ladder_order,
+        arm1_levels=[], arm2_levels=[], run_model=run_model, factual_qa_source={},
+    )
+
+
+def read_cells_csv(path: Path) -> list[CellRow]:
+    """Parse a cells.csv (current or pre-``acc_inversion`` column set, e.g.
+    the committed ``analysis/0b/sweep/cells-seed*.csv``) back into rows."""
+    rows: list[CellRow] = []
+    with path.open(newline="") as f:
+        for r in csv.DictReader(f):
+            rows.append(CellRow(
+                run_id=r["run_id"], source_run_id=r["source_run_id"], model=r["model"],
+                suite=r["suite"], quant_label=r["quant_label"], n=int(r["n"]),
+                acc_f16=float(r["acc_f16"]), acc_quant=float(r["acc_quant"]),
+                delta=float(r["delta"]), ci_lo=float(r["ci_lo"]), ci_hi=float(r["ci_hi"]),
+                p_mcnemar=float(r["p_mcnemar"]), b_lost=int(r["b_lost"]),
+                c_gained=int(r["c_gained"]), truncated_f16=int(r["truncated_f16"]),
+                truncated_quant=int(r["truncated_quant"]), state=r["state"],
+                seed_rule=r["seed_rule"],
+            ))
+    return rows
+
+
+def load_sweep(sweep_dir: Path) -> dict[str, list[CellRow]]:
+    """``{seed prefix: cells}`` from ``<sweep_dir>/cells-seed<N>.csv`` (the
+    robustness sweep's outputs, ``--seed N``), ordered by seed."""
+    files = sorted(sweep_dir.glob("cells-seed*.csv"),
+                   key=lambda p: int(p.stem.removeprefix("cells-seed")))
+    return {p.stem.removeprefix("cells-seed"): read_cells_csv(p) for p in files}
+
+
+# ---------------------------------------------------------------------------
+# Post-generation annotations (Task 8). Each was once hand-added to the
+# committed FINDINGS_0B.md; the text below is byte-identical to it. Fixed
+# prose tied to a dated event is emitted verbatim; the numbers inside it are
+# filled from data, and every qualitative claim it makes is re-checked
+# against the data (ValueError on mismatch -- never a stale sentence).
+# ---------------------------------------------------------------------------
+
+# Per-run footnotes, emitted directly under that run's per-cell heading
+# whenever the run is analyzed.
+RUN_FOOTNOTES = {
+    "0b-arm2-official": (
+        "Footnote (2026-09-08, OPEN_QUESTIONS §10): the two official Qwen files ran "
+        "and are reported as `imatrix: false`; confirmed from their GGUF headers at "
+        "the pinned revision (no `quantize.imatrix.*` keys) — evidence: "
+        "`reference-manifests/evidence/qwen2.5-7b-official-gguf-headers.md`."
+    ),
+}
+
+# OPEN_QUESTIONS §15(c): the sentence added by hand on 2026-09-27 (0B run
+# set only), kept byte-identical -- including its now-fulfilled forward
+# reference to this script.
+SIGN_CONVENTION_0B = (
+    'Sign convention (added 2026-09-27, OPEN_QUESTIONS §15(c)): for a row "A vs B", '
+    "delta = acc(B) minus acc(A). All {n} rows below were checked against the "
+    "per-file accuracies in `cells.csv`, and none contradicts it. This sentence was "
+    "added by hand; it moves into `scripts/analyze_0b.py` in the next code turn so a "
+    "regeneration keeps it."
+)
+SIGN_CONVENTION_GENERIC = (
+    'Sign convention (OPEN_QUESTIONS §15(c)): for a row "A vs B", delta = acc(B) '
+    "minus acc(A). {n_checked} of the {n_rows} rows below are computed; each was "
+    "checked against the per-file accuracies in `cells.csv`, and none contradicts it."
+)
+
+_STATE_DISPLAY = {
+    "equivalent": "Equivalent",
+    "small_real_loss": "Small real loss",
+    "indeterminate": "Indeterminate",
+    "damaged": "Damaged",
+}
+_COUNT_WORDS = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "five", 6: "six"}
+
+
+def _u3(x: float) -> str:
+    """3-dp with a Unicode minus (the sweep section's hand-typeset style)."""
+    return f"{x:.3f}".replace("-", "\u2212")
+
+
+# Seed-robustness sweep (2026-09-05): the cells whose §8 state is not
+# invariant across the ratified seed + sweep seeds, with the per-seed states
+# the prose asserts, a check for the prose's CI claim, and the prose itself.
+# The set of seed-marginal cells in the data must equal this table's keys.
+SEED_SWEEP_CELL_NOTES = {
+    ("0b-qwen-7b-ladder", "factual_qa", "Q4_K_M"): {
+        "states": {"ratified": "small_real_loss", "1": "small_real_loss",
+                   "2": "indeterminate", "3": "indeterminate", "4": "indeterminate"},
+        # "under seeds 2, 3 and 4 the CI upper bound touches/crosses 0"
+        "check": lambda rows: all(rows[s].ci_hi >= 0 for s in ("2", "3", "4")),
+        "text": (
+            "- `{key}`: Δ = {delta}, CI\n"
+            "  [{lo}, {hi}] under seed {seed} (→ {state}); under seeds 2, 3\n"
+            "  and 4 the CI upper bound touches/crosses 0 (→ Indeterminate). Either\n"
+            "  way the cell is neither Damaged nor Equivalent: a ~{pp}pp loss that the\n"
+            "  n={n} draw cannot cleanly resolve against the ±{margin_pp}pp margin."
+        ),
+    },
+    ("0b-shootout-arm1", "arithmetic", "mradermacher_static_Q3_K_M"): {
+        "states": {"ratified": "damaged", "1": "damaged", "2": "damaged",
+                   "3": "indeterminate", "4": "damaged"},
+        # "Indeterminate under seed 3 (CI upper bound exactly 0)"
+        "check": lambda rows: rows["3"].ci_hi == 0,
+        "text": (
+            "- `{key}`: Δ =\n"
+            "  {delta}, Damaged under seeds {seed}/1/2/4, Indeterminate under seed 3 (CI\n"
+            "  upper bound exactly 0). Arm-scoped; enters no ladder, cliff, or Holm\n"
+            "  family; the trigger fires regardless."
+        ),
+    },
+}
+
+
+def _states_differ_trigger(result: AnalysisResult, cells: list[CellRow]) -> bool:
+    """The §5 trigger's states-differ leg alone, re-evaluated on ``cells``
+    over the computed (pairable) pairs of ``result`` -- a sufficient
+    condition for FIRED that needs no pair bootstrap."""
+    by_key = {(c.run_id, c.suite, c.quant_label): c for c in cells}
+    for pr in result.shootout.pairs:
+        if not pr.pairable:
+            continue
+        files = {name: (run, label) for name, run, label in shootout_files(pr.arm, pr.level)}
+        (ra, la), (rb, lb) = files[pr.name_a], files[pr.name_b]
+        if by_key[(ra, pr.suite, la)].state != by_key[(rb, pr.suite, lb)].state:
+            return True
+    return False
+
+
+def _holm_summary(verdicts: dict) -> dict:
+    return {k: (None if v is None else (v.cliff_rung, v.survives)) for k, v in verdicts.items()}
+
+
+def _seed_sweep_lines(result: AnalysisResult, sweep: dict[str, list[CellRow]]) -> list[str]:
+    """The "Seed robustness sweep" section (0B run set, ratified seed).
+    Every claim is re-derived from the ratified cells + the sweep's cells."""
+    seeds = sorted(sweep, key=int)
+    ints = [int(s) for s in seeds]
+    if not seeds or ints != list(range(ints[0], ints[0] + len(ints))):
+        raise ValueError(f"seed sweep: expected contiguous seed prefixes, got {seeds}")
+    ratified = {(c.run_id, c.suite, c.quant_label): c for c in result.cells}
+    by_seed: dict[str, dict] = {}
+    for s in seeds:
+        by_seed[s] = {(c.run_id, c.suite, c.quant_label): c for c in sweep[s]}
+        if set(by_seed[s]) != set(ratified):
+            raise ValueError(f"seed sweep: seed {s} cell set differs from the ratified cells")
+
+    # Invariance of cliffs, Holm verdicts and the trigger across all seeds.
+    ratified_cliffs = {k: v.cliff_rung for k, v in result.cliffs.items()}
+    ratified_holm = _holm_summary(result.holm_verdicts)
+    if not result.shootout.triggered:
+        raise ValueError("seed sweep: trigger invariance is only verifiable when it FIRED")
+    for s in seeds:
+        cells_s = sweep[s]
+        cliffs_s = compute_cliffs(cells_s, ladder_run_ids=result.ladder_run_ids, suites=result.suites)
+        if {k: v.cliff_rung for k, v in cliffs_s.items()} != ratified_cliffs:
+            raise ValueError(f"seed sweep: cliff rungs differ under seed {s}")
+        if _holm_summary(compute_holm_verdicts(cells_s, cliffs_s)) != ratified_holm:
+            raise ValueError(f"seed sweep: Holm verdicts differ under seed {s}")
+        if not _states_differ_trigger(result, cells_s):
+            raise ValueError(f"seed sweep: trigger not re-established under seed {s}")
+
+    # Seed-marginal cells: data-derived set must equal the annotated set.
+    marginal = [
+        k for k in ratified
+        if len({ratified[k].state} | {by_seed[s][k].state for s in seeds}) > 1
+    ]
+    if set(marginal) != set(SEED_SWEEP_CELL_NOTES):
+        raise ValueError(
+            f"seed sweep: seed-marginal cells {sorted(marginal)} differ from the "
+            f"annotated set {sorted(SEED_SWEEP_CELL_NOTES)}"
+        )
+    bullets: list[str] = []
+    for key in marginal:
+        note = SEED_SWEEP_CELL_NOTES[key]
+        rows = {"ratified": ratified[key], **{s: by_seed[s][key] for s in seeds}}
+        if {s: r.state for s, r in rows.items()} != note["states"] or not note["check"](rows):
+            raise ValueError(f"seed sweep: seed-marginal cell {key} no longer matches its note")
+        c = ratified[key]
+        if key[0] in result.ladder_run_ids and "Arm-scoped" in note["text"]:
+            raise ValueError(f"seed sweep: {key} is a ladder cell, note says arm-scoped")
+        bullets.append(note["text"].format(
+            key=" / ".join(key), delta=_u3(c.delta), lo=_u3(c.ci_lo), hi=_u3(c.ci_hi),
+            seed=SEED, state=_STATE_DISPLAY[c.state], pp=f"{abs(c.delta) * 100:.1f}",
+            n=c.n, margin_pp=f"{MARGIN * 100:g}",
+        ))
+
+    return [
+        "## Seed robustness sweep (final data, 2026-09-05)",
+        "",
+        "<!-- Post-generation annotation, maintained by the sweep runner; re-append",
+        "this section and Appendix A after any FINDINGS regeneration. Sweep",
+        "outputs: analysis/0b/sweep/. -->",
+        "",
+        f"The ratified bootstrap seed is {SEED} (OPEN_QUESTIONS §7). The full",
+        "analysis over the FINAL data (registered factual_qa from 0b2 + all other",
+        f"suites from 0b) was re-run under seed prefixes {seeds[0]}–{seeds[-1]}. "
+        f"**All {len(result.cliffs)} cliff rungs,",
+        "all Holm headline verdicts, and the §5 shootout trigger (FIRED) are",
+        f"identical across all {_COUNT_WORDS[len(seeds) + 1]} seeds.** "
+        f"{_COUNT_WORDS[len(marginal)]} cells are seed-marginal, disclosed",
+        "(the ratified seed's state governs, per the standing user ruling):",
+        "",
+        *"\n".join(bullets).split("\n"),
+        "",
+    ]
+
+
+# Appendix A's cliff-comparison prose asserts, per ladder run, how far the
+# registered-set cliff sits from the first-pass one in LADDER_ORDER
+# ("Llama item-set-robust"; "Qwen's cliff moves one rung up").
+APPENDIX_A_CLIFF_SHIFT = {"0b-llama-8b-ladder": 0, "0b-qwen-7b-ladder": -1}
+
+
+def _cliff_holm_str(result: AnalysisResult, run_id: str) -> str:
+    v = result.holm_verdicts.get((run_id, "factual_qa"))
+    if v is None:
+        return "no cliff"
+    return f"cliff {v.cliff_rung} — Holm {'SURVIVES' if v.survives else 'FAILS'}"
+
+
+def _appendix_a_lines(result: AnalysisResult, first_pass: AnalysisResult) -> list[str]:
+    """Appendix A (0B run set, ratified seed): first-pass vs registered
+    factual_qa ladder cells. Tables are built from the two analyses; the
+    prose's claims (cliff shifts, F16 below the §7 band) are re-checked."""
+    ladder = result.ladder_run_ids
+    reg = {(c.run_id, c.quant_label): c for c in result.cells
+           if c.suite == "factual_qa" and c.run_id in ladder}
+    first = {(c.run_id, c.quant_label): c for c in first_pass.cells
+             if c.suite == "factual_qa" and c.run_id in ladder}
+    if set(reg) != set(first) or not reg:
+        raise ValueError("Appendix A: first-pass and registered factual_qa ladder cells differ")
+    for run_id in ladder:
+        a = first_pass.cliffs.get((run_id, "factual_qa"))
+        b = result.cliffs.get((run_id, "factual_qa"))
+        if a is None or b is None or a.cliff_rung is None or b.cliff_rung is None or (
+            LADDER_ORDER.index(b.cliff_rung) - LADDER_ORDER.index(a.cliff_rung)
+            != APPENDIX_A_CLIFF_SHIFT.get(run_id)
+        ):
+            raise ValueError(f"Appendix A: cliff-comparison prose no longer holds for {run_id}")
+    f16 = {run_id: reg[(run_id, LADDER_ORDER[0])].acc_f16 for run_id in ladder}
+    if not all(acc < registered.BAND_LOW for acc in f16.values()):
+        raise ValueError("Appendix A: an F16 baseline is no longer below the §7 band")
+    substituted = {(c.run_id, c.quant_label) for c in result.cells
+                   if c.suite == "factual_qa" and c.source_run_id != c.run_id}
+    n_rungs = len(substituted) + len({run for run, _ in substituted})  # + each run's F16
+
+    def short(run_id: str) -> str:
+        return result.run_model[run_id].removesuffix("-instruct")
+
+    lines = [
+        "## Appendix A: first-pass factual_qa (non-registered item set) — disclosed sensitivity run",
+        "",
+        "<!-- Post-generation annotation, maintained with the sweep section; re-append",
+        "after any FINDINGS regeneration. -->",
+        "",
+        "The first 0B pass measured factual_qa on a NON-registered item set",
+        "(sha256 `ac5cb282…`) — the M3 weight vector applied in the wrong decile",
+        "order (OPEN_QUESTIONS §8; mechanism and evidence:",
+        "`analysis/0b/F16_CROSS_MACHINE.md`). Per the user ruling (option (a)),",
+        f"factual_qa was regenerated for all {n_rungs} rungs on the REGISTERED set",
+        "(`2e53ca0e…`, boot-time gate-enforced) in run 0b2 (2026-09-05), and the",
+        "tables above use the registered measurements (see the `source_run_id`",
+        "column). The first-pass numbers are retained here as a disclosed",
+        "sensitivity run: a same-machinery measurement on a harder,",
+        "popularity-shifted draw of the same PopQA source.",
+        "",
+        "**Cliff / Holm comparison across the two item sets:**",
+        "",
+        "| model | first pass (non-registered) | registered (0b2) |",
+        "|---|---|---|",
+    ]
+    for run_id in ladder:
+        lines.append(
+            f"| {short(run_id)} | {_cliff_holm_str(first_pass, run_id)} "
+            f"| {_cliff_holm_str(result, run_id)} |"
+        )
+    lines += [
+        "",
+        "The Llama verdict is item-set-robust. Qwen's cliff moves one rung up on",
+        "the registered set (Q2_K's damage resolves clearly at the registered",
+        "mix); direction and character of the curve are unchanged.",
+        "",
+        "**Per-cell states, ladder cells (first → registered):**",
+        "",
+        "| run | rung | first Δ | first state | registered Δ | registered state |",
+        "|---|---|---|---|---|---|",
+    ]
+    for run_id in ladder:
+        for rung in LADDER_ORDER:
+            a, b = first[(run_id, rung)], reg[(run_id, rung)]
+            lines.append(
+                f"| {run_id} | {rung} | {a.delta:+.3f} | {a.state} "
+                f"| {b.delta:+.3f} | {b.state} |"
+            )
+    baselines = ", ".join(f"{short(r)} F16 = {f16[r]:.3f}" for r in ladder)
+    lines += [
+        "",
+        "**F16 baselines vs the PREREG §7 headroom band "
+        f"[{registered.BAND_LOW}, {registered.BAND_HIGH}] on the",
+        f"registered set:** {baselines} —",
+        "both exactly reproduce Amendment 1 §C's calibration values (item-set",
+        "identity + cross-machine grade agreement), and both remain below the",
+        "band on the same side as at calibration. The registered M3",
+        "out-of-band-low fallback disclosure (Amendment 1, per §7) is unchanged",
+        "in kind and now unchanged in value.",
+        "",
+    ]
+    return lines
+
+
+def _sign_convention_sentence(result: AnalysisResult) -> Optional[str]:
+    """OPEN_QUESTIONS §15(c): state the pair-delta sign convention and
+    verify every computed row against the per-file accuracies (a row that
+    contradicts it is a hard error). None when there are no pairs."""
+    pairs = result.shootout.pairs
+    if not pairs:
+        return None
+    by_key = {(c.run_id, c.suite, c.quant_label): c for c in result.cells}
+    n_checked = 0
+    for pr in pairs:
+        if not pr.pairable:
+            continue
+        files = {name: (run, label) for name, run, label in shootout_files(pr.arm, pr.level)}
+        (ra, la), (rb, lb) = files[pr.name_a], files[pr.name_b]
+        expected = by_key[(rb, pr.suite, lb)].acc_quant - by_key[(ra, pr.suite, la)].acc_quant
+        if abs(pr.delta - expected) > 1e-9:
+            raise ValueError(
+                f"shootout sign convention violated: {pr.arm} {pr.level} {pr.suite} "
+                f"{pr.name_a} vs {pr.name_b}: delta {pr.delta} != acc(B)-acc(A) {expected}"
+            )
+        n_checked += 1
+    if is_0b_run_set(result.run_ids, result.ladder_run_ids) and n_checked == len(pairs):
+        return SIGN_CONVENTION_0B.format(n=n_checked)
+    return SIGN_CONVENTION_GENERIC.format(n_checked=n_checked, n_rows=len(pairs))
+
+
 # ---------------------------------------------------------------------------
 # Output writers
 # ---------------------------------------------------------------------------
@@ -761,7 +1138,19 @@ CELL_TABLE_HEADER = (
 )
 
 
-def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
+def write_findings_md(
+    result: AnalysisResult,
+    out_path: Path,
+    *,
+    sweep: Optional[dict[str, list[CellRow]]] = None,
+    first_pass: Optional[AnalysisResult] = None,
+) -> None:
+    """Render FINDINGS markdown off ``result``. ``sweep`` (seed prefix ->
+    cells, ``load_sweep``) and ``first_pass`` (``compute_first_pass_factual_qa``)
+    feed the 0B-only seed-sweep section and Appendix A; both are emitted
+    only for the 0B run set at the ratified seed (ignored otherwise)."""
+    is_0b = is_0b_run_set(result.run_ids, result.ladder_run_ids)
+    ratified = str(SEED) == registered.BOOTSTRAP_SEED
     lines: list[str] = []
     lines.append("# 0B Confirmatory Findings (PREREG §8)")
     lines.append("")
@@ -785,7 +1174,13 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
     lines.append("")
 
     # --- Seed disclosure ---
-    lines.append("## Seed disclosure (PROVISIONAL — OPEN_QUESTIONS.md §7)")
+    if ratified:
+        lines.append(f"## Seed disclosure (seed {SEED} — RATIFIED 2026-09-04, OPEN_QUESTIONS.md §7)")
+    else:
+        lines.append(
+            f"## Seed disclosure (seed {SEED} — NOT the ratified seed "
+            f"{registered.BOOTSTRAP_SEED}; robustness run, OPEN_QUESTIONS.md §7)"
+        )
     lines.append("")
     lines.append(
         "PREREG §8 registers the per-cell inference machinery (McNemar exact; "
@@ -804,10 +1199,29 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
     lines.append("")
     lines.append(f"    {PAIR_SEED_RULE}")
     lines.append("")
+    if ratified and is_0b:
+        # 0B history: the seed was provisional when 0B first ran (2026-09-03).
+        seed_status = (
+            f"**Seed {SEED} was provisional when this analysis first ran "
+            "(2026-09-03) and was RATIFIED by user ruling on 2026-09-04 "
+            "(OPEN_QUESTIONS.md §7), together with the per-cell and per-pair "
+            "rules above; these numbers stand. Any other seed would require a "
+            "cheap, local, deterministic re-run of this script.**"
+        )
+    elif ratified:
+        seed_status = (
+            f"**Seed {SEED} is the bootstrap seed RATIFIED by user ruling on "
+            "2026-09-04 (OPEN_QUESTIONS.md §7), together with the per-cell and "
+            "per-pair rules above; these numbers stand.**"
+        )
+    else:
+        seed_status = (
+            f"**Seed {SEED} is NOT the ratified seed ({registered.BOOTSTRAP_SEED}, "
+            "OPEN_QUESTIONS.md §7): this output is a seed-robustness run, and "
+            "wherever a cell's state differs, the ratified seed's state governs.**"
+        )
     lines.append(
-        "**This is provisional pending user ratification (OPEN_QUESTIONS.md "
-        "§7).** If ratified, these numbers stand; any other seed choice "
-        "requires a cheap, local, deterministic re-run of this script. "
+        f"{seed_status} "
         f"Registered values used: margin M = {MARGIN}, α = {ALPHA}, "
         f"n_resamples = {N_RESAMPLES}, two-sided 95% CI (percentile method)."
     )
@@ -844,6 +1258,9 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
         kind = "ladder" if run_id in result.ladder_run_ids else "arm"
         lines.append(f"### `{run_id}` ({model}, {kind})")
         lines.append("")
+        if run_id in RUN_FOOTNOTES:
+            lines.append(RUN_FOOTNOTES[run_id])
+            lines.append("")
         cells_by_suite: dict[str, list[CellRow]] = {}
         for c in run_cells:
             cells_by_suite.setdefault(c.suite, []).append(c)
@@ -912,7 +1329,7 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
             note = (
                 "IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at "
                 "comparable bits -- the registered Q5 exploratory candidate "
-                "pattern (PREREG SS2/SS5), here in confirmatory data"
+                "pattern (PREREG §2/§5), here in confirmatory data"
             )
         lines.append(
             f"| {run_id} | {suite} | {label} | {hi} | {c.acc_quant:.4f} | {hi_acc:.4f} | {note} |"
@@ -965,6 +1382,10 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
         "is reported not pairable and excluded below."
     )
     lines.append("")
+    sign_sentence = _sign_convention_sentence(result)
+    if sign_sentence is not None:
+        lines.append(sign_sentence)
+        lines.append("")
     lines.append(
         "| arm | level | suite | pair | pairable | delta | 95% CI | CI excludes 0 "
         "| state A | state B | states differ |"
@@ -1019,6 +1440,14 @@ def write_findings_md(result: AnalysisResult, out_path: Path) -> None:
     )
     lines.append("")
 
+    # --- 0B-only annotations: seed sweep + Appendix A (see docstring) ---
+    if is_0b and ratified and sweep is not None:
+        lines += ["", "---", ""]
+        lines += _seed_sweep_lines(result, sweep)
+    if is_0b and ratified and first_pass is not None:
+        lines += ["---", ""]
+        lines += _appendix_a_lines(result, first_pass)
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines) + "\n")
 
@@ -1058,6 +1487,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
                         help="bootstrap seed prefix (default: ratified 8271)")
     parser.add_argument("--out-dir", default=None,
                         help="output directory (default: analysis/0b)")
+    parser.add_argument("--sweep-dir", default=None,
+                        help="seed-sweep cells-seed*.csv directory feeding the "
+                             "0B seed-sweep section (default: analysis/0b/sweep; "
+                             "read only for the 0B run set at the ratified seed)")
     parser.add_argument("--run-ids", type=_parse_list, default=RUN_IDS,
                         help="comma-separated run ids to analyze "
                              "(default: the 0B set)")
@@ -1110,8 +1543,20 @@ def main() -> None:
         run_model=args.run_model,
         factual_qa_source=args.factual_qa_source,
     )
+    # 0B-only annotation inputs (Task 8): gated exactly as write_findings_md
+    # gates their sections, so a non-0B invocation never reads them.
+    sweep = first_pass = None
+    if is_0b_run_set(args.run_ids, args.ladder_run_ids) and str(SEED) == registered.BOOTSTRAP_SEED:
+        sweep_dir = Path(args.sweep_dir) if args.sweep_dir else pipeline_dir / "analysis" / "0b" / "sweep"
+        if sweep_dir.is_dir():
+            sweep = load_sweep(sweep_dir) or None
+        if "factual_qa" in args.suites and args.factual_qa_source:
+            first_pass = compute_first_pass_factual_qa(
+                runs_root, ladder_run_ids=args.ladder_run_ids,
+                ladder_order=args.ladder_order, run_model=args.run_model,
+            )
     write_cells_csv(result.cells, out_dir / "cells.csv", inversions=result.inversions)
-    write_findings_md(result, out_dir / "FINDINGS_0B.md")
+    write_findings_md(result, out_dir / "FINDINGS_0B.md", sweep=sweep, first_pass=first_pass)
     print(f"wrote {len(result.cells)} cells to {out_dir / 'cells.csv'}")
     print(f"wrote findings to {out_dir / 'FINDINGS_0B.md'}")
     n_cliffs = sum(1 for cr in result.cliffs.values() if cr.cliff_rung is not None)

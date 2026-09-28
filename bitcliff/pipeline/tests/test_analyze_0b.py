@@ -447,7 +447,8 @@ def test_findings_md_contains_seed_disclosure_and_trigger_verdict(synthetic_runs
     a0b.write_findings_md(result, out_path)
     text = out_path.read_text()
     assert "8271" in text
-    assert "PROVISIONAL" in text
+    assert "RATIFIED" in text  # Task 8: seed ratified 2026-09-04 (OPEN_QUESTIONS §7)
+    assert "PROVISIONAL" not in text
     assert "OPEN_QUESTIONS.md" in text
     assert "runs-cloud/fingerprint.txt" in text
     assert "Trigger: FIRED" in text  # this synthetic tree is built to fire it
@@ -673,3 +674,223 @@ def test_write_findings_md_uses_result_run_model_not_module_global(tmp_path):
     text = out_path.read_text()
     assert f"### `{custom_run_id}` (some-custom-model, ladder)" in text
     assert "**custom_suite**" in text
+
+
+# ---------------------------------------------------------------------------
+# Task 8: the generator emits every post-generation annotation that used to
+# be hand-added to analysis/0b/FINDINGS_0B.md (ratified seed wording, Arm 2
+# imatrix footnote, pair-delta sign convention, seed-robustness sweep,
+# Appendix A), each gated on the inputs that make it applicable, plus the
+# "PREREG SS2/SS5" -> "PREREG §2/§5" encoding fix.
+# ---------------------------------------------------------------------------
+
+import dataclasses as _dc
+import itertools as _it
+
+PIPELINE_DIR = Path(__file__).resolve().parent.parent
+COMMITTED_0B = PIPELINE_DIR / "analysis" / "0b"
+REAL_RUNS_ROOT = PIPELINE_DIR / "runs-cloud" / "pipeline" / "runs"
+
+
+def _findings(result, tmp_path, **kw):
+    out = tmp_path / "F.md"
+    a0b.write_findings_md(result, out, **kw)
+    return out.read_text()
+
+
+def _single_run_result(tmp_path, run_id="1p5b-ladder"):
+    root = tmp_path / "runs1"
+    ids = [f"i{n}" for n in range(10)]
+    labels = {"F16": ["correct"] * 10}
+    for rung in a0b.LADDER_ORDER:
+        labels[rung] = ["correct"] * 10
+    _write_run(root / run_id, {"arithmetic": ids}, {"arithmetic": labels})
+    return a0b.run_analysis(
+        root, n_resamples=50, run_ids=[run_id], ladder_run_ids=[run_id],
+        suites=["arithmetic"], arm1_levels=[], arm2_levels=[],
+        run_model={run_id: "qwen2.5-1.5b-instruct"}, factual_qa_source={},
+    )
+
+
+def test_seed_disclosure_ratified_wording_for_0b_set(synthetic_runs_root, tmp_path):
+    text = _findings(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES), tmp_path)
+    assert "## Seed disclosure (seed 8271 — RATIFIED 2026-09-04, OPEN_QUESTIONS.md §7)\n" in text
+    assert (
+        "**Seed 8271 was provisional when this analysis first ran (2026-09-03) and was "
+        "RATIFIED by user ruling on 2026-09-04 (OPEN_QUESTIONS.md §7), together with the "
+        "per-cell and per-pair rules above; these numbers stand. Any other seed would "
+        "require a cheap, local, deterministic re-run of this script.** Registered values "
+        "used: margin M = 0.03, α = 0.05, n_resamples = 10000"
+    ) in text
+
+
+def test_seed_disclosure_non_0b_run_set_omits_0b_history(tmp_path):
+    text = _findings(_single_run_result(tmp_path), tmp_path)
+    assert "RATIFIED 2026-09-04" in text
+    assert "first ran (2026-09-03)" not in text
+
+
+def test_seed_disclosure_non_ratified_seed_says_so(synthetic_runs_root, tmp_path, monkeypatch):
+    monkeypatch.setattr(a0b, "SEED", "3")
+    text = _findings(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES), tmp_path)
+    assert "NOT the ratified seed" in text
+    assert "RATIFIED 2026-09-04, OPEN_QUESTIONS.md §7)" not in text
+
+
+ARM2_FOOTNOTE = (
+    "Footnote (2026-09-08, OPEN_QUESTIONS §10): the two official Qwen files ran and are "
+    "reported as `imatrix: false`; confirmed from their GGUF headers at the pinned revision "
+    "(no `quantize.imatrix.*` keys) — evidence: "
+    "`reference-manifests/evidence/qwen2.5-7b-official-gguf-headers.md`."
+)
+
+
+def test_arm2_imatrix_footnote_directly_under_arm2_heading(synthetic_runs_root, tmp_path):
+    text = _findings(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES), tmp_path)
+    assert (
+        "### `0b-arm2-official` (qwen2.5-7b-instruct, arm)\n\n" + ARM2_FOOTNOTE + "\n\n**"
+    ) in text
+    assert text.count("Footnote (2026-09-08") == 1
+
+
+def test_arm2_imatrix_footnote_absent_without_arm2_run(tmp_path):
+    assert "Footnote (2026-09-08" not in _findings(_single_run_result(tmp_path), tmp_path)
+
+
+SIGN_0B = (
+    'Sign convention (added 2026-09-27, OPEN_QUESTIONS §15(c)): for a row "A vs B", '
+    "delta = acc(B) minus acc(A). All {n} rows below were checked against the per-file "
+    "accuracies in `cells.csv`, and none contradicts it. This sentence was added by hand; "
+    "it moves into `scripts/analyze_0b.py` in the next code turn so a regeneration keeps it."
+)
+
+
+def _pairable_only(result):
+    pairs = [p for p in result.shootout.pairs if p.pairable]
+    return _dc.replace(result, shootout=a0b.ShootoutReport(pairs=pairs, triggered=result.shootout.triggered))
+
+
+def test_sign_convention_0b_sentence_when_every_row_checked(synthetic_runs_root, tmp_path):
+    result = _pairable_only(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES))
+    text = _findings(result, tmp_path)
+    n = len(result.shootout.pairs)
+    assert "is reported not pairable and excluded below.\n\n" + SIGN_0B.format(n=n) + "\n\n| arm |" in text
+
+
+def test_sign_convention_generic_when_some_rows_not_pairable(synthetic_runs_root, tmp_path):
+    result = a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES)
+    text = _findings(result, tmp_path)
+    assert 'Sign convention (OPEN_QUESTIONS §15(c)): for a row "A vs B", delta = acc(B) minus acc(A).' in text
+    assert "added 2026-09-27" not in text
+
+
+def test_sign_convention_contradiction_raises(synthetic_runs_root, tmp_path):
+    result = _pairable_only(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES))
+    pairs = list(result.shootout.pairs)
+    bad = next(i for i, p in enumerate(pairs) if p.delta)
+    pairs[bad] = _dc.replace(pairs[bad], delta=-pairs[bad].delta)
+    result = _dc.replace(result, shootout=a0b.ShootoutReport(pairs=pairs, triggered=True))
+    with pytest.raises(ValueError, match="sign convention"):
+        _findings(result, tmp_path)
+
+
+def test_sign_convention_absent_without_shootout_pairs(tmp_path):
+    assert "Sign convention" not in _findings(_single_run_result(tmp_path), tmp_path)
+
+
+def _committed_result():
+    """AnalysisResult rebuilt from the committed cells.csv (ratified seed)
+    -- no bootstrap, so it is fast. Shootout pairs are rebuilt with
+    pairable=True (all 56 are pairable in 0B) and delta = acc(B) - acc(A);
+    enough to exercise every annotation that reads them."""
+    cells = a0b.read_cells_csv(COMMITTED_0B / "cells.csv")
+    cliffs = a0b.compute_cliffs(cells)
+    by_key = {(c.run_id, c.suite, c.quant_label): c for c in cells}
+    pairs = []
+    for arm, levels in (("arm1", a0b.ARM1_LEVELS), ("arm2", a0b.ARM2_LEVELS)):
+        for level in levels:
+            files = a0b.shootout_files(arm, level)
+            for suite in a0b.SUITES:
+                for (na, ra, la), (nb, rb, lb) in _it.combinations(files, 2):
+                    ca, cb = by_key[(ra, suite, la)], by_key[(rb, suite, lb)]
+                    pairs.append(a0b.PairResult(
+                        arm=arm, level=level, suite=suite, name_a=na, name_b=nb,
+                        pairable=True, reason=None, delta=cb.acc_quant - ca.acc_quant,
+                        ci_lo=0.0, ci_hi=0.0, excludes_zero=False,
+                        state_a=ca.state, state_b=cb.state, states_differ=ca.state != cb.state,
+                    ))
+    return a0b.AnalysisResult(
+        cells=cells, cliffs=cliffs, holm_verdicts=a0b.compute_holm_verdicts(cells, cliffs),
+        shootout=a0b.ShootoutReport(pairs=pairs, triggered=a0b.shootout_triggered(pairs)),
+        inversions=a0b.accuracy_inversions(cells),
+    )
+
+
+def _committed_section(start: str, end: str | None) -> str:
+    text = (COMMITTED_0B / "FINDINGS_0B.md").read_text()
+    i = text.index(start)
+    return text[i:] if end is None else text[i:text.index(end, i)]
+
+
+def test_iq_vs_k_note_uses_section_sign_encoding(tmp_path):
+    text = _findings(_committed_result(), tmp_path)
+    assert "pattern (PREREG §2/§5), here in confirmatory data |" in text
+    assert "SS2/SS5" not in text
+
+
+def test_real_0b_sign_convention_sentence_is_the_committed_one(tmp_path):
+    text = _findings(_committed_result(), tmp_path)
+    assert SIGN_0B.format(n=56) in text
+
+
+def test_real_0b_seed_sweep_section_matches_committed_text(tmp_path):
+    sweep = a0b.load_sweep(COMMITTED_0B / "sweep")
+    assert sorted(sweep) == ["1", "2", "3", "4"]
+    text = _findings(_committed_result(), tmp_path, sweep=sweep)
+    section = _committed_section("\n\n---\n\n## Seed robustness sweep", "---\n\n## Appendix A")
+    assert "Two cells are seed-marginal" in section
+    assert section in text
+
+
+def test_seed_sweep_raises_when_marginal_cells_change(tmp_path):
+    sweep = a0b.load_sweep(COMMITTED_0B / "sweep")
+    rows = list(sweep["2"])
+    i = next(k for k, c in enumerate(rows) if (c.run_id, c.suite, c.quant_label)
+             == ("0b-arm2-official", "arithmetic", "Q4_K_M"))
+    # An arm cell: enters no cliff/Holm family, so only the marginal set moves.
+    rows[i] = _dc.replace(rows[i], state="small_real_loss" if rows[i].state != "small_real_loss" else "equivalent")
+    sweep["2"] = rows
+    with pytest.raises(ValueError, match="seed-marginal"):
+        _findings(_committed_result(), tmp_path, sweep=sweep)
+
+
+def test_seed_sweep_and_appendix_gated_off_for_non_0b_or_non_ratified(tmp_path, monkeypatch):
+    sweep = a0b.load_sweep(COMMITTED_0B / "sweep")
+    single = _single_run_result(tmp_path)
+    text = _findings(single, tmp_path, sweep=sweep, first_pass=single)
+    assert "## Seed robustness sweep" not in text and "## Appendix A" not in text
+    monkeypatch.setattr(a0b, "SEED", "1")
+    text = _findings(_committed_result(), tmp_path, sweep=sweep)
+    assert "## Seed robustness sweep" not in text
+
+
+@pytest.mark.skipif(not (REAL_RUNS_ROOT / "0b-llama-8b-ladder").exists(), reason="run records absent")
+def test_real_0b_appendix_a_matches_committed_text(tmp_path):
+    first_pass = a0b.compute_first_pass_factual_qa(REAL_RUNS_ROOT)
+    text = _findings(_committed_result(), tmp_path, first_pass=first_pass)
+    section = _committed_section("---\n\n## Appendix A", None)
+    assert section.endswith("in kind and now unchanged in value.\n\n")
+    assert text.endswith(section)
+
+
+def test_appendix_a_raises_when_cliff_comparison_prose_no_longer_holds(tmp_path):
+    result = _committed_result()
+    # First pass == registered: Qwen's cliff no longer "moves one rung up".
+    first_pass = _dc.replace(
+        result,
+        cells=[c for c in result.cells if c.suite == "factual_qa" and c.run_id in a0b.LADDER_RUN_IDS],
+        cliffs={k: v for k, v in result.cliffs.items() if k[1] == "factual_qa"},
+        holm_verdicts={k: v for k, v in result.holm_verdicts.items() if k[1] == "factual_qa"},
+    )
+    with pytest.raises(ValueError, match="Appendix A"):
+        _findings(result, tmp_path, first_pass=first_pass)
