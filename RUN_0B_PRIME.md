@@ -55,8 +55,9 @@ Twins and factual_qa are therefore registered for the 1.5B and run.
 **Machinery:** §8 per-cell inference (margin 0.03, McNemar exact, paired
 bootstrap 10,000; lines 583–612); boot-time item-set hash gates from
 `registered.py` (`2e53ca0e…` factual_qa, `ed18db13…` longctx 2b for the
-1.5B, derived gates for arithmetic and twins; 2a's item-set hash is not yet
-pinned in `registered.py` and must be added before the run); bootstrap seed
+1.5B, derived gates for arithmetic and twins; 2a's item-set hash
+`5404e813…` is pinned in `registered.py` (commit `05537fe`; first-20 digest
+verified)); bootstrap seed
 8271 with the ratified per-cell and per-pair string rules (OPEN_QUESTIONS
 §7). The 2a tokenizer-match assertion (§3.1 lines 111–120) and the
 first-20-item digest `9220589b…` (§3.1 lines 130–135) must pass before the
@@ -80,6 +81,35 @@ Note: §3.1's answer-token spec is written against the Qwen2.5 tokenizer's
 draft of this plan labeled the pass exploratory; the ruling above
 supersedes that label.
 
+**Invocation and order (fixed).** Only after both §4 gates pass, and only
+after the generate stage has completed for the 1.5B run, run exactly one
+driver invocation (from `bitcliff/pipeline`, on the box):
+
+```
+uv run --no-sync python scripts/nll_driver.py configs/0b-prime/qwen2.5-1.5b-ladder.yaml \
+    --run-id <the generation run id> --runs-dir <the generation --runs-dir> \
+    --models-dir models
+```
+
+- No `--suites` and no `--labels`: the suites are the config's `nll:`
+  block (`longctx_retrieval_2a`, `longctx_retrieval`), and all 8 loads are
+  scored (F16, then the 7 rungs in config order).
+- 2a and 2b are scored **together, in this one invocation**, so the
+  driver's n_ctx (`ceil(max_seq/256)*256`) is sized over both suites' items
+  — in practice by the longer 2b items (t=8192). Scoring 2a alone would
+  size n_ctx over the 2a items only (t=4096) and give a different n_ctx;
+  this single joint invocation is therefore the fixed one, and its n_ctx
+  is recorded in `nll/manifest.json`. Do not split it by suite. (A resume
+  after an interruption is the same command; the driver refuses a resume
+  whose settings, n_ctx included, differ.)
+- The **same run id and runs dir as the generate stage** are required:
+  the driver checks each model file's sha256 against that run's
+  `manifest.json` (written by the download stage; the generate stage
+  verified every file against it and ran the PREREG §3.1 GGUF-vs-HF
+  tokenizer-match gate on each file it loaded). For this confirmatory
+  (non-exploratory) config the driver refuses a run dir with no
+  `manifest.json`, or a label the manifest does not name.
+
 ## 4. Reproduction gate at box start
 
 Before any 0B′ item is generated: re-run one 0B Qwen-7B rung on its first
@@ -99,6 +129,110 @@ run. Concretely:
   `grades.jsonl` `state`/`truncated`, for those 25 ids, against the
   committed files. **The diff must be empty.** Any difference: stop, sync
   the 25 records to S3, report, do not start 0B′.
+
+**Second gate — NLL reproduction, before any 1.5B NLL pass (§3):**
+reproduce 0B's teacher-forced NLL records for two rungs on their 2b items,
+with `scripts/nll_driver.py` (commit `ba146e7`):
+
+Prerequisites on the box (all paths relative to `bitcliff/pipeline`, the
+working directory for every command below; `--models-dir models`):
+
+- **Qwen-7B Q4_K_M** at `models/Qwen2.5-7B-Instruct-Q4_K_M.gguf` — the
+  driver resolves each quant as `<--models-dir>/<config filename>`; this is
+  the rung already on the box for the first gate above.
+- **Llama-8B Q4_K_M** at `models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`,
+  downloaded alone (not the pipeline's `download` stage, which fetches
+  every quant in the config and then requires the F16 and writes a run
+  manifest). `models.ensure_quants` on a config trimmed to the one quant
+  downloads it (`hf_hub_download`, repo `bartowski/Meta-Llama-3.1-8B-
+  Instruct-GGUF`, filename as pinned in `configs/0b/0b-llama-8b-ladder.yaml`,
+  into `models/`) and then checks it against the config's pinned sha256
+  (`7b064f58…`, from `reference-manifests/llama-3.1-8b-bartowski.json`),
+  raising `ManifestMismatch` — a hard stop — on any difference:
+
+  ```
+  uv run --no-sync python -c "
+  import dataclasses; from pathlib import Path
+  from bitcliff_pipeline.config import load_config
+  from bitcliff_pipeline.models import ensure_quants
+  c = load_config('configs/0b/0b-llama-8b-ladder.yaml')
+  c = dataclasses.replace(c, quants=tuple(q for q in c.quants if q.label == 'Q4_K_M'))
+  print(ensure_quants(c, Path('models')))"
+  ```
+
+  `ensure_quants` passes no `revision` to `hf_hub_download` (it fetches the
+  repo's current file); the pinned-sha256 check is what establishes it is
+  the 0B file. (Needs network: run without `HF_HUB_OFFLINE`.)
+- **HF tokenizers** at `models/hf/Qwen2.5-7B-Instruct` and
+  `models/hf/Llama-3.1-8B-Instruct` (each config's `tokenizer_path`; the
+  items and the digit-token set are built with them) — from S3
+  `0b/tokenizers/` if not on the AMI.
+- **Corpus** `corpora/pg1184-monte-cristo.txt` (gitignored; the builder's
+  corpus-hash gate accepts only sha `0a21a138…`).
+- The F16 is **not** needed (`--labels Q4_K_M` only).
+
+```
+uv run --no-sync python scripts/nll_driver.py configs/0b/0b-qwen-7b-ladder.yaml \
+    --run-id 0b-qwen-7b-ladder-nllgate --runs-dir runs --models-dir models \
+    --suites longctx_retrieval --labels Q4_K_M --allow-no-manifest
+uv run --no-sync python scripts/nll_driver.py configs/0b/0b-llama-8b-ladder.yaml \
+    --run-id 0b-llama-8b-ladder-nllgate --runs-dir runs --models-dir models \
+    --suites longctx_retrieval --labels Q4_K_M --allow-no-manifest
+cmp runs/0b-qwen-7b-ladder-nllgate/nll/Q4_K_M.jsonl \
+    runs-cloud/pipeline/runs/0b-qwen-7b-ladder/nll/Q4_K_M.jsonl
+cmp runs/0b-llama-8b-ladder-nllgate/nll/Q4_K_M.jsonl \
+    runs-cloud/pipeline/runs/0b-llama-8b-ladder/nll/Q4_K_M.jsonl
+```
+
+`--allow-no-manifest` (valid only with `--labels`) is required because
+these scratch gate run dirs have no generate-stage `manifest.json`; the
+driver then hashes each file directly (recorded as the label's
+`sha256_source` in `nll/manifest.json`). It is never used for the §3 pass.
+Write into scratch run dirs (`0b-qwen-7b-ladder-nllgate`,
+`0b-llama-8b-ladder-nllgate`) — never over the committed `runs-cloud/`
+records (the driver refuses any `--runs-dir` inside `runs-cloud/`).
+
+**The comparison is `cmp`** of each produced `nll/Q4_K_M.jsonl` against the
+committed file. Byte identity is the right test: re-writing either
+committed file with `nll_scorer.write_records` (the driver's writer)
+reproduces it byte for byte (checked locally, 2026-09-28), so identical
+`NLLRecord`s (`item_id`, `suite`, `quant_label`, `model_sha256`,
+`per_token_nll`, `span_mean_nll`, `digits_only_mean_nll`,
+`n_answer_tokens`, `machine`) in the same item order give identical bytes.
+**Any difference is a stop, `machine` included** — then diagnose: a difference in `machine`
+alone means the box is not the 0B fingerprint (§1), a fingerprint
+mismatch rather than an NLL-gate failure; any other field mismatch means
+the driver does not reproduce 0B, and the ruling is regenerating all 26
+NLL passes. Report either way before any §3 pass.
+
+Provenance caveat (OPEN_QUESTIONS §16): the committed Llama-8B ladder NLL
+records were produced by the pre-fix provider (before commit `7364672`,
+"NLL provider reads llama scores array, not eval_logits") with an
+n_ctx unrecoverable from the 0B log; the committed Qwen-7B ladder records
+were produced by the post-fix provider with n_ctx 8448 (`ceil(8263/256)*256`,
+`runs-cloud/0b-nll.log`). `nll_driver.py` always uses the post-fix
+`llm.scores` path and leaves every other llama-cpp-python constructor
+argument (n_batch/n_ubatch, flash-attention, ...) at the 0.3.35 default, so
+the Llama-8B leg of this gate is the only test of whether that provider
+path reproduces the pre-fix numbers; a pass on Qwen-7B alone does not cover
+it.
+
+**Per-run fingerprint, before any sync-back.** `scripts/analyze_0b.py`
+refuses to analyze a non-0B run set unless each run dir carries its own
+`fingerprint.txt` (the shared `runs-cloud/fingerprint.txt` documents only
+the 0B machine and is never substituted); nothing in the pipeline writes
+it. So on the box, for every 0B′ run dir that will be synced into the
+repo, write `<runs-dir>/<run-id>/fingerprint.txt` **before** syncing, in
+the same `key=value` shape and key order as `runs-cloud/fingerprint.txt`:
+`instance`, `instance_type`, `ami`, `az`, `gpu`, `cuda`, `kernel`,
+`llama_cpp_commit`, `llama_cpp_python`, `python` — every value read on the
+box at that time (instance metadata; `nvidia-smi` GPU name and driver;
+`nvcc --version` release; `uname -r`; the llama.cpp commit the installed
+CUDA llama-cpp-python was built from; its version and
+`llama_supports_gpu_offload()`; `uv run --no-sync python --version`). A
+value that cannot be read is not guessed — stop and report. Diff it
+against `runs-cloud/fingerprint.txt` and report the diff. Then sync it
+with the run into `runs-cloud/pipeline/runs/<run-id>/fingerprint.txt`.
 
 ## 5. Timing
 
@@ -148,14 +282,15 @@ likely conservative. Rough.
 |---|---|---|
 | Setup: launch from CUDA AMI, 7 quant downloads (~7 GB), F16 obtain/convert + hash gates, smoke | 1.0–1.5 | 2.24–3.36 |
 | Reproduction gate (§4): Qwen-7B Q4_K_M download + 25 longctx items + diff | 0.25–0.5 | 0.56–1.12 |
+| NLL reproduction gate (§4, second gate): Llama-8B Q4_K_M download (~4.9 GB) + two gate NLL passes (Qwen-7B, Llama-8B; 2b items; post-fix 0B timing ≈ 6.8 min per 7B-class load at t=8192) | 0.25–0.5 | 0.56–1.12 |
 | Q5 suites only (2a longctx + arithmetic, 8 loads, 596 items each) | 0.5–0.7 | 1.12–1.57 |
 | Full registered scope (§2: 1286 items × 8 loads) | 1.0–1.5 | 2.24–3.36 |
 | NLL passes on 2a (§3: 8 loads × 96 items at t=4096, logits_all) | 2.0–3.5 | 4.48–7.84 |
 | NLL passes on 2b (§3: 8 loads × 96 items at t=8192; 0B's post-fix 6.8 min/load for the 7B scaled 3–4× down, plus load overhead) | 0.25–0.5 | 0.56–1.12 |
 | Optional benchmark (§6: 16 files, ~1 h re-downloads + ~5 min each) | 2.0–2.5 | 4.48–5.60 |
 | EBS (AMI-backed gp3 volume for the run's hours) + S3 puts | — | ≈ 1.00 |
-| **Total, full scope + NLL (2a + 2b), no benchmark** | **4.5–7.5** | **≈ 11–18** |
-| **Total, with benchmark** | **6.5–10.0** | **≈ 16–23** |
+| **Total, full scope + NLL (2a + 2b), no benchmark** | **4.75–8.0** | **≈ 12–19** |
+| **Total, with benchmark** | **6.75–10.5** | **≈ 16–25** |
 
 (The Q5-suites row is a subset of the full-scope row and is not added into
 the totals.)
@@ -187,15 +322,16 @@ Set by user 2026-09-27.**
 6. This document's rulings confirmed. **Done 2026-09-27:** §2's twins
    reading (runs), §3's label (registered Q2 data, 2a and 2b), §8's rate
    and cap.
-7. The NLL driver recovered: the script that produced 0B's `nll/*.jsonl`
-   records is not in the repo (OPEN_QUESTIONS §16); recover it from the S3
-   `0b/code/` snapshot, record its hash, and commit it before the §3 passes.
-   **NOT done.** The S3 `0b/code/` prefix
-   (`s3://bitcliff-artifacts-048568674517/0b/code/`) holds exactly one
-   object, `pipeline-code.tgz` (105.5 MiB, uploaded 2026-08-30) — a
-   snapshot predating the NLL runs, so no driver is in it; none exists in
-   git history either. A new driver must be written against
-   `nll_scorer.score_records`, with its own review, not recovered.
+7. The NLL driver: the script that produced 0B's `nll/*.jsonl` records is
+   not in the repo and was not recoverable (OPEN_QUESTIONS §16) — the S3
+   `0b/code/` prefix (`s3://bitcliff-artifacts-048568674517/0b/code/`)
+   holds exactly one object, `pipeline-code.tgz` (105.5 MiB, uploaded
+   2026-08-30), a snapshot predating the NLL runs, and none exists in git
+   history. **Written** (commit `ba146e7`, `scripts/nll_driver.py`, against
+   `nll_scorer.score_records`; recovered 0B settings only) **and
+   reviewed. Pending: the box NLL reproduction gate (§4, second gate)** —
+   nothing establishes that it reproduces 0B's records until that gate
+   passes.
 8. Item-set hash gate n-mismatch fix: `assert_item_sets_match_registered`
    (`src/bitcliff_pipeline/__main__.py` line 65) skips any suite whose item
    count differs from its registered n, so a mistyped n goes ungated. A

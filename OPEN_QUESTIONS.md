@@ -648,3 +648,72 @@ either. The NLL driver recovery item in RUN_0B_PRIME.md §9 is therefore
 closed as not achievable by recovery: **a new driver must be written
 against `nll_scorer.score_records`, with its own review**, before any
 0B′ §3 NLL pass can run.
+
+**Update 2026-09-28: driver rewritten (not recovered).** A new driver was
+written against `nll_scorer.score_records` per the 2026-09-27 ruling above:
+`bitcliff/pipeline/scripts/nll_driver.py`, commit `ba146e7` ("scripts:
+nll_driver.py (teacher-forced answer-span NLL; recovered 0B settings)"). A
+script, not a `bitcliff_pipeline` CLI stage (the generate CLI's shape is
+generation-specific).
+
+Recovered vs unrecoverable settings (evidence: `runs-cloud/0b-nll.log`,
+`runs-cloud/0b-full.log`):
+
+- RECOVERED `n_ctx = ceil(max_seq/256)*256` — `0b-nll.log`: "n_ctx sized to
+  8448 (max seq 8263)" (Qwen-7B passes only, post-fix); checked offline
+  this turn, the real Qwen-7B tokenizer and corpus give (8448, 8263)
+  exactly, and the same rule gives 8448 for Llama-8B (max seq 8261).
+- RECOVERED `logits_all=True` — required by the post-fix provider path
+  that reads `llm.scores` (commit `7364672`).
+- RECOVERED by construction: `seed = config.generation.seed` (42) and
+  `n_gpu_layers=-1`, matching `generate.make_llm`.
+- RECOVERED digit-token count — `0b-nll.log`: "digit token ids: 10" (every
+  pass). Checked offline this turn: the HF-tokenizer derivation gives 10
+  for both Qwen-7B and Llama-8B, and the digit set {15..24} (10 ids)
+  recomputes `digits_only_mean_nll` exactly for all 768 Qwen and 768 Llama
+  committed records.
+- UNRECOVERABLE: the n_ctx of the pre-fix passes (`0b-llama-8b-ladder`,
+  `0b-shootout-arm1` — no `n_ctx sized to` line in the log for either); and
+  every other llama-cpp-python constructor argument the log does not show
+  (n_batch/n_ubatch, flash-attention, n_threads, type_k/type_v, rope
+  overrides, ...) — the driver leaves these at the llama-cpp-python 0.3.35
+  defaults.
+- Checked offline this turn, not logged: rebuilt items and answer spans
+  equal the committed ones for both models; `nll_scorer.write_records`
+  reproduces the 16 committed Qwen/Llama `nll/*.jsonl` files byte-exactly
+  from their parsed records.
+
+Two-rung reproduction gate (RUN_0B_PRIME.md §4, added this turn, second
+gate before any 1.5B NLL pass): re-run `nll_driver.py` for Qwen-7B Q4_K_M
+and Llama-8B Q4_K_M on their 2b items into scratch run dirs, and compare
+field-for-field against the committed
+`runs-cloud/pipeline/runs/0b-{qwen-7b,llama-8b}-ladder/nll/Q4_K_M.jsonl`.
+Exact match required on every `NLLRecord` field except `machine`, which
+matches only if the box fingerprint matches the 0B fingerprint (a
+`machine`-only difference means the box isn't the 0B fingerprint — stop,
+that's a fingerprint mismatch, not a driver failure). Any other field
+mismatch: stop, report; the ruling is regenerating all 26 NLL passes.
+
+Provider history, from the `NLLCFG_*` lines in `runs-cloud/0b-full.log`
+(run id, timestamp, exit code only — no settings) and the non-START/DONE
+lines of `runs-cloud/0b-nll.log`:
+
+- `0b-llama-8b-ladder` (2026-09-02 12:17:55 → 2026-09-03 01:35:22, rc=0)
+  and `0b-shootout-arm1` (2026-09-03 01:35:22 → 2026-09-03 13:08:03, rc=0)
+  ran with the pre-fix provider (materialized `eval_logits`); neither
+  prints an `n_ctx sized to` line.
+- `0b-qwen-7b-ladder` OOM-failed twice under the pre-fix provider: rc=137
+  starting 2026-09-03 18:22:31 (done 18:24:11), and rc=137 starting
+  2026-09-03 18:40:02. It succeeded starting 2026-09-03 19:21:59 (rc=0)
+  after commit `7364672` ("NLL provider reads llama scores array, not
+  eval_logits — Qwen 152k-vocab OOM", 2026-09-03 15:21 -0400 = 19:21 UTC)
+  fixed the OOM, with `n_ctx sized to 8448 (max seq 8263)`.
+- `0b-arm2-official` ran post-fix, starting 2026-09-03 20:16:16 (rc=0).
+
+Digits-only population counts (every `digits_only_mean_nll` populated,
+none null; every record's schema is exactly `nll_scorer.NLLRecord`):
+`0b-arm2-official` 288/288, `0b-llama-8b-ladder` 768/768,
+`0b-qwen-7b-ladder` 768/768, `0b-shootout-arm1` 672/672 — 2496 records
+total, all carrying `machine`
+"Linux-6.8.0-1063-aws-x86_64-with-glibc2.35 / x86_64 / llama-cpp-python
+0.3.35".

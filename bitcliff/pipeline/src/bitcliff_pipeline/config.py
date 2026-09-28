@@ -62,12 +62,11 @@ class NLLConfig:
     passes (PREREG §3.1's answer-token spec, full-span primary +
     digits-only sensitivity) -- which suites' items they run over.
 
-    DECLARATIVE ONLY: `load_config` parses and validates it (every named
-    suite must be a key of the config's `suites` block, no duplicates, no
-    other keys) so the intent is carried in the reviewed config, but NO
-    driver in this repo consumes it -- the NLL driver that ran on the 0B
-    box is not in the repo (OPEN_QUESTIONS §16); `nll_scorer.py` is a
-    library only and `run_pipeline` never reads this field."""
+    `load_config` parses and validates it (every named suite must be a
+    key of the config's `suites` block, no duplicates, no other keys).
+    Consumed by `scripts/nll_driver.py` (the replacement for the 0B box
+    NLL driver that was never committed, OPEN_QUESTIONS §16) as its
+    default suite list; `run_pipeline` never reads this field."""
 
     suites: tuple[str, ...]
 
@@ -89,9 +88,9 @@ class LadderConfig:
     exploratory config (e.g. a smoke config sampling a registered suite's n
     at a non-registered seed/weights on purpose)."""
     nll: NLLConfig | None = None
-    """Optional `nll:` block (see NLLConfig) -- declarative, validated, and
-    unconsumed by any driver in this repo (OPEN_QUESTIONS §16). None (the
-    default) for every config without the block."""
+    """Optional `nll:` block (see NLLConfig) -- validated here, consumed by
+    `scripts/nll_driver.py` (OPEN_QUESTIONS §16). None (the default) for
+    every config without the block."""
 
 
 _NLL_KEYS = frozenset({"suites"})

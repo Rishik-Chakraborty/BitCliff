@@ -121,10 +121,13 @@ suites:
 
 # The registered Q2 teacher-forced NLL passes (PREREG §3.1 answer-token spec;
 # OPEN_QUESTIONS §13: both the 2a and 2b items, all 8 loads).
-# DECLARATIVE ONLY: load_config parses and validates this block (every named
-# suite must exist above) into LadderConfig.nll, but NO driver in this repo
-# consumes it -- the NLL driver is not in the repo (OPEN_QUESTIONS §16), and
-# run_pipeline never reads it. The generate stage's answer_spans.jsonl
-# sidecar is what a recovered driver would consume.
+# load_config parses and validates this block (every named suite must exist
+# above) into LadderConfig.nll; run_pipeline never reads it. It is consumed
+# by scripts/nll_driver.py (commit ba146e7; OPEN_QUESTIONS §16: the 0B
+# driver was never committed, so this one was written, not recovered) as
+# its default --suites. The driver rebuilds the items and their answer-span
+# specs with the same builder the generate stage uses
+# (__main__.build_items), rather than reading answer_spans.jsonl.
+# Invocation and order: RUN_0B_PRIME.md §3.
 nll:
   suites: [longctx_retrieval_2a, longctx_retrieval]

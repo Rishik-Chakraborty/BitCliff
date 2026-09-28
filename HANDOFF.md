@@ -199,12 +199,14 @@ commits after it are local until the user says push — check
   `configs/0b-prime/` ladder + smoke configs and cross-check tests
   (`fca1a25`); the runner's per-item timing field (`1b6f418`, legacy-load
   fix `9546a93`); the reproduction-gate script (`7e9db50`); the item-set
-  hash gate's n-mismatch fix (`bf6ac1f`). **NOT done:** the NLL driver
-  that produced 0B's `nll/*.jsonl` records is not recoverable — the S3
-  `0b/code/` prefix holds only a 2026-08-30 snapshot predating the NLL
-  runs, and no driver exists in git history (OPEN_QUESTIONS §16); a new
-  driver must be written against `nll_scorer.score_records`, with its own
-  review, before the §3 NLL passes can run. Machine ruling: the 0B
+  hash gate's n-mismatch fix (`bf6ac1f`). The NLL driver that produced
+  0B's `nll/*.jsonl` records was not recoverable — the S3 `0b/code/`
+  prefix holds only a 2026-08-30 snapshot predating the NLL runs, and no
+  driver exists in git history (OPEN_QUESTIONS §16) — so a new one was
+  **written** (`scripts/nll_driver.py`, commit `ba146e7`, against
+  `nll_scorer.score_records`) **and reviewed; pending the box NLL
+  reproduction gate** (RUN_0B_PRIME.md §4, second gate) before the §3 NLL
+  passes can run. Machine ruling: the 0B
   fingerprint / CUDA AMI.
 - **Site/launch work not started.** `site/` still serves PILOT fixtures
   only (exploratory data, browse-only banners, 50 items × 11 rungs from
