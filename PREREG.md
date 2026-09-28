@@ -788,7 +788,7 @@ Per binding ruling 2026-08-26 (ruling 4):
    rules.
 
 PREREG commit: `5e6882b7a10c5e4670052855380e8646911db5f3` (the no-ff merge of `freeze-prep` into `main`; filled by the follow-up commit, since the freeze commit's hash cannot appear inside itself)
-OpenTimestamps proof: `freeze/freeze-commit-hash.txt.ots` (receipt over `freeze/freeze-commit-hash.txt` containing `5e6882b7a10c5e4670052855380e8646911db5f3`; Bitcoin-attested: block headers 964240/964307, upgraded receipt committed 2026-08-28, commit `0b4658a`)
+OpenTimestamps proof: `freeze/freeze-commit-hash.txt.ots` (receipt over `freeze/freeze-commit-hash.txt` containing `5e6882b7a10c5e4670052855380e8646911db5f3`; Bitcoin-attested: block headers 964240/964295/964307, upgraded receipt committed 2026-08-28, commit `0b4658a`)
 
 
 ---

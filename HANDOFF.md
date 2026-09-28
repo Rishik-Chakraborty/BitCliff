@@ -49,7 +49,7 @@ commits after it are local until the user says push — check
 
 1. **Freeze (F4):** PREREG commit `5e6882b7a10c5e4670052855380e8646911db5f3`,
    receipt `freeze/freeze-commit-hash.txt.ots`, Bitcoin-attested (blocks
-   964240/964307).
+   964240/964295/964307).
 2. **Amendment 1** (difficulty calibration + §A/§A2/§B gap fixes): commit
    `00a1228ca6df39ddb5971e87920d4d0b78913cf5`, receipt
    `freeze/amendment1-commit-hash.txt.ots`, Bitcoin-attested (blocks
