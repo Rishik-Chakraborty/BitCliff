@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from pathlib import Path
 
 from bitcliff_pipeline.config import GenSettings
 from bitcliff_pipeline.generate import (
@@ -10,6 +11,14 @@ from bitcliff_pipeline.generate import (
 from bitcliff_pipeline.items import EvalItem
 
 GEN = GenSettings(seed=42, temperature=0.0, top_k=1, max_tokens=640, n_ctx=4096)
+
+# Task 5 fix round 1: a real committed pre-Task-5 output file (predates
+# gen_wall_seconds/gen_tokens entirely) -- proves read_records still loads
+# every legacy run under runs-cloud/pipeline/runs/*/outputs/*.jsonl.
+LEGACY_F16_JSONL = (
+    Path(__file__).resolve().parent.parent
+    / "runs-cloud" / "pipeline" / "runs" / "smoke-0b" / "outputs" / "F16.jsonl"
+)
 
 ITEMS = [
     EvalItem("arithmetic-1-000", "arithmetic", "What is 12 * 34?", ("408",)),
@@ -170,6 +179,22 @@ def test_jsonl_roundtrip(tmp_path):
     loaded = read_records(path)
     assert loaded == records
     assert isinstance(loaded[0], OutputRecord)
+
+
+def test_read_records_loads_legacy_output_file_with_none_timing_fields():
+    """Task 5 fix round 1: gen_wall_seconds/gen_tokens must default to None
+    so read_records (`OutputRecord(**json.loads(line))`) can still load a
+    real pre-Task-5 committed output file, which has neither key at all --
+    every run under runs-cloud/pipeline/runs/*/outputs/*.jsonl, and any
+    partial run left on disk from before commit 1b6f418."""
+    assert LEGACY_F16_JSONL.exists(), f"fixture missing: {LEGACY_F16_JSONL}"
+    records = read_records(LEGACY_F16_JSONL)
+    assert records  # non-empty
+    assert all(r.gen_wall_seconds is None for r in records)
+    assert all(r.gen_tokens is None for r in records)
+    # the record's pre-existing fields are unaffected
+    assert all(r.text for r in records)
+    assert all(r.quant_label == "F16" for r in records)
 
 
 import pytest

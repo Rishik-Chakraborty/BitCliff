@@ -2,6 +2,7 @@ import dataclasses
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -164,6 +165,44 @@ def test_grade_stage_rejects_stale_outputs(tmp_path):
             cfg, run_id="pilot-test", models_dir=models_dir, runs_dir=runs_dir,
             stage="grade", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
         )
+
+
+LEGACY_RUN_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "runs-cloud" / "pipeline" / "runs" / "smoke-0b"
+)
+
+
+def test_grade_stage_still_works_on_legacy_pre_timing_outputs(tmp_path):
+    """Task 5 fix round 1: OutputRecord's gen_wall_seconds/gen_tokens must
+    default to None so the grade stage (which loads every outputs/*.jsonl
+    via generate.read_records) still works on a run written before Task 5.
+    Copies a real committed pre-Task-5 run's items.jsonl + outputs/ into a
+    scratch runs dir -- never touches runs-cloud/ itself -- and runs the
+    grade stage against it exactly as `bitcliff-pipeline --stage grade`
+    would on any such run left over on disk.
+    """
+    src = LEGACY_RUN_DIR
+    assert (src / "items.jsonl").exists(), f"fixture missing: {src}"
+    run_id = "smoke-0b"
+    runs_dir = tmp_path / "runs"
+    dst = runs_dir / run_id
+    dst.mkdir(parents=True)
+    shutil.copy(src / "items.jsonl", dst / "items.jsonl")
+    shutil.copytree(src / "outputs", dst / "outputs")
+
+    # the grade stage never reads model/quant config -- any valid
+    # LadderConfig will do, matching the "cheap existing test pattern"
+    # every other test_cli.py grade-stage test already uses.
+    cfg = make_config(tmp_path)
+    run_pipeline(
+        cfg, run_id=run_id, models_dir=tmp_path / "models", runs_dir=runs_dir,
+        stage="grade", base_dir=tmp_path,
+    )
+
+    grades = [json.loads(l) for l in (dst / "grades.jsonl").read_text().splitlines()]
+    assert len(grades) == 40  # 20 items x 2 quant labels (F16, Q4_K_M)
+    assert {g["quant_label"] for g in grades} == {"F16", "Q4_K_M"}
 
 
 def test_manifest_records_run_config(tmp_path):

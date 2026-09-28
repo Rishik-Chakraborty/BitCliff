@@ -54,17 +54,22 @@ class OutputRecord:
     finish_reason: str
     gen_settings: dict
     machine: str
-    gen_wall_seconds: float
+    gen_wall_seconds: float | None = None
     """Task 5: wall-clock time of this item's single model call
     (create_completion / create_chat_completion), measured with
     time.perf_counter() around exactly that call -- computed AFTER the call
     returns, from a value nothing in the call itself can see, so it cannot
-    alter what got generated."""
-    gen_tokens: int
+    alter what got generated. Defaults to None (Task 5 fix round 1) so
+    `read_records` can still load pre-Task-5 output files (every record
+    written before commit 1b6f418, e.g. runs-cloud/pipeline/runs/*/outputs/
+    *.jsonl) -- `run_items` always sets a real float on every record it
+    produces; None only ever appears on a legacy record loaded from disk."""
+    gen_tokens: int | None = None
     """Task 5: the completion's generated-token count, read from the
     response's `usage.completion_tokens` (llama-cpp-python populates this
     on both create_completion and create_chat_completion) -- also read only
-    after the call returns, never passed into it."""
+    after the call returns, never passed into it. Defaults to None for the
+    same legacy-record-compatibility reason as `gen_wall_seconds` above."""
 
 
 def make_llm(model_path: Path, gen: GenSettings):
