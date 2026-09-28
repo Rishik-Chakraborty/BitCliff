@@ -191,15 +191,21 @@ commits after it are local until the user says push — check
   `shootout-7b.json` manifest section fixing the items OPEN_QUESTIONS §12
   lists, then a user go for spend. "Run after the launch analyses."
 - **0B′ (1.5B confirmatory run): ladder registered (Amendment 4), run
-  plan drafted (`RUN_0B_PRIME.md`), NOT started.** Two plan readings await
-  the user's confirmation: twins run for the 1.5B (§3.3 names no model, so
-  the plan reads "runs"); the 2a NLL pass is labeled exploratory per user
-  ruling though §3.1's spec is the 2a configuration. Cap line blank.
-  Before "proceed", per RUN_0B_PRIME.md §9: 2a item-set hash in
-  `registered.py`, `configs/0b-prime/` + cross-check tests, a per-item
-  timing field in the runner (no run to date recorded timing), and the
-  reproduction-gate script (Qwen-7B Q4_K_M, first 25 longctx items, empty
-  diff required). Machine ruling: the 0B fingerprint / CUDA AMI.
+  plan drafted (`RUN_0B_PRIME.md`), NOT started.** Plan readings confirmed
+  2026-09-27 (OPEN_QUESTIONS §13): twins run for the 1.5B; the 2a NLL pass
+  is registered Q2 data, not exploratory. §8's rate corrected to
+  $2.2421/h; cap set to $50. Of RUN_0B_PRIME.md §9's pre-"proceed" list,
+  done this code turn: 2a item-set hash in `registered.py` (`05537fe`);
+  `configs/0b-prime/` ladder + smoke configs and cross-check tests
+  (`fca1a25`); the runner's per-item timing field (`1b6f418`, legacy-load
+  fix `9546a93`); the reproduction-gate script (`7e9db50`); the item-set
+  hash gate's n-mismatch fix (`bf6ac1f`). **NOT done:** the NLL driver
+  that produced 0B's `nll/*.jsonl` records is not recoverable — the S3
+  `0b/code/` prefix holds only a 2026-08-30 snapshot predating the NLL
+  runs, and no driver exists in git history (OPEN_QUESTIONS §16); a new
+  driver must be written against `nll_scorer.score_records`, with its own
+  review, before the §3 NLL passes can run. Machine ruling: the 0B
+  fingerprint / CUDA AMI.
 - **Site/launch work not started.** `site/` still serves PILOT fixtures
   only (exploratory data, browse-only banners, 50 items × 11 rungs from
   pilot-0a); no confirmatory fixtures exported, no cliff tables,
