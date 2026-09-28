@@ -1,5 +1,7 @@
 # MORNING REPORT — overnight run 2026-08-26 → 2026-08-28
 
+**Superseded by HANDOFF.md 2026-09-14.**
+
 Constraints held throughout: **zero AWS/GPU spend** (everything ran on this
 machine), **nothing timestamped** (AMENDMENT_DRAFT.md waits for you),
 **nothing pushed, no one messaged**. Every uncovered decision went to

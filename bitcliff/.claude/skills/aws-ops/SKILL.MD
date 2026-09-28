@@ -5,13 +5,13 @@ description: AWS conventions for BitCliff. Use whenever creating, modifying, or 
 
 # BitCliff AWS Ops
 
-Canon: bitcliff-aws-budget.md. Deviations require explicit approval.
+Canon: bitcliff/.claude/skills/aws-ops/BUDGET.md. Deviations require explicit approval.
 
 ## Fixed decisions
 - Region: us-east-1 only. Never create resources elsewhere.
 - Auth: IAM user bitcliff-agent (EC2, S3, read-only quotas/budgets). Never touch IAM, never mint keys, never echo secrets into output or commits.
 - Prod box: c7i.xlarge, pinned forever once confirmatory rows exist. Never resize; hardware is inside the determinism scope.
-- GPU: g6e.xlarge for 0B, g6e.12xlarge for 70B only. Quota: 48 vCPU G-type pending.
+- GPU: g6e.2xlarge for anything that must match the 0B fingerprint (0B-prime, the 7B shootout); g6e.12xlarge for 70B only.
 - Artifacts: single S3 bucket, public access blocked, 30-day IA lifecycle.
 - Site stays Vercel + Cloudflare. No Amplify, Route53, RDS, ECS, or managed services.
 

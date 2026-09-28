@@ -1,7 +1,11 @@
-# RUN_0B — Phase 0B confirmatory run plan
+# RUN_0B — Phase 0B confirmatory run plan (as run 2026-09-02 to 09-06)
 
-**Status: DRAFT FOR USER REVIEW. Nothing in this document runs until the
-user says "proceed." No AWS action of any kind has been taken.**
+**Status: EXECUTED.** 0B generation ran 2026-09-02 to 09-03
+(`bitcliff/pipeline/runs-cloud/0b-full.log`), the 0b2 factual_qa rerun
+2026-09-05, and the analysis was final 2026-09-06 (HANDOFF.md §2–§3). The
+run used **g6e.2xlarge** (`runs-cloud/fingerprint.txt`), not the
+g6e.xlarge named in §3 and §8 below. The plan text below is kept as
+written; see §8's rate caveat.
 
 Written 2026-08-29 under the user's 0B leash (one instance ≤ g6e.xlarge,
 hard budget $250, stop-and-ask at $100/$175, failure-aware monitors,
@@ -60,7 +64,7 @@ execute without them, so approving this plan approves building them.
 
 | item | value |
 |---|---|
-| Instance | **g6e.xlarge** (1× NVIDIA L40S 48GB, 4 vCPU, 32 GiB RAM) — the leash's ceiling, and sufficient: largest file is a 15GB F16, plus 8k context KV |
+| Instance | **g6e.xlarge** (1× NVIDIA L40S 48GB, 4 vCPU, 32 GiB RAM) — the leash's ceiling, and sufficient: largest file is a 15GB F16, plus 8k context KV. **As run: g6e.2xlarge** (`runs-cloud/fingerprint.txt`, instance `i-0d645775964749bbd`, us-east-1c) |
 | Region | us-east-1 (aws-ops fixed decision) |
 | AMI | AWS Deep Learning Base GPU AMI (Ubuntu 22.04), latest in us-east-1 at launch; **exact AMI ID recorded in every run manifest** |
 | Storage | 250 GB gp3 EBS (canonical models ~125 GB + headroom); deleted at termination |
@@ -230,6 +234,11 @@ $1.8610/h (g6e.xlarge us-east-1 on-demand) ≈ $50; range $41–60 for
 22–32 h; plus ~$5 EBS+S3 (S3 now carries only ~110 MB of small assets) ⇒
 ≈ $46–65 total, against the $250 hard cap.**
 Consistent with IDEA.md §12's ~$150 allocation for confirmatory runs.
+
+**Rate caveat (added 2026-09-27):** the $1.8610/h figure above is the
+g6e.xlarge rate. 0B actually ran on g6e.2xlarge (≈ $2.24/h on-demand,
+us-east-1), so this estimate understates the hourly rate. Realized spend
+is in HANDOFF.md §2 (0B ≈ $98, 0b2 ≈ $2.10).
 If the realized per-rung time trends above the range after the first
 three rungs, I extrapolate, report, and wait at the $100 checkpoint
 rather than discovering it at $175.

@@ -19,7 +19,11 @@ Every confirmatory rule was registered **before any confirmatory data exists**, 
 
 - **`PREREG.md`** registers every question, suite, parameter, seed, grading rule, statistical rule, budget, and embargo. Nothing confirmatory deviates from it; exploratory work is declared exploratory and its numbers are discarded.
 - The freeze commit (`5e6882b`) is stamped with **OpenTimestamps and Bitcoin-attested** — receipt in `freeze/freeze-commit-hash.txt.ots`. "The rules were decided after seeing the data" is impossible by construction. (The draft-status banner at the top of `PREREG.md` predates the freeze; the receipts in `freeze/` are the durable record.)
-- Changes only happen through a **dated, stamped amendment ceremony** filling registered slots. Amendment 1 (difficulty calibration, 2026-08-29) is likewise Bitcoin-attested (`freeze/amendment1-commit-hash.txt.ots`).
+- Changes only happen through a **dated, stamped amendment ceremony** filling registered slots. Amendments 1–4 are each appended to `PREREG.md` and Bitcoin-attested (`freeze/amendment{1..4}-commit-hash.txt.ots`):
+  - Amendment 1: difficulty calibration, 2026-08-29.
+  - Amendment 2: the reference ladder, 2026-08-30.
+  - Amendment 3: §5 shootout trigger fired, 2026-09-08.
+  - Amendment 4: the 1.5B confirmatory ladder, 2026-09-12.
 - Any decision PREREG doesn't cover is never decided silently — it goes to `OPEN_QUESTIONS.md` with the eventual ruling recorded.
 - Model files are pinned by sha256 (`bitcliff/pipeline/reference-manifests/`); a quant level is a **file, not a label** — bartowski's, unsloth's, and mradermacher's Q4_K_M are different files with different calibration, and results are pinned to hashes.
 
@@ -42,7 +46,9 @@ Suites: **long-context retrieval** (multivalue needle task), **arithmetic** (GSM
 | `PREREG.md` | The registered protocol; amendments appended at the end |
 | `OPEN_QUESTIONS.md` | Every decision PREREG didn't cover, plus rulings |
 | `HANDOFF.md` | Session handoff / index of project state |
-| `freeze/` | OpenTimestamps receipts for the freeze and Amendment 1 |
+| `freeze/` | OpenTimestamps receipts for the freeze and Amendments 1–4 |
+| `RUN_0B.md`, `RUN_0B_PRIME.md` | 0B run plan (as run); 0B′ (1.5B) run plan |
+| `bitcliff/pipeline/analysis/0b/` | 0B §8 analysis: `FINDINGS_0B.md`, `cells.csv`, seed sweep |
 | `bitcliff/pipeline/` | The measurement pipeline (Python, `uv`): configs, scorers, graders, calibration results, manifests, dataset packager |
 | `bitcliff/pipeline/PILOT_NOTES.md` | Phase 0A pilot verdicts (exploratory; numbers discarded) |
 | `site/` | Static playground UI (ladder view, A/B slider) over pilot fixtures |
@@ -59,14 +65,23 @@ cd bitcliff/pipeline && uv run pytest -q
 python3 -m http.server -d site
 ```
 
-Confirmatory GPU runs (Phase 0B) are configured under `bitcliff/pipeline/configs/0b/` and gated behind the pre-registration; see `RUN_0B.md`.
+Confirmatory GPU runs are configured under `bitcliff/pipeline/configs/` (`0b/`, `0b2/`) and gated behind the pre-registration; see `RUN_0B.md` and `bitcliff/pipeline/README.md`.
 
 ## Embargoes
 
 Some materials are deliberately withheld to keep the measurements meaningful: long-context prompts are never published or displayed, the arithmetic contamination-twin set is embargoed (`private/`, refused by the dataset packager), and the 2a comparability corpus publishes outputs/stats only. The packager (`scripts/package_dataset.py`) enforces these in code.
 
-## Status (2026-08-30)
+## Status (2026-09-27)
 
 - ✅ Phase 0A pilot complete (exploratory; gate passed, numbers discarded)
-- ✅ PREREG frozen and Bitcoin-attested; Amendment 1 (difficulty calibration) registered and attested
-- ⏳ Phase 0B confirmatory runs: configs ready, pending go (one open question on the reference-ladder rung set — `OPEN_QUESTIONS.md` §6)
+- ✅ PREREG frozen and Bitcoin-attested; Amendments 1–4 appended and attested
+- ✅ Phase 0B confirmatory runs complete (2026-09-02 → 09-03): both reference ladders, both shootout arms, all four suites, and answer-span NLL records for all 26 rungs
+- ✅ 0b2 (2026-09-05): factual_qa regenerated on the registered item set after the item-set bug (`OPEN_QUESTIONS.md` §8)
+- ✅ §8 analysis final (`bitcliff/pipeline/analysis/0b/FINDINGS_0B.md`); the §5 shootout trigger fired (Amendment 3)
+- ⏳ Not yet run:
+  - the Q1–Q5 analyses beyond the §8 matrix (Q2/Q3 data collected);
+  - 0B′ (1.5B confirmatory run, `RUN_0B_PRIME.md`);
+  - the Qwen-7B uploader shootout (needs its stamped manifest);
+  - 0C (blind check);
+  - site and launch.
+- See `HANDOFF.md` for the full state and `OPEN_QUESTIONS.md` for every ruling.

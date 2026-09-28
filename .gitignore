@@ -1,2 +1,3 @@
 bitcliff/llama.cpp/
 .superpowers/
+*.code-workspace
