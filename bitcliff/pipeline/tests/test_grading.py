@@ -18,6 +18,7 @@ def record(item, text, finish_reason="stop", quant="Q4_K_M"):
         item_id=item.id, suite=item.suite, quant_label=quant,
         model_sha256="abc", prompt=item.prompt, text=text,
         finish_reason=finish_reason, gen_settings=GEN, machine="test",
+        gen_wall_seconds=0.0, gen_tokens=0,
     )
 
 

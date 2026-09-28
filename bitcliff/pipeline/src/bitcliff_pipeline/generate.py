@@ -2,6 +2,7 @@ import dataclasses
 import importlib.metadata
 import json
 import platform
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,6 +54,17 @@ class OutputRecord:
     finish_reason: str
     gen_settings: dict
     machine: str
+    gen_wall_seconds: float
+    """Task 5: wall-clock time of this item's single model call
+    (create_completion / create_chat_completion), measured with
+    time.perf_counter() around exactly that call -- computed AFTER the call
+    returns, from a value nothing in the call itself can see, so it cannot
+    alter what got generated."""
+    gen_tokens: int
+    """Task 5: the completion's generated-token count, read from the
+    response's `usage.completion_tokens` (llama-cpp-python populates this
+    on both create_completion and create_chat_completion) -- also read only
+    after the call returns, never passed into it."""
 
 
 def make_llm(model_path: Path, gen: GenSettings):
@@ -87,6 +99,7 @@ def run_items(
     records = []
     for item in items:
         budget = max_tokens_by_suite.get(item.suite, gen.max_tokens)
+        start = time.perf_counter()
         if item.prompt_tokens is not None:
             out = llm.create_completion(
                 prompt=list(item.prompt_tokens),
@@ -107,6 +120,12 @@ def run_items(
             )
             choice = out["choices"][0]
             text = choice["message"]["content"]
+        # Task 5 (runner timing field): both fields are read AFTER the call
+        # returns, from values the call itself already produced -- neither
+        # is threaded into any create_completion/create_chat_completion
+        # argument above, so neither can alter the generated text.
+        gen_wall_seconds = time.perf_counter() - start
+        gen_tokens = out["usage"]["completion_tokens"]
         records.append(
             OutputRecord(
                 item_id=item.id,
@@ -118,6 +137,8 @@ def run_items(
                 finish_reason=choice.get("finish_reason") or "stop",
                 gen_settings={**dataclasses.asdict(gen), "max_tokens_effective": budget},
                 machine=machine,
+                gen_wall_seconds=gen_wall_seconds,
+                gen_tokens=gen_tokens,
             )
         )
     return records

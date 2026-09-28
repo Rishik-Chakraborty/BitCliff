@@ -75,12 +75,18 @@ class FakeLlm:
         prompt = messages[0]["content"]
         m = self._ARITH_RE.search(prompt)
         content = f"#### {int(m.group(1)) + int(m.group(2))}" if m else prompt
-        return {"choices": [{"message": {"content": content}, "finish_reason": "stop"}]}
+        return {
+            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+            "usage": {"completion_tokens": len(content.split())},
+        }
 
     def create_completion(self, prompt, max_tokens, **kwargs):
         # the truncation preflight (generate stage) probes via the token
         # path with a small budget and expects an honest "length"
-        return {"choices": [{"text": "1, 2, 3", "finish_reason": "length"}]}
+        return {
+            "choices": [{"text": "1, 2, 3", "finish_reason": "length"}],
+            "usage": {"completion_tokens": max_tokens},
+        }
 
 
 @pytest.fixture(autouse=True)
@@ -287,7 +293,10 @@ class TokenAwareFakeLlm(FakeLlm):
     def create_completion(self, prompt, max_tokens=None, **kwargs):
         if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
             return super().create_completion(prompt, max_tokens, **kwargs)
-        return {"choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}]}
+        return {
+            "choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}],
+            "usage": {"completion_tokens": 5},
+        }
 
 
 def test_token_id_item_roundtrips_through_items_jsonl_and_grades(tmp_path, monkeypatch):
@@ -428,8 +437,14 @@ class LongctxFakeLlm(FakeLlm):
 
     def create_completion(self, prompt, max_tokens=None, **kwargs):
         if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
-            return {"choices": [{"text": "1, 2, 3", "finish_reason": "length"}]}
-        return {"choices": [{"text": "irrelevant completion", "finish_reason": "stop"}]}
+            return {
+                "choices": [{"text": "1, 2, 3", "finish_reason": "length"}],
+                "usage": {"completion_tokens": max_tokens},
+            }
+        return {
+            "choices": [{"text": "irrelevant completion", "finish_reason": "stop"}],
+            "usage": {"completion_tokens": 3},
+        }
 
 
 class MismatchingLongctxFakeLlm(LongctxFakeLlm):
