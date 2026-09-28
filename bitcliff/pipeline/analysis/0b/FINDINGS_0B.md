@@ -267,6 +267,8 @@ Candidate claim per (ladder run, suite) with a cliff: "damaged from the cliff ru
 
 Same-label quant-vs-quant pairs, paired on identical items: Arm 1 (bartowski from the ladder run, unsloth, mradermacher_static, mradermacher_i1 — 6 unordered pairs per label) at Q4_K_M and Q3_K_M; Arm 2 (official vs bartowski) at Q4_K_M and Q3_K_M. A cross-run pair is computed only where the two runs' item id sets agree for that suite (checked against `items.jsonl`); otherwise it is reported not pairable and excluded below.
 
+Sign convention (added 2026-09-27, OPEN_QUESTIONS §15(c)): for a row "A vs B", delta = acc(B) minus acc(A). All 56 rows below were checked against the per-file accuracies in `cells.csv`, and none contradicts it. This sentence was added by hand; it moves into `scripts/analyze_0b.py` in the next code turn so a regeneration keeps it.
+
 | arm | level | suite | pair | pairable | delta | 95% CI | CI excludes 0 | state A | state B | states differ |
 |---|---|---|---|---|---|---|---|---|---|---|
 | arm1 | Q4_K_M | longctx_retrieval | bartowski_Q4_K_M vs unsloth_Q4_K_M | yes | -0.0208 | [-0.0521, 0.0000] | False | indeterminate | indeterminate | False |
