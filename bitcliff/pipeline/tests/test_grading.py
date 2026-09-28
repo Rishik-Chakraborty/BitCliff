@@ -18,6 +18,7 @@ def record(item, text, finish_reason="stop", quant="Q4_K_M"):
         item_id=item.id, suite=item.suite, quant_label=quant,
         model_sha256="abc", prompt=item.prompt, text=text,
         finish_reason=finish_reason, gen_settings=GEN, machine="test",
+        gen_wall_seconds=0.0, gen_tokens=0,
     )
 
 
@@ -60,3 +61,14 @@ def test_grades_jsonl_roundtrip(tmp_path):
     path = tmp_path / "grades.jsonl"
     write_grades(grades, path)
     assert read_grades(path) == grades
+
+
+def test_longctx_retrieval_2a_is_graded_by_the_longctx_grader():
+    """0B-prime (controller ruling): 2a items carry suite key
+    `longctx_retrieval_2a` but are graded by the identical PREREG §3.1
+    rule as 2b -- the same function object, not a copy."""
+    from bitcliff_pipeline.grading import GRADERS
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    assert GRADERS["longctx_retrieval_2a"] is longctx_retrieval.grade
+    assert GRADERS["longctx_retrieval_2a"] is GRADERS["longctx_retrieval"]

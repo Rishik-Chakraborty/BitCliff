@@ -68,6 +68,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from bitcliff_pipeline import registered  # noqa: E402
+# `load_2a_corpus_text` lives in src/ (moved there in the 0B-prime code turn
+# so `__main__.build_items` can share it without importing from scripts/);
+# re-imported here under the same name -- `_verify_2a_machinery` and
+# tests/test_registered.py (`pkg.load_2a_corpus_text()`) are unchanged.
+from bitcliff_pipeline.suites.longctx_retrieval import load_2a_corpus_text  # noqa: E402,F401
 
 PREREG_COMMIT = "5e6882b7a10c5e4670052855380e8646911db5f3"
 
@@ -828,10 +833,10 @@ def package(
 
 # CORPUS_MANIFEST.md §3's registered reference: real Qwen2.5-1.5B-Instruct
 # tokenizer, real (verified) 2a corpus, mv2.build_items(tokenizer,
-# "multivalue2", 20, 4096, 2024), mv2.items_digest(items).
-CONFIG_2A_REFERENCE_DIGEST = (
-    "9220589bd8607bd0ff3be5bdcfecd23df07cac82d354d992468b15b60f398972"
-)
+# "multivalue2", 20, 4096, 2024), mv2.items_digest(items). Imported from
+# registered.py (the single home of registered constants) rather than
+# hand-copied; the public name is kept as an alias for existing callers.
+CONFIG_2A_REFERENCE_DIGEST = registered.LONGCTX_2A_FIRST20_DIGEST_SHA256
 
 
 def _default_pipeline_root(run_dir: Path) -> Path:
@@ -914,8 +919,6 @@ def _verify_longctx_recipe(
 
 
 def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:
-    import os
-
     tokenizer_path = pipeline_root / "models" / "hf" / "Qwen2.5-1.5B-Instruct"
     if not tokenizer_path.exists():
         return (
@@ -923,31 +926,14 @@ def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:
             f"tokenizer not cached locally at {tokenizer_path}; not downloading",
         )
 
-    old_env = {
-        k: os.environ.get(k) for k in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE")
-    }
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    os.environ["HF_DATASETS_OFFLINE"] = "1"
     try:
-        try:
-            from datasets import load_dataset
-
-            from bitcliff_pipeline.vendor import generate_multivalue2 as mv2
-
-            ds = load_dataset(mv2.CORPUS_DATASET, split="train")
-            corpus_text = "\n\n".join(ds["text"])
-        except Exception as exc:
-            return (
-                "SKIPPED",
-                f"2a corpus (sgoel9/paul_graham_essays) not cached locally; "
-                f"not downloading ({exc})",
-            )
-    finally:
-        for k, v in old_env.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+        corpus_text = load_2a_corpus_text()
+    except Exception as exc:
+        return (
+            "SKIPPED",
+            f"2a corpus (sgoel9/paul_graham_essays) not cached locally; "
+            f"not downloading ({exc})",
+        )
 
     actual_sha = hashlib.sha256(corpus_text.encode("utf-8")).hexdigest()
     if actual_sha != CORPUS_2A_SHA256:

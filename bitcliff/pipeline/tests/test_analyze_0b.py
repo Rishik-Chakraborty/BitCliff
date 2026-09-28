@@ -447,7 +447,8 @@ def test_findings_md_contains_seed_disclosure_and_trigger_verdict(synthetic_runs
     a0b.write_findings_md(result, out_path)
     text = out_path.read_text()
     assert "8271" in text
-    assert "PROVISIONAL" in text
+    assert "RATIFIED" in text  # Task 8: seed ratified 2026-09-04 (OPEN_QUESTIONS §7)
+    assert "PROVISIONAL" not in text
     assert "OPEN_QUESTIONS.md" in text
     assert "runs-cloud/fingerprint.txt" in text
     assert "Trigger: FIRED" in text  # this synthetic tree is built to fire it
@@ -544,3 +545,528 @@ def test_cells_csv_carries_acc_inversion_columns(tmp_path):
     rows = list(_csv.DictReader(out.open()))
     assert rows[0]["acc_inversion"] == "True" and rows[0]["inversion_above"] == "F16"
     assert rows[1]["acc_inversion"] == "False" and rows[1]["inversion_above"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Task 7: analyze_0b.py takes run ids -- CLI arg parsing + defaults, and the
+# generalized (run_ids/ladder_run_ids/suites/run_model/factual_qa_source)
+# plumbing that lets a non-0B run (e.g. the 1.5B single-ladder-run, five
+# -suite, no-arms 0B-prime analysis) reuse this script without editing it.
+# ---------------------------------------------------------------------------
+
+
+def test_parse_list_splits_on_comma():
+    assert a0b._parse_list("a,b,c") == ["a", "b", "c"]
+
+
+def test_parse_list_empty_string_is_empty_list():
+    assert a0b._parse_list("") == []
+
+
+def test_parse_kv_splits_pairs():
+    assert a0b._parse_kv("x=1,y=2") == {"x": "1", "y": "2"}
+
+
+def test_parse_kv_empty_string_is_empty_dict():
+    assert a0b._parse_kv("") == {}
+
+
+def test_build_arg_parser_defaults_are_the_0b_set():
+    parser = a0b.build_arg_parser()
+    args = parser.parse_args([])
+    assert args.run_ids == a0b.RUN_IDS
+    assert args.ladder_run_ids == a0b.LADDER_RUN_IDS
+    assert args.suites == a0b.SUITES
+    assert args.ladder_order == a0b.LADDER_ORDER
+    assert args.arm1_levels == a0b.ARM1_LEVELS
+    assert args.arm2_levels == a0b.ARM2_LEVELS
+    assert args.run_model == a0b.RUN_MODEL
+    assert args.factual_qa_source == a0b.FACTUAL_QA_SOURCE
+    assert args.seed == a0b.registered.BOOTSTRAP_SEED
+    assert args.out_dir is None
+
+
+def test_build_arg_parser_overrides_for_a_single_ladder_run_no_arms():
+    """The 1.5B (0B-prime) shape: one ladder run, five suites, no arm runs,
+    no factual_qa substitution -- exactly what a future 1.5B invocation
+    would pass, without editing this script."""
+    parser = a0b.build_arg_parser()
+    args = parser.parse_args([
+        "--run-ids", "0b-prime-qwen-1.5b-ladder",
+        "--ladder-run-ids", "0b-prime-qwen-1.5b-ladder",
+        "--suites", "longctx_retrieval_2a,longctx_retrieval,arithmetic,arithmetic_twins,factual_qa",
+        "--run-model", "0b-prime-qwen-1.5b-ladder=qwen2.5-1.5b-instruct",
+        "--factual-qa-source", "",
+        "--arm1-levels", "",
+        "--arm2-levels", "",
+    ])
+    assert args.run_ids == ["0b-prime-qwen-1.5b-ladder"]
+    assert args.ladder_run_ids == ["0b-prime-qwen-1.5b-ladder"]
+    assert args.suites == [
+        "longctx_retrieval_2a", "longctx_retrieval", "arithmetic", "arithmetic_twins", "factual_qa",
+    ]
+    assert args.run_model == {"0b-prime-qwen-1.5b-ladder": "qwen2.5-1.5b-instruct"}
+    assert args.factual_qa_source == {}
+    assert args.arm1_levels == []
+    assert args.arm2_levels == []
+
+
+def test_run_analysis_single_ladder_run_no_arms_does_not_crash(tmp_path):
+    """Shootout/trigger logic only applies when arm runs are given; with
+    none (arm1_levels=[] and arm2_levels=[]), the shootout section must be
+    empty and the §5 trigger must read "not applicable" (not "not fired",
+    which would imply a comparison was made), never crash."""
+    root = tmp_path / "runs"
+    suite = "arithmetic"
+    ids = [f"i{n}" for n in range(10)]
+    labels = {"F16": ["correct"] * 10}
+    for rung in a0b.LADDER_ORDER:
+        labels[rung] = ["correct"] * 10
+    _write_run(root / "1p5b-ladder", {suite: ids}, {suite: labels})
+
+    result = a0b.run_analysis(
+        root,
+        n_resamples=50,
+        run_ids=["1p5b-ladder"],
+        ladder_run_ids=["1p5b-ladder"],
+        suites=[suite],
+        arm1_levels=[],
+        arm2_levels=[],
+        run_model={"1p5b-ladder": "qwen2.5-1.5b-instruct"},
+        factual_qa_source={},
+    )
+    assert result.shootout.pairs == []
+    assert result.shootout.triggered is False
+    assert len(result.cells) == len(a0b.LADDER_ORDER)  # one suite, one ladder run
+
+    out_path = tmp_path / "FINDINGS_0B.md"
+    a0b.write_findings_md(result, out_path)  # must not raise
+    text = out_path.read_text()
+    assert "### `1p5b-ladder` (qwen2.5-1.5b-instruct, ladder)" in text
+    assert "**Trigger: not applicable.**" in text
+    assert "Trigger: not fired" not in text
+
+
+def test_write_findings_md_uses_result_run_model_not_module_global(tmp_path):
+    """Regression: write_findings_md must read model/kind/suites off the
+    AnalysisResult it's given, not off the module-level RUN_MODEL/RUN_KIND/
+    SUITES globals -- otherwise a non-0B run_id crashes with a KeyError."""
+    root = tmp_path / "runs"
+    suite = "custom_suite"
+    ids = [f"i{n}" for n in range(6)]
+    labels = {"F16": ["correct"] * 6}
+    for rung in a0b.LADDER_ORDER:
+        labels[rung] = ["correct"] * 6
+    custom_run_id = "not-a-0b-run-id"
+    _write_run(root / custom_run_id, {suite: ids}, {suite: labels})
+
+    result = a0b.run_analysis(
+        root,
+        n_resamples=50,
+        run_ids=[custom_run_id],
+        ladder_run_ids=[custom_run_id],
+        suites=[suite],
+        arm1_levels=[],
+        arm2_levels=[],
+        run_model={custom_run_id: "some-custom-model"},
+        factual_qa_source={},
+    )
+    out_path = tmp_path / "FINDINGS_0B.md"
+    a0b.write_findings_md(result, out_path)
+    text = out_path.read_text()
+    assert f"### `{custom_run_id}` (some-custom-model, ladder)" in text
+    assert "**custom_suite**" in text
+
+
+# ---------------------------------------------------------------------------
+# Task 8: the generator emits every post-generation annotation that used to
+# be hand-added to analysis/0b/FINDINGS_0B.md (ratified seed wording, Arm 2
+# imatrix footnote, pair-delta sign convention, seed-robustness sweep,
+# Appendix A), each gated on the inputs that make it applicable, plus the
+# "PREREG SS2/SS5" -> "PREREG §2/§5" encoding fix.
+# ---------------------------------------------------------------------------
+
+import dataclasses as _dc
+import itertools as _it
+
+PIPELINE_DIR = Path(__file__).resolve().parent.parent
+COMMITTED_0B = PIPELINE_DIR / "analysis" / "0b"
+REAL_RUNS_ROOT = PIPELINE_DIR / "runs-cloud" / "pipeline" / "runs"
+
+
+def _findings(result, tmp_path, **kw):
+    out = tmp_path / "F.md"
+    a0b.write_findings_md(result, out, **kw)
+    return out.read_text()
+
+
+def _single_run_result(tmp_path, run_id="1p5b-ladder"):
+    root = tmp_path / "runs1"
+    ids = [f"i{n}" for n in range(10)]
+    labels = {"F16": ["correct"] * 10}
+    for rung in a0b.LADDER_ORDER:
+        labels[rung] = ["correct"] * 10
+    _write_run(root / run_id, {"arithmetic": ids}, {"arithmetic": labels})
+    return a0b.run_analysis(
+        root, n_resamples=50, run_ids=[run_id], ladder_run_ids=[run_id],
+        suites=["arithmetic"], arm1_levels=[], arm2_levels=[],
+        run_model={run_id: "qwen2.5-1.5b-instruct"}, factual_qa_source={},
+    )
+
+
+def test_seed_disclosure_ratified_wording_for_0b_set(synthetic_runs_root, tmp_path):
+    text = _findings(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES), tmp_path)
+    assert "## Seed disclosure (seed 8271 — RATIFIED 2026-09-04, OPEN_QUESTIONS.md §7)\n" in text
+    assert (
+        "**Seed 8271 was provisional when this analysis first ran (2026-09-03) and was "
+        "RATIFIED by user ruling on 2026-09-04 (OPEN_QUESTIONS.md §7), together with the "
+        "per-cell and per-pair rules above; these numbers stand. Any other seed would "
+        "require a cheap, local, deterministic re-run of this script.** Registered values "
+        "used: margin M = 0.03, α = 0.05, n_resamples = 10000"
+    ) in text
+
+
+def test_seed_disclosure_non_0b_run_set_omits_0b_history(tmp_path):
+    text = _findings(_single_run_result(tmp_path), tmp_path)
+    assert "RATIFIED 2026-09-04" in text
+    assert "first ran (2026-09-03)" not in text
+
+
+def test_seed_disclosure_non_ratified_seed_says_so(synthetic_runs_root, tmp_path, monkeypatch):
+    monkeypatch.setattr(a0b, "SEED", "3")
+    text = _findings(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES), tmp_path)
+    assert "NOT the ratified seed" in text
+    assert "RATIFIED 2026-09-04, OPEN_QUESTIONS.md §7)" not in text
+
+
+ARM2_FOOTNOTE = (
+    "Footnote (2026-09-08, OPEN_QUESTIONS §10): the two official Qwen files ran and are "
+    "reported as `imatrix: false`; confirmed from their GGUF headers at the pinned revision "
+    "(no `quantize.imatrix.*` keys) — evidence: "
+    "`reference-manifests/evidence/qwen2.5-7b-official-gguf-headers.md`."
+)
+
+
+def test_arm2_imatrix_footnote_directly_under_arm2_heading(synthetic_runs_root, tmp_path):
+    text = _findings(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES), tmp_path)
+    assert (
+        "### `0b-arm2-official` (qwen2.5-7b-instruct, arm)\n\n" + ARM2_FOOTNOTE + "\n\n**"
+    ) in text
+    assert text.count("Footnote (2026-09-08") == 1
+
+
+def test_arm2_imatrix_footnote_absent_without_arm2_run(tmp_path):
+    assert "Footnote (2026-09-08" not in _findings(_single_run_result(tmp_path), tmp_path)
+
+
+SIGN_0B = (
+    'Sign convention (added 2026-09-27, OPEN_QUESTIONS §15(c)): for a row "A vs B", '
+    "delta = acc(B) minus acc(A). All {n} rows below were checked against the per-file "
+    "accuracies in `cells.csv`, and none contradicts it. This sentence was added by hand; "
+    "it moves into `scripts/analyze_0b.py` in the next code turn so a regeneration keeps it."
+)
+
+
+def _pairable_only(result):
+    pairs = [p for p in result.shootout.pairs if p.pairable]
+    return _dc.replace(result, shootout=a0b.ShootoutReport(pairs=pairs, triggered=result.shootout.triggered))
+
+
+def test_sign_convention_0b_sentence_when_every_row_checked(synthetic_runs_root, tmp_path):
+    result = _pairable_only(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES))
+    text = _findings(result, tmp_path)
+    n = len(result.shootout.pairs)
+    assert "is reported not pairable and excluded below.\n\n" + SIGN_0B.format(n=n) + "\n\n| arm |" in text
+
+
+def test_sign_convention_generic_when_some_rows_not_pairable(synthetic_runs_root, tmp_path):
+    result = a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES)
+    text = _findings(result, tmp_path)
+    assert 'Sign convention (OPEN_QUESTIONS §15(c)): for a row "A vs B", delta = acc(B) minus acc(A).' in text
+    assert "added 2026-09-27" not in text
+
+
+def test_sign_convention_contradiction_raises(synthetic_runs_root, tmp_path):
+    result = _pairable_only(a0b.run_analysis(synthetic_runs_root, n_resamples=50, suites=SUITES))
+    pairs = list(result.shootout.pairs)
+    bad = next(i for i, p in enumerate(pairs) if p.delta)
+    pairs[bad] = _dc.replace(pairs[bad], delta=-pairs[bad].delta)
+    result = _dc.replace(result, shootout=a0b.ShootoutReport(pairs=pairs, triggered=True))
+    with pytest.raises(ValueError, match="sign convention"):
+        _findings(result, tmp_path)
+
+
+def test_sign_convention_absent_without_shootout_pairs(tmp_path):
+    assert "Sign convention" not in _findings(_single_run_result(tmp_path), tmp_path)
+
+
+def _committed_result():
+    """AnalysisResult rebuilt from the committed cells.csv (ratified seed)
+    -- no bootstrap, so it is fast. Shootout pairs are rebuilt with
+    pairable=True (all 56 are pairable in 0B) and delta = acc(B) - acc(A);
+    enough to exercise every annotation that reads them."""
+    cells = a0b.read_cells_csv(COMMITTED_0B / "cells.csv")
+    cliffs = a0b.compute_cliffs(cells)
+    by_key = {(c.run_id, c.suite, c.quant_label): c for c in cells}
+    pairs = []
+    for arm, levels in (("arm1", a0b.ARM1_LEVELS), ("arm2", a0b.ARM2_LEVELS)):
+        for level in levels:
+            files = a0b.shootout_files(arm, level)
+            for suite in a0b.SUITES:
+                for (na, ra, la), (nb, rb, lb) in _it.combinations(files, 2):
+                    ca, cb = by_key[(ra, suite, la)], by_key[(rb, suite, lb)]
+                    pairs.append(a0b.PairResult(
+                        arm=arm, level=level, suite=suite, name_a=na, name_b=nb,
+                        pairable=True, reason=None, delta=cb.acc_quant - ca.acc_quant,
+                        ci_lo=0.0, ci_hi=0.0, excludes_zero=False,
+                        state_a=ca.state, state_b=cb.state, states_differ=ca.state != cb.state,
+                    ))
+    return a0b.AnalysisResult(
+        cells=cells, cliffs=cliffs, holm_verdicts=a0b.compute_holm_verdicts(cells, cliffs),
+        shootout=a0b.ShootoutReport(pairs=pairs, triggered=a0b.shootout_triggered(pairs)),
+        inversions=a0b.accuracy_inversions(cells),
+    )
+
+
+def _committed_section(start: str, end: str | None) -> str:
+    text = (COMMITTED_0B / "FINDINGS_0B.md").read_text()
+    i = text.index(start)
+    return text[i:] if end is None else text[i:text.index(end, i)]
+
+
+def test_iq_vs_k_note_uses_section_sign_encoding(tmp_path):
+    text = _findings(_committed_result(), tmp_path)
+    assert "pattern (PREREG §2/§5), here in confirmatory data |" in text
+    assert "SS2/SS5" not in text
+
+
+def test_real_0b_sign_convention_sentence_is_the_committed_one(tmp_path):
+    text = _findings(_committed_result(), tmp_path)
+    assert SIGN_0B.format(n=56) in text
+
+
+def test_real_0b_seed_sweep_section_matches_committed_text(tmp_path):
+    sweep = a0b.load_sweep(COMMITTED_0B / "sweep")
+    assert sorted(sweep) == ["1", "2", "3", "4"]
+    text = _findings(_committed_result(), tmp_path, sweep=sweep)
+    section = _committed_section("\n\n---\n\n## Seed robustness sweep", "---\n\n## Appendix A")
+    assert "Two cells are seed-marginal" in section
+    assert section in text
+
+
+def test_seed_sweep_raises_when_marginal_cells_change(tmp_path):
+    sweep = a0b.load_sweep(COMMITTED_0B / "sweep")
+    rows = list(sweep["2"])
+    i = next(k for k, c in enumerate(rows) if (c.run_id, c.suite, c.quant_label)
+             == ("0b-arm2-official", "arithmetic", "Q4_K_M"))
+    # An arm cell: enters no cliff/Holm family, so only the marginal set moves.
+    rows[i] = _dc.replace(rows[i], state="small_real_loss" if rows[i].state != "small_real_loss" else "equivalent")
+    sweep["2"] = rows
+    with pytest.raises(ValueError, match="seed-marginal"):
+        _findings(_committed_result(), tmp_path, sweep=sweep)
+
+
+def test_seed_sweep_and_appendix_gated_off_for_non_0b_or_non_ratified(tmp_path, monkeypatch):
+    sweep = a0b.load_sweep(COMMITTED_0B / "sweep")
+    single = _single_run_result(tmp_path)
+    text = _findings(single, tmp_path, sweep=sweep, first_pass=single)
+    assert "## Seed robustness sweep" not in text and "## Appendix A" not in text
+    monkeypatch.setattr(a0b, "SEED", "1")
+    text = _findings(_committed_result(), tmp_path, sweep=sweep)
+    assert "## Seed robustness sweep" not in text
+
+
+@pytest.mark.skipif(not (REAL_RUNS_ROOT / "0b-llama-8b-ladder").exists(), reason="run records absent")
+def test_real_0b_appendix_a_matches_committed_text(tmp_path):
+    first_pass = a0b.compute_first_pass_factual_qa(REAL_RUNS_ROOT)
+    text = _findings(_committed_result(), tmp_path, first_pass=first_pass)
+    section = _committed_section("---\n\n## Appendix A", None)
+    assert section.endswith("in kind and now unchanged in value.\n\n")
+    assert text.endswith(section)
+
+
+def test_appendix_a_raises_when_cliff_comparison_prose_no_longer_holds(tmp_path):
+    result = _committed_result()
+    # First pass == registered: Qwen's cliff no longer "moves one rung up".
+    first_pass = _dc.replace(
+        result,
+        cells=[c for c in result.cells if c.suite == "factual_qa" and c.run_id in a0b.LADDER_RUN_IDS],
+        cliffs={k: v for k, v in result.cliffs.items() if k[1] == "factual_qa"},
+        holm_verdicts={k: v for k, v in result.holm_verdicts.items() if k[1] == "factual_qa"},
+    )
+    with pytest.raises(ValueError, match="Appendix A"):
+        _findings(result, tmp_path, first_pass=first_pass)
+
+
+# ---------------------------------------------------------------------------
+# Final review (code turn 2026-09-27), Important 1 + 2: a non-0B run set
+# (the 1.5B/0B-prime shape: one ladder run, five suites, no arms) gets a
+# neutral title, no 0B scope note, no unverified 0B data claims, and the §5
+# trigger "not applicable" with no Arm prose; a non-0B CLI invocation must
+# name its own --out-dir and never writes analysis/0b/.
+# ---------------------------------------------------------------------------
+
+PRIME_RUN = "0b-prime-qwen-1.5b-ladder"
+PRIME_SUITES = ["longctx_retrieval_2a", "longctx_retrieval", "arithmetic", "arithmetic_twins", "factual_qa"]
+
+# Every string below is 0B-only prose (or a 0B data claim) that must never
+# appear for a non-0B run set. (The cliff-flag "reads False for every
+# family" sentence is data-derived, so it is checked per data, not here.)
+ZERO_B_ONLY_STRINGS = [
+    "# 0B Confirmatory Findings",
+    "## Scope note (PREREG §4)",
+    "0B covers only",
+    "The 1.5B spectacle model",
+    "this analysis touches none of them",
+    "all 8 families",
+    "Arm 1",
+    "Arm 2",
+    "Trigger: not fired",
+    "Trigger: FIRED",
+    "Absent the trigger",
+    "no 7B uploader shootout runs",
+    "near-ceiling",
+    "0/96",
+    "~3.7%",
+    "first ran (2026-09-03)",
+    "Footnote (2026-09-08",
+    "## Seed robustness sweep",
+    "## Appendix A",
+]
+
+
+def _prime_result(tmp_path, n=10):
+    """Synthetic single-ladder five-suite no-arm run. F16 and the top four
+    rungs are all correct (zero discordance), the bottom three all wrong
+    (a cliff in every suite)."""
+    root = tmp_path / "prime-runs"
+    ids = {s: [f"{s}-{k}" for k in range(n)] for s in PRIME_SUITES}
+    top = set(a0b.LADDER_ORDER[:4])
+    labels = {
+        s: {"F16": ["correct"] * n, **{
+            r: (["correct"] if r in top else ["incorrect"]) * n for r in a0b.LADDER_ORDER
+        }}
+        for s in PRIME_SUITES
+    }
+    _write_run(root / PRIME_RUN, ids, labels)
+    return a0b.run_analysis(
+        root, n_resamples=50, run_ids=[PRIME_RUN], ladder_run_ids=[PRIME_RUN],
+        suites=PRIME_SUITES, arm1_levels=[], arm2_levels=[],
+        run_model={PRIME_RUN: "qwen2.5-1.5b-instruct"}, factual_qa_source={},
+    )
+
+
+def test_non_0b_single_ladder_five_suite_run_has_neutral_title_and_scope(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    assert text.startswith(f"# Confirmatory Findings — `{PRIME_RUN}` (PREREG §8)\n")
+    assert "## Scope\n\nRuns analyzed: `0b-prime-qwen-1.5b-ladder` (qwen2.5-1.5b-instruct, ladder). " in text
+    assert "Suites scored: `longctx_retrieval_2a`, `longctx_retrieval`, `arithmetic`, " in text
+
+
+def test_non_0b_run_prints_none_of_the_0b_only_strings(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    for s in ZERO_B_ONLY_STRINGS:
+        assert s not in text, s
+
+
+def test_non_0b_shootout_section_is_not_applicable_without_arm_prose(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    section = text[text.index("## Uploader shootout trigger (PREREG §5)"):
+                   text.index("## Disclosure: zero-discordance")]
+    assert section == (
+        "## Uploader shootout trigger (PREREG §5)\n\n"
+        "**Trigger: not applicable.** This run set contains no uploader-shootout "
+        "arm runs, so no same-label quant-vs-quant pair is computed and the "
+        "PREREG §5 trigger is not evaluated here.\n\n"
+    )
+    assert "| arm | level |" not in text
+
+
+def test_non_0b_cliff_and_zero_discordance_claims_are_data_derived(tmp_path):
+    text = _findings(_prime_result(tmp_path), tmp_path)
+    # Bottom-three-rungs-Damaged is a contiguous suffix: flag False everywhere.
+    assert "It reads False for every family in this data." in text
+    assert "the Damaged cells do not form a contiguous bottom suffix. " in text
+    assert "listed in full in the next section.\n" in text
+    # 4 zero-discordance rungs x 5 suites, counted per suite.
+    assert (
+        "This is disclosed here because 20 cell(s) in this data hit this condition "
+        "(`longctx_retrieval_2a`: 4, `longctx_retrieval`: 4, `arithmetic`: 4, "
+        "`arithmetic_twins`: 4, `factual_qa`: 4)"
+    ) in text
+
+
+def test_cliff_flag_sentence_counts_non_monotonic_families(tmp_path):
+    result = _prime_result(tmp_path)
+    k = (PRIME_RUN, "arithmetic")
+    result.cliffs[k] = _dc.replace(result.cliffs[k], non_monotonic=True)
+    assert "It reads True for 1 of 5 families in this data." in a0b._cliff_flag_sentence(result)
+
+
+def test_zero_discordance_paragraph_when_no_cell_hits_it(tmp_path):
+    result = _prime_result(tmp_path)
+    result = _dc.replace(result, cells=[c for c in result.cells if c.b_lost + c.c_gained > 0])
+    assert "No cell in this data hits this condition" in a0b._zero_discordance_paragraph(result)
+
+
+def test_real_0b_gated_prose_matches_committed_text(tmp_path):
+    """The 0B run set keeps the committed title, scope note, cliff sentence
+    and zero-discordance paragraph byte for byte."""
+    text = _findings(_committed_result(), tmp_path)
+    assert text.startswith("# 0B Confirmatory Findings (PREREG §8)\n")
+    for start, end in [
+        ("## Scope note (PREREG §4)", "## Per-cell results"),
+        ("## Cliffs (ladder runs only)", "| run_id | suite | cliff rung |"),
+        ("## Disclosure: zero-discordance", "\n\n---"),
+    ]:
+        assert _committed_section(start, end) in text, start
+
+
+def _run_main(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["analyze_0b.py", *argv])
+    a0b.main()
+
+
+NON_0B_ARGV = [
+    "--run-ids", PRIME_RUN, "--ladder-run-ids", PRIME_RUN,
+    "--suites", ",".join(PRIME_SUITES),
+    "--run-model", f"{PRIME_RUN}=qwen2.5-1.5b-instruct",
+    "--factual-qa-source", "", "--arm1-levels", "", "--arm2-levels", "",
+]
+
+
+def _forbid_work(monkeypatch):
+    calls = []
+    for name in ("run_analysis", "write_cells_csv", "write_findings_md"):
+        monkeypatch.setattr(a0b, name, lambda *a, _n=name, **k: calls.append(_n))
+    return calls
+
+
+def test_main_non_0b_without_out_dir_errors_and_writes_nothing(monkeypatch, capsys):
+    calls = _forbid_work(monkeypatch)
+    before = {p: p.stat().st_mtime_ns for p in COMMITTED_0B.iterdir() if p.is_file()}
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, NON_0B_ARGV)
+    assert exc.value.code == 2
+    assert "--out-dir is required" in capsys.readouterr().err
+    assert calls == []
+    assert {p: p.stat().st_mtime_ns for p in COMMITTED_0B.iterdir() if p.is_file()} == before
+
+
+def test_main_non_0b_refuses_analysis_0b_as_out_dir(monkeypatch, capsys):
+    calls = _forbid_work(monkeypatch)
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, [*NON_0B_ARGV, "--out-dir", str(COMMITTED_0B)])
+    assert exc.value.code == 2
+    assert "must not be analysis/0b/" in capsys.readouterr().err
+    assert calls == []
+
+
+def test_main_non_0b_with_out_dir_writes_findings_md_there(monkeypatch, tmp_path, capsys):
+    prime = _prime_result(tmp_path)
+    monkeypatch.setattr(a0b, "run_analysis", lambda *a, **k: prime)
+    out = tmp_path / "out"
+    _run_main(monkeypatch, [*NON_0B_ARGV, "--out-dir", str(out)])
+    assert sorted(p.name for p in out.iterdir()) == ["FINDINGS.md", "cells.csv"]
+    assert (out / "FINDINGS.md").read_text().startswith("# Confirmatory Findings — ")
+    assert "shootout trigger: not applicable" in capsys.readouterr().out

@@ -129,10 +129,13 @@ Filled only from that stamped section.
 
 ## 8. Cost table
 
-Rate: **$2.24/h**, the g6e.2xlarge on-demand rate (us-east-1), the instance
-type 0B actually ran on (`runs-cloud/fingerprint.txt`); stands unless the
-user corrects it. (An earlier draft used RUN_0B.md §8's $1.8610/h, which
-names g6e.xlarge.) GPU-hour figures derive from 0B output-file mtimes (8B:
+Rate: **$2.2421/h**, the g6e.2xlarge on-demand rate (us-east-1), the
+instance type 0B actually ran on (`runs-cloud/fingerprint.txt`); corrected
+from an earlier `$2.24/h` rounding (user-confirmed 2026-09-27). The dollar
+columns below are left as computed at $2.24/h — the difference is at most
+2.1 cents on any row, at the 10 h total. (An earlier draft used RUN_0B.md
+§8's $1.8610/h, which names g6e.xlarge.) GPU-hour figures derive from 0B
+output-file mtimes (8B:
 16–35 min per 4-suite rung) scaled 3–4× for a 1.5B, HANDOFF's ~55 min for
 the 26-rung 0b2 factual_qa pass, and the 0B NLL log timestamps
 (`runs-cloud/0b-full.log`). NLL timing note: 0B's 2b NLL passes ran ≈ 100
@@ -166,19 +169,36 @@ Set by user 2026-09-27.**
    stamped 2026-09-12 (commit `3d793e5`), Bitcoin-attested 2026-09-14
    (blocks 966743/966744/966764).
 2. `registered.py`: 2a item-set hash for the 1.5B added and gate-tested.
+   **Done:** commit `05537fe` (registered.py through Amendment 4 — 1.5B
+   pins, 2a item-set hash `5404e813…`, first-20 digest `9220589b…`
+   verified).
 3. `configs/0b-prime/qwen2.5-1.5b-ladder.yaml` (+ a smoke config), with
    `tests/test_0b_prime_configs.py` cross-checking every filename and
    sha256 against `qwen2.5-1.5b-bartowski.json` and every seed/n against
-   `registered.py`; M3 weights in convention order.
-4. Runner timing field (§5) implemented and tested.
+   `registered.py`; M3 weights in convention order. **Done:** commit
+   `fca1a25` (ladder + smoke configs; 2a as suite key
+   `longctx_retrieval_2a`; declarative `nll:` block).
+4. Runner timing field (§5) implemented and tested. **Done:** commit
+   `1b6f418` (per-item `gen_wall_seconds`/`gen_tokens`), plus fix
+   `9546a93` (timing fields default `None` so legacy output records load).
 5. The reproduction-gate script (§4) with its expected-output fixture.
+   **Done:** commit `7e9db50` (`scripts/repro_gate.py` + 0B Qwen-7B
+   Q4_K_M longctx fixture).
 6. This document's rulings confirmed. **Done 2026-09-27:** §2's twins
    reading (runs), §3's label (registered Q2 data, 2a and 2b), §8's rate
    and cap.
 7. The NLL driver recovered: the script that produced 0B's `nll/*.jsonl`
    records is not in the repo (OPEN_QUESTIONS §16); recover it from the S3
    `0b/code/` snapshot, record its hash, and commit it before the §3 passes.
+   **NOT done.** The S3 `0b/code/` prefix
+   (`s3://bitcliff-artifacts-048568674517/0b/code/`) holds exactly one
+   object, `pipeline-code.tgz` (105.5 MiB, uploaded 2026-08-30) — a
+   snapshot predating the NLL runs, so no driver is in it; none exists in
+   git history either. A new driver must be written against
+   `nll_scorer.score_records`, with its own review, not recovered.
 8. Item-set hash gate n-mismatch fix: `assert_item_sets_match_registered`
    (`src/bitcliff_pipeline/__main__.py` line 65) skips any suite whose item
    count differs from its registered n, so a mistyped n goes ungated. A
    confirmatory config must fail loudly on that instead of skipping.
+   **Done:** commit `bf6ac1f` (item-set gate fails loudly on
+   non-registered n).

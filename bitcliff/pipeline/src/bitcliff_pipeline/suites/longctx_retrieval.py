@@ -31,6 +31,58 @@ from dataclasses import dataclass
 from ..items import EvalItem
 from ..vendor import generate_multivalue2 as mv2
 
+# Suite keys (0B-prime controller ruling): PREREG §3.1 Configuration 2b keeps
+# the original `longctx_retrieval` key (existing pins and 0B precedent);
+# Configuration 2a is `longctx_retrieval_2a`. Both are built by this one
+# module's builder -- only the EvalItem.suite tag differs.
+SUITE_2B = "longctx_retrieval"
+SUITE_2A = "longctx_retrieval_2a"
+SUITE_KEYS: tuple[str, ...] = (SUITE_2B, SUITE_2A)
+
+
+def load_corpus_dataset_text(dataset: str) -> str:
+    """Load an HF-dataset longctx corpus the way PREREG §3.1 Configuration
+    2a's registered recipe does: `load_dataset(dataset, split="train")`,
+    joined `"\\n\\n".join(ds["text"])`. Forces HF_HUB_OFFLINE /
+    HF_DATASETS_OFFLINE for the duration of the call (local cache only,
+    never a download), restoring whatever was set before.
+
+    Returns raw text only -- the caller's corpus-hash gate
+    (`build_items_with_answer_spec`'s `corpus_sha256` assert) is what
+    verifies it is the registered corpus.
+    """
+    import os
+
+    from datasets import load_dataset
+
+    old_env = {
+        k: os.environ.get(k) for k in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE")
+    }
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["HF_DATASETS_OFFLINE"] = "1"
+    try:
+        ds = load_dataset(dataset, split="train")
+        return "\n\n".join(ds["text"])
+    finally:
+        for k, v in old_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+def load_2a_corpus_text() -> str:
+    """Load the 2a corpus (`sgoel9/paul_graham_essays`, PREREG §3.1
+    Configuration 2a -- the vendored generator's own `CORPUS_DATASET`)
+    exactly as `scripts/package_dataset.py::_verify_2a_machinery` needs it.
+
+    Moved here from `scripts/package_dataset.py` (0B-prime Task 4) so
+    `src/` code (`__main__.build_items`'s `corpus_dataset` branch) can share
+    it without importing from `scripts/`; package_dataset.py re-imports it
+    from here, behavior unchanged.
+    """
+    return load_corpus_dataset_text(mv2.CORPUS_DATASET)
+
 
 @dataclass(frozen=True)
 class AnswerSpec:
@@ -67,6 +119,7 @@ def build_items_with_answer_spec(
     seed: int,
     variant: str = "multivalue2",
     target_tokens: int = 4096,
+    suite: str = SUITE_2B,
 ) -> tuple[list[EvalItem], list[AnswerSpec]]:
     """Build longctx_retrieval EvalItems via the vendored multivalue2
     generator, alongside an aligned `AnswerSpec` sidecar list (see
@@ -79,6 +132,12 @@ def build_items_with_answer_spec(
 
     Raises AssertionError if `corpus_text` does not hash to `corpus_sha256`
     (a different corpus silently changes every document).
+
+    `suite` is only the `EvalItem.suite` tag (SUITE_2B by default, every
+    pre-existing caller; SUITE_2A for Configuration 2a). Item ids keep the
+    `longctx_retrieval-<variant>-t<tokens>-s<seed>-NNNN` form for both --
+    the registered 2a item-set hash covers ids, not the suite tag, and 2a/
+    2b ids already differ by variant/target_tokens.
 
     Alignment guarantee (tested in test_longctx_retrieval.py): the returned
     `(items, answer_specs)` have equal length, and for every index `i`,
@@ -105,7 +164,7 @@ def build_items_with_answer_spec(
         items.append(
             EvalItem(
                 id=item_id,
-                suite="longctx_retrieval",
+                suite=suite,
                 prompt=it["question"],
                 expected=tuple(it["match_strings"]),
                 prompt_tokens=tuple(it["gen_prompt_ids"]),
@@ -129,6 +188,7 @@ def build_items(
     seed: int,
     variant: str = "multivalue2",
     target_tokens: int = 4096,
+    suite: str = SUITE_2B,
 ) -> list[EvalItem]:
     """Build longctx_retrieval EvalItems via the vendored multivalue2
     generator. Back-compat wrapper around `build_items_with_answer_spec`
@@ -136,6 +196,7 @@ def build_items(
     existing test) keeps this exact signature and return type."""
     items, _ = build_items_with_answer_spec(
         tokenizer, corpus_text, corpus_sha256, n_items, seed, variant, target_tokens,
+        suite=suite,
     )
     return items
 

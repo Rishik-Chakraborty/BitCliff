@@ -6,6 +6,7 @@ def rec(text):
     return OutputRecord(
         item_id="x", suite="retrieval", quant_label="Q", model_sha256="h",
         prompt="p", text=text, finish_reason="stop", gen_settings={}, machine="m",
+        gen_wall_seconds=0.0, gen_tokens=0,
     )
 
 

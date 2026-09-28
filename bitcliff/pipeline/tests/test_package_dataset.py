@@ -646,3 +646,11 @@ def test_no_run_writes_no_output_on_twins_even_if_out_dir_preexists(tmp_path):
 
     # refusal happens before out_dir is touched at all
     assert (out_dir / "stale.txt").exists()
+
+
+def test_config_2a_reference_digest_is_the_registered_constant():
+    """Final review minor: the --verify-recipe reference digest is imported
+    from registered.py, not hand-copied (public name kept as an alias)."""
+    from bitcliff_pipeline import registered
+
+    assert pkg.CONFIG_2A_REFERENCE_DIGEST is registered.LONGCTX_2A_FIRST20_DIGEST_SHA256

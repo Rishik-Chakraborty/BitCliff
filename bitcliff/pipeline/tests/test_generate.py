@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from pathlib import Path
 
 from bitcliff_pipeline.config import GenSettings
 from bitcliff_pipeline.generate import (
@@ -10,6 +11,14 @@ from bitcliff_pipeline.generate import (
 from bitcliff_pipeline.items import EvalItem
 
 GEN = GenSettings(seed=42, temperature=0.0, top_k=1, max_tokens=640, n_ctx=4096)
+
+# Task 5 fix round 1: a real committed pre-Task-5 output file (predates
+# gen_wall_seconds/gen_tokens entirely) -- proves read_records still loads
+# every legacy run under runs-cloud/pipeline/runs/*/outputs/*.jsonl.
+LEGACY_F16_JSONL = (
+    Path(__file__).resolve().parent.parent
+    / "runs-cloud" / "pipeline" / "runs" / "smoke-0b" / "outputs" / "F16.jsonl"
+)
 
 ITEMS = [
     EvalItem("arithmetic-1-000", "arithmetic", "What is 12 * 34?", ("408",)),
@@ -42,7 +51,11 @@ class FakeLlm:
             "choices": [
                 {"message": {"content": f"echo: {messages[0]['content'][:10]}"},
                  "finish_reason": "stop"}
-            ]
+            ],
+            # llama-cpp-python always includes this on create_chat_completion;
+            # a fixed value here (independent of the echoed text) exercises
+            # that gen_tokens is read from `usage`, not derived from `text`.
+            "usage": {"prompt_tokens": 9, "completion_tokens": 11, "total_tokens": 20},
         }
 
     def create_completion(self, prompt, max_tokens, temperature, top_k, seed):
@@ -53,7 +66,8 @@ class FakeLlm:
         return {
             "choices": [
                 {"text": f"tok-echo: {prompt[:3]}", "finish_reason": "stop"}
-            ]
+            ],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 7, "total_tokens": 12},
         }
 
 
@@ -70,6 +84,11 @@ def test_run_items_builds_records_with_settings():
     assert r.gen_settings == {**asdict(GEN), "max_tokens_effective": GEN.max_tokens}
     assert r.machine  # non-empty platform string
     assert "llama-cpp-python" in r.machine
+    # Task 5: per-item timing/token fields, computed after the call from
+    # values already available -- never passed into the model call.
+    assert isinstance(r.gen_wall_seconds, float)
+    assert r.gen_wall_seconds >= 0.0
+    assert r.gen_tokens == 11  # FakeLlm's usage.completion_tokens, not len(text)
     # deterministic settings actually passed through to the model
     assert llm.calls[0]["temperature"] == 0.0
     assert llm.calls[0]["top_k"] == 1
@@ -93,6 +112,7 @@ def test_run_items_routes_token_id_items_to_create_completion():
     assert r0.text == "tok-echo: [1, 2, 3]"
     assert r0.finish_reason == "stop"
     assert r0.gen_settings["max_tokens_effective"] == GEN.max_tokens
+    assert r0.gen_tokens == 7  # token-path FakeLlm's usage.completion_tokens
 
     # second item has no prompt_tokens -> stays on the chat path
     assert len(llm.calls) == 1
@@ -100,6 +120,7 @@ def test_run_items_routes_token_id_items_to_create_completion():
     assert r1.item_id == "spec-001"
     assert r1.text.startswith("echo:")
     assert r1.gen_settings["max_tokens_effective"] == GEN.max_tokens
+    assert r1.gen_tokens == 11  # chat-path FakeLlm's usage.completion_tokens
 
 
 def test_run_items_honors_per_suite_max_tokens_override():
@@ -124,6 +145,32 @@ def test_run_items_max_tokens_by_suite_none_is_treated_as_empty():
     assert records[0].gen_settings["max_tokens_effective"] == GEN.max_tokens
 
 
+def test_run_items_timing_is_computed_after_the_call_and_does_not_alter_it(monkeypatch):
+    """Task 5 proof (a): gen_wall_seconds/gen_tokens are derived purely from
+    values already available once create_completion/create_chat_completion
+    returns -- nothing computed from them is passed INTO the call (the
+    fake's recorded kwargs are exactly the pre-existing set), and the
+    generated `text` is exactly the fake's text, unaffected by timing."""
+    import bitcliff_pipeline.generate as generate_mod
+
+    perf_values = iter([100.0, 100.25, 200.0, 200.75])
+    monkeypatch.setattr(generate_mod.time, "perf_counter", lambda: next(perf_values))
+
+    llm = FakeLlm()
+    records = run_items(llm, ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN)
+
+    # exactly the pre-existing kwargs reached the fake -- no new "timing" or
+    # "budget" argument was invented and threaded into the call.
+    assert set(llm.calls[0].keys()) == {"messages", "max_tokens", "temperature", "top_k", "seed"}
+
+    r0, r1 = records
+    assert r0.text == "echo: What is 12"  # unaffected by the timing wrapper
+    assert r0.gen_wall_seconds == pytest.approx(0.25)
+    assert r1.gen_wall_seconds == pytest.approx(0.75)
+    assert r0.gen_tokens == 11
+    assert r1.gen_tokens == 11
+
+
 def test_jsonl_roundtrip(tmp_path):
     llm = FakeLlm()
     records = run_items(llm, ITEMS, "Q8_0", "def456", GEN)
@@ -132,6 +179,22 @@ def test_jsonl_roundtrip(tmp_path):
     loaded = read_records(path)
     assert loaded == records
     assert isinstance(loaded[0], OutputRecord)
+
+
+def test_read_records_loads_legacy_output_file_with_none_timing_fields():
+    """Task 5 fix round 1: gen_wall_seconds/gen_tokens must default to None
+    so read_records (`OutputRecord(**json.loads(line))`) can still load a
+    real pre-Task-5 committed output file, which has neither key at all --
+    every run under runs-cloud/pipeline/runs/*/outputs/*.jsonl, and any
+    partial run left on disk from before commit 1b6f418."""
+    assert LEGACY_F16_JSONL.exists(), f"fixture missing: {LEGACY_F16_JSONL}"
+    records = read_records(LEGACY_F16_JSONL)
+    assert records  # non-empty
+    assert all(r.gen_wall_seconds is None for r in records)
+    assert all(r.gen_tokens is None for r in records)
+    # the record's pre-existing fields are unaffected
+    assert all(r.text for r in records)
+    assert all(r.quant_label == "F16" for r in records)
 
 
 import pytest

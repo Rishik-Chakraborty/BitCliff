@@ -2,6 +2,7 @@ import dataclasses
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -46,6 +47,16 @@ def make_config(tmp_path: Path, spectacle_only: bool = False) -> LadderConfig:
             "arithmetic": {"n_items": 4, "seed": 1},
             "spectacle": {"path": "configs/prompts_spectacle.yaml"},
         },
+        # This fixture's n=4 arithmetic draw is deliberately non-registered
+        # (a fast local fixture, not a confirmatory sample) -- the boot-time
+        # item-set hash gate (OPEN_QUESTIONS §8) now fails loudly on a
+        # registered suite sampled at any non-registered n, so every
+        # end-to-end test built on this helper must mark itself
+        # `exploratory: true`, exactly like the real smoke config
+        # (`configs/smoke/smoke-llama-q4km.yaml`) does for its own
+        # deliberate n=20 draw. Tests that specifically exercise the gate
+        # ITSELF override this back to False (see `_gate_config` below).
+        exploratory=True,
     )
 
 
@@ -65,12 +76,18 @@ class FakeLlm:
         prompt = messages[0]["content"]
         m = self._ARITH_RE.search(prompt)
         content = f"#### {int(m.group(1)) + int(m.group(2))}" if m else prompt
-        return {"choices": [{"message": {"content": content}, "finish_reason": "stop"}]}
+        return {
+            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+            "usage": {"completion_tokens": len(content.split())},
+        }
 
     def create_completion(self, prompt, max_tokens, **kwargs):
         # the truncation preflight (generate stage) probes via the token
         # path with a small budget and expects an honest "length"
-        return {"choices": [{"text": "1, 2, 3", "finish_reason": "length"}]}
+        return {
+            "choices": [{"text": "1, 2, 3", "finish_reason": "length"}],
+            "usage": {"completion_tokens": max_tokens},
+        }
 
 
 @pytest.fixture(autouse=True)
@@ -148,6 +165,44 @@ def test_grade_stage_rejects_stale_outputs(tmp_path):
             cfg, run_id="pilot-test", models_dir=models_dir, runs_dir=runs_dir,
             stage="grade", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
         )
+
+
+LEGACY_RUN_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "runs-cloud" / "pipeline" / "runs" / "smoke-0b"
+)
+
+
+def test_grade_stage_still_works_on_legacy_pre_timing_outputs(tmp_path):
+    """Task 5 fix round 1: OutputRecord's gen_wall_seconds/gen_tokens must
+    default to None so the grade stage (which loads every outputs/*.jsonl
+    via generate.read_records) still works on a run written before Task 5.
+    Copies a real committed pre-Task-5 run's items.jsonl + outputs/ into a
+    scratch runs dir -- never touches runs-cloud/ itself -- and runs the
+    grade stage against it exactly as `bitcliff-pipeline --stage grade`
+    would on any such run left over on disk.
+    """
+    src = LEGACY_RUN_DIR
+    assert (src / "items.jsonl").exists(), f"fixture missing: {src}"
+    run_id = "smoke-0b"
+    runs_dir = tmp_path / "runs"
+    dst = runs_dir / run_id
+    dst.mkdir(parents=True)
+    shutil.copy(src / "items.jsonl", dst / "items.jsonl")
+    shutil.copytree(src / "outputs", dst / "outputs")
+
+    # the grade stage never reads model/quant config -- any valid
+    # LadderConfig will do, matching the "cheap existing test pattern"
+    # every other test_cli.py grade-stage test already uses.
+    cfg = make_config(tmp_path)
+    run_pipeline(
+        cfg, run_id=run_id, models_dir=tmp_path / "models", runs_dir=runs_dir,
+        stage="grade", base_dir=tmp_path,
+    )
+
+    grades = [json.loads(l) for l in (dst / "grades.jsonl").read_text().splitlines()]
+    assert len(grades) == 40  # 20 items x 2 quant labels (F16, Q4_K_M)
+    assert {g["quant_label"] for g in grades} == {"F16", "Q4_K_M"}
 
 
 def test_manifest_records_run_config(tmp_path):
@@ -277,7 +332,10 @@ class TokenAwareFakeLlm(FakeLlm):
     def create_completion(self, prompt, max_tokens=None, **kwargs):
         if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
             return super().create_completion(prompt, max_tokens, **kwargs)
-        return {"choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}]}
+        return {
+            "choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}],
+            "usage": {"completion_tokens": 5},
+        }
 
 
 def test_token_id_item_roundtrips_through_items_jsonl_and_grades(tmp_path, monkeypatch):
@@ -418,8 +476,14 @@ class LongctxFakeLlm(FakeLlm):
 
     def create_completion(self, prompt, max_tokens=None, **kwargs):
         if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
-            return {"choices": [{"text": "1, 2, 3", "finish_reason": "length"}]}
-        return {"choices": [{"text": "irrelevant completion", "finish_reason": "stop"}]}
+            return {
+                "choices": [{"text": "1, 2, 3", "finish_reason": "length"}],
+                "usage": {"completion_tokens": max_tokens},
+            }
+        return {
+            "choices": [{"text": "irrelevant completion", "finish_reason": "stop"}],
+            "usage": {"completion_tokens": 3},
+        }
 
 
 class MismatchingLongctxFakeLlm(LongctxFakeLlm):
@@ -646,6 +710,22 @@ def _fake_factual_qa_items(n: int, seed: int, tag: str) -> list[EvalItem]:
     ]
 
 
+def _fake_arithmetic_items(n: int, seed: int, tag: str) -> list[EvalItem]:
+    """Same shape as `_fake_factual_qa_items`, for the arithmetic suite --
+    used to exercise the item-COUNT branch of the gate (arithmetic has a
+    DERIVED, not registered, item-set hash, but the same registered n=500
+    applies to the count check either way)."""
+    return [
+        EvalItem(
+            id=f"arithmetic-{seed}-{i:04d}",
+            suite="arithmetic",
+            prompt=f"{tag} problem {i}?",
+            expected=(f"{i}",),
+        )
+        for i in range(n)
+    ]
+
+
 def _gate_config(tmp_path: Path, n_items: int = registered.FACTUAL_QA_N) -> LadderConfig:
     cfg = make_config(tmp_path)
     return dataclasses.replace(
@@ -654,6 +734,11 @@ def _gate_config(tmp_path: Path, n_items: int = registered.FACTUAL_QA_N) -> Ladd
             **cfg.suites,
             "factual_qa": {"n_items": n_items, "seed": registered.FACTUAL_QA_SEED},
         },
+        # These tests exercise the gate itself (not the "deliberately
+        # non-registered fixture" default `make_config` sets) -- force it
+        # back on. A test that wants the exploratory skip path re-enables
+        # it explicitly (dataclasses.replace(cfg, exploratory=True)).
+        exploratory=False,
     )
 
 
@@ -735,6 +820,7 @@ def test_generate_stage_refuses_unknown_suite_model_combo_at_registered_n(tmp_pa
     cfg = dataclasses.replace(
         cfg,
         model_id="totally-unrecognized-model",
+        exploratory=False,  # this test exercises the gate itself
         suites={
             **cfg.suites,
             "longctx_retrieval": {
@@ -771,11 +857,64 @@ def test_generate_stage_refuses_unknown_suite_model_combo_at_registered_n(tmp_pa
         )
 
 
-def test_generate_stage_skips_gate_below_registered_n(tmp_path, monkeypatch):
-    """Gates apply to the REGISTERED n only (mind the smoke-config n=20
-    case): a suite sampled at any other n is, by definition, not a
-    confirmatory draw and is left ungated."""
+def test_generate_stage_refuses_arithmetic_one_below_registered_n(tmp_path, monkeypatch):
+    """A bare item-COUNT mismatch (n=499, not just a same-n wrong-hash
+    draw) on a REGISTERED suite fails loudly, naming the suite and both
+    the observed and registered n -- the item-count check, unlike the hash
+    check, must fire even when the suite's item-set hash is only DERIVED
+    (arithmetic has no PREREG-registered hash, only a derived regression
+    value; the count check applies regardless)."""
+    cfg = dataclasses.replace(make_config(tmp_path), exploratory=False)
+    items = _fake_arithmetic_items(
+        registered.ARITHMETIC_N - 1, registered.ARITHMETIC_SEED, tag="one-short"
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _run_gate_test(tmp_path, cfg, items, monkeypatch)
+    message = str(exc_info.value)
+    assert "arithmetic" in message
+    assert "499" in message
+    assert "500" in message
+
+
+def test_generate_stage_refuses_arithmetic_at_registered_n_with_wrong_hash(tmp_path, monkeypatch):
+    """At the registered n=500 but a mis-sampled draw (different content,
+    same count), the arithmetic suite is still refused on the item-set
+    hash mismatch (checked against `registered.DERIVED_ITEM_SET_SHA256`,
+    since arithmetic has no PREREG-registered hash, only a derived one)."""
+    cfg = dataclasses.replace(make_config(tmp_path), exploratory=False)
+    wrong_items = _fake_arithmetic_items(
+        registered.ARITHMETIC_N, registered.ARITHMETIC_SEED, tag="wrong-draw"
+    )
+
+    with pytest.raises(RuntimeError, match="arithmetic"):
+        _run_gate_test(tmp_path, cfg, wrong_items, monkeypatch)
+
+
+def test_generate_stage_refuses_non_registered_n_without_exploratory(tmp_path, monkeypatch):
+    """Gates apply to every REGISTERED suite, at any n: a suite sampled at
+    a non-registered n (e.g. a smoke config's deliberate n=20) is no
+    longer silently ungated -- it now fails loudly unless the config is
+    marked `exploratory: true` (see the next test)."""
     cfg = _gate_config(tmp_path, n_items=20)
+    items = _fake_factual_qa_items(20, registered.FACTUAL_QA_SEED, tag="smoke-draw")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _run_gate_test(tmp_path, cfg, items, monkeypatch)
+    message = str(exc_info.value)
+    assert "factual_qa" in message
+    assert "20" in message
+    assert "500" in message
+
+
+def test_generate_stage_allows_non_registered_n_when_exploratory(tmp_path, monkeypatch):
+    """The real smoke config (`configs/smoke/smoke-llama-q4km.yaml`) draws
+    factual_qa at a deliberate non-registered n=20 and marks itself
+    `exploratory: true` for exactly this reason -- that combination must
+    still run end-to-end (the whole gate is skipped, per the loud-warning
+    test below), not be refused."""
+    cfg = _gate_config(tmp_path, n_items=20)
+    cfg = dataclasses.replace(cfg, exploratory=True)
     items = _fake_factual_qa_items(20, registered.FACTUAL_QA_SEED, tag="smoke-draw")
 
     run = _run_gate_test(tmp_path, cfg, items, monkeypatch)
@@ -819,3 +958,196 @@ def test_main_base_dir_resolves_pipeline_root_for_nested_configs(tmp_path, monke
     stray = tmp_path / "stray.yaml"
     stray.write_text("x: 1\n")
     assert m._resolve_base_dir(stray) == tmp_path
+
+
+# ---------------------------------------------------------------------------
+# longctx_retrieval_2a (PREREG §3.1 Configuration 2a; 0B-prime controller
+# ruling): same builder as 2b, items tagged suite="longctx_retrieval_2a",
+# corpus either a committed file (`corpus_path`) or an HF dataset
+# (`corpus_dataset`, the real 2a corpus). Tokenizer gate, answer-span
+# sidecar and per-suite max_tokens cover it; 2b-only configs unchanged.
+# ---------------------------------------------------------------------------
+
+
+def _longctx_2a_block(**overrides) -> dict:
+    block = {
+        "variant": "multivalue2",
+        "target_tokens": 48,
+        "seed": 11,
+        "n_items": 2,
+        "corpus_path": "corpus.txt",
+        "corpus_sha256": LONGCTX_CORPUS_SHA256,
+        "tokenizer_path": "tok",
+        "max_tokens": 17,
+    }
+    block.update(overrides)
+    return block
+
+
+def _with_2a(tmp_path: Path, cfg: LadderConfig, keep_2b: bool = True, **overrides) -> LadderConfig:
+    cfg = _longctx_config(tmp_path, cfg)
+    suites = dict(cfg.suites)
+    if not keep_2b:
+        del suites["longctx_retrieval"]
+    suites["longctx_retrieval_2a"] = _longctx_2a_block(**overrides)
+    return dataclasses.replace(cfg, suites=suites)
+
+
+def test_build_items_tags_2a_items_with_the_2a_suite_key(tmp_path):
+    cfg = _with_2a(tmp_path, make_config(tmp_path))
+    items = build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+
+    two_a = [i for i in items if i.suite == "longctx_retrieval_2a"]
+    two_b = [i for i in items if i.suite == "longctx_retrieval"]
+    assert len(two_a) == 2 and len(two_b) == 3
+    assert all(i.prompt_tokens is not None for i in two_a)
+    # ids stay the builder's own (variant/tokens in the id), so 2a/2b ids
+    # never collide and the pinned 2a item-set hash (id-covering) holds.
+    assert all(i.id.startswith("longctx_retrieval-multivalue2-t48-s11-") for i in two_a)
+    assert not {i.id for i in two_a} & {i.id for i in two_b}
+
+
+def test_build_items_2a_items_equal_2b_builder_output_but_for_the_suite_tag(tmp_path):
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    cfg = _with_2a(tmp_path, make_config(tmp_path), keep_2b=False)
+    stub = StubHfTokenizer()
+    items = [i for i in build_items(cfg, base_dir=tmp_path, longctx_tokenizer=stub)
+             if i.suite == "longctx_retrieval_2a"]
+    direct = longctx_retrieval.build_items(
+        stub, LONGCTX_CORPUS_TEXT, LONGCTX_CORPUS_SHA256,
+        n_items=2, seed=11, variant="multivalue2", target_tokens=48,
+    )
+    assert [dataclasses.replace(i, suite="longctx_retrieval") for i in items] == direct
+
+
+def test_build_items_2a_corpus_dataset_goes_through_the_dataset_loader(tmp_path, monkeypatch):
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    seen = []
+
+    def fake_loader(dataset):
+        seen.append(dataset)
+        return LONGCTX_CORPUS_TEXT
+
+    monkeypatch.setattr(longctx_retrieval, "load_corpus_dataset_text", fake_loader)
+    block = _longctx_2a_block(corpus_dataset="someone/some_dataset")
+    del block["corpus_path"]
+    cfg = dataclasses.replace(
+        make_config(tmp_path), suites={"longctx_retrieval_2a": block},
+    )
+    items = build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+    assert seen == ["someone/some_dataset"]
+    assert len([i for i in items if i.suite == "longctx_retrieval_2a"]) == 2
+
+
+def test_build_items_2a_corpus_dataset_still_goes_through_the_corpus_hash_gate(tmp_path, monkeypatch):
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    monkeypatch.setattr(longctx_retrieval, "load_corpus_dataset_text", lambda dataset: "not the corpus")
+    block = _longctx_2a_block(corpus_dataset="someone/some_dataset")
+    del block["corpus_path"]
+    cfg = dataclasses.replace(make_config(tmp_path), suites={"longctx_retrieval_2a": block})
+    with pytest.raises(AssertionError, match="sha256"):
+        build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+
+
+@pytest.mark.parametrize("which", ["both", "neither"])
+def test_build_items_longctx_requires_exactly_one_corpus_source(tmp_path, which):
+    block = _longctx_2a_block()
+    if which == "both":
+        block["corpus_dataset"] = "someone/some_dataset"
+    else:
+        del block["corpus_path"]
+    (tmp_path / "corpus.txt").write_text(LONGCTX_CORPUS_TEXT)
+    cfg = dataclasses.replace(make_config(tmp_path), suites={"longctx_retrieval_2a": block})
+    with pytest.raises(ValueError, match="corpus_path.*corpus_dataset"):
+        build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+
+
+def _run_generate(tmp_path, cfg, run_id, llm_factory):
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+    run_pipeline(
+        cfg, run_id=run_id, models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=llm_factory, base_dir=tmp_path,
+    )
+    return runs_dir / run_id
+
+
+def test_generate_stage_tokenizer_gate_covers_a_2a_only_config(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    cfg = _with_2a(tmp_path, make_config(tmp_path), keep_2b=False)
+
+    with pytest.raises(AssertionError, match="tokenizer mismatch"):
+        _run_generate(tmp_path, cfg, "2a-mismatch",
+                      lambda path, gen: MismatchingLongctxFakeLlm(hf_tokenizer))
+    assert not (tmp_path / "runs" / "2a-mismatch" / "outputs" / "F16.jsonl").exists()
+
+
+def test_generate_stage_tokenizer_gate_samples_each_longctx_suite(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    calls = []
+    real = longctx_retrieval.assert_tokenizer_match
+
+    def spy(hf, llama_tok, samples):
+        calls.append(list(samples))
+        return real(hf, llama_tok, samples)
+
+    monkeypatch.setattr(longctx_retrieval, "assert_tokenizer_match", spy)
+    cfg = _with_2a(tmp_path, make_config(tmp_path))
+    run = _run_generate(tmp_path, cfg, "2a2b-gate", lambda path, gen: LongctxFakeLlm(hf_tokenizer))
+
+    items = [json.loads(l) for l in (run / "items.jsonl").read_text().splitlines()]
+    sample_2b = [i["prompt"] for i in sorted(
+        (i for i in items if i["suite"] == "longctx_retrieval"), key=lambda i: i["id"])][:20]
+    sample_2a = [i["prompt"] for i in sorted(
+        (i for i in items if i["suite"] == "longctx_retrieval_2a"), key=lambda i: i["id"])][:20]
+    # Two files (F16, Q4_K_M) x one registered 20-string sample per suite.
+    assert calls == [sample_2b, sample_2a, sample_2b, sample_2a]
+
+
+def test_generate_stage_answer_spans_cover_2a_and_2b_aligned(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    cfg = _with_2a(tmp_path, make_config(tmp_path))
+    run = _run_generate(tmp_path, cfg, "2a2b-spans", lambda path, gen: LongctxFakeLlm(hf_tokenizer))
+
+    spans = [json.loads(l) for l in (run / "answer_spans.jsonl").read_text().splitlines()]
+    items = [json.loads(l) for l in (run / "items.jsonl").read_text().splitlines()]
+    longctx_items = [i for i in items
+                     if i["suite"] in ("longctx_retrieval", "longctx_retrieval_2a")]
+    assert len(spans) == len(longctx_items) == 5
+    assert [s["item_id"] for s in spans] == [i["id"] for i in longctx_items]
+
+
+def test_generate_stage_2a_uses_its_own_max_tokens(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    budgets = []
+
+    class RecordingLlm(LongctxFakeLlm):
+        def create_completion(self, prompt, max_tokens=None, **kwargs):
+            if max_tokens != gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
+                budgets.append(max_tokens)
+            return super().create_completion(prompt, max_tokens=max_tokens, **kwargs)
+
+    cfg = _with_2a(tmp_path, make_config(tmp_path), keep_2b=False)
+    cfg = dataclasses.replace(cfg, suites={"longctx_retrieval_2a": cfg.suites["longctx_retrieval_2a"]})
+    _run_generate(tmp_path, cfg, "2a-budget", lambda path, gen: RecordingLlm(hf_tokenizer))
+    assert budgets and set(budgets) == {17}
+
+
+def test_generate_stage_refuses_disagreeing_longctx_tokenizer_paths(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    cfg = _with_2a(tmp_path, make_config(tmp_path), tokenizer_path="other-tok")
+    with pytest.raises(ValueError, match="tokenizer_path"):
+        _run_generate(tmp_path, cfg, "tok-disagree", lambda path, gen: LongctxFakeLlm(hf_tokenizer))

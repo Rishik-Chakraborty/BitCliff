@@ -638,3 +638,13 @@ emitted by `scripts/analyze_0b.py` (the "Uploader shootout trigger (PREREG
 §5)" block). The sign-convention sentence from §15(c), added by hand beside
 that table on 2026-09-27, moves into the generator in the code turn so a
 regeneration keeps it.
+
+**Update 2026-09-27: recovery attempted, driver NOT found.** The S3
+`0b/code/` prefix (`s3://bitcliff-artifacts-048568674517/0b/code/`) was
+checked: it holds exactly one object, `pipeline-code.tgz`, 105.5 MiB,
+uploaded 2026-08-30 — a snapshot predating the NLL runs, so it cannot
+contain the driver that produced them. No driver exists in git history
+either. The NLL driver recovery item in RUN_0B_PRIME.md §9 is therefore
+closed as not achievable by recovery: **a new driver must be written
+against `nll_scorer.score_records`, with its own review**, before any
+0B′ §3 NLL pass can run.

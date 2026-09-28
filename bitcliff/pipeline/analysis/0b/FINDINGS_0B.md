@@ -227,10 +227,10 @@ PREREG §8: 'Non-monotonic rungs are flagged, never smoothed (with the IQ-vs-K ~
 | 0b-arm2-official | arithmetic_twins | Q4_K_M | F16 | 0.9149 | 0.8936 |  |
 | 0b-llama-8b-ladder | arithmetic | Q4_K_M | Q5_K_M | 0.8620 | 0.8400 |  |
 | 0b-llama-8b-ladder | arithmetic | Q8_0 | F16 | 0.8700 | 0.8640 |  |
-| 0b-llama-8b-ladder | arithmetic_twins | IQ2_M | Q2_K | 0.6702 | 0.6596 | IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at comparable bits -- the registered Q5 exploratory candidate pattern (PREREG SS2/SS5), here in confirmatory data |
+| 0b-llama-8b-ladder | arithmetic_twins | IQ2_M | Q2_K | 0.6702 | 0.6596 | IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at comparable bits -- the registered Q5 exploratory candidate pattern (PREREG §2/§5), here in confirmatory data |
 | 0b-llama-8b-ladder | arithmetic_twins | Q5_K_M | Q6_K | 0.8617 | 0.8191 |  |
 | 0b-llama-8b-ladder | arithmetic_twins | Q8_0 | F16 | 0.8936 | 0.8511 |  |
-| 0b-llama-8b-ladder | factual_qa | IQ2_M | Q2_K | 0.1980 | 0.1580 | IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at comparable bits -- the registered Q5 exploratory candidate pattern (PREREG SS2/SS5), here in confirmatory data |
+| 0b-llama-8b-ladder | factual_qa | IQ2_M | Q2_K | 0.1980 | 0.1580 | IQ-vs-K ~2.5 bpw: the i-quant beats the k-quant at comparable bits -- the registered Q5 exploratory candidate pattern (PREREG §2/§5), here in confirmatory data |
 | 0b-llama-8b-ladder | factual_qa | Q6_K | Q8_0 | 0.3220 | 0.3140 |  |
 | 0b-llama-8b-ladder | longctx_retrieval | Q4_K_M | Q5_K_M | 1.0000 | 0.9896 |  |
 | 0b-llama-8b-ladder | longctx_retrieval | Q6_K | Q8_0 | 0.9896 | 0.9792 |  |
