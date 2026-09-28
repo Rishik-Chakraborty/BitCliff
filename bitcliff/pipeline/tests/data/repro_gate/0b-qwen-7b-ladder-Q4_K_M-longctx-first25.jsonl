@@ -1,0 +1,26 @@
+{"_extraction_note": "Extracted from runs-cloud/pipeline/runs/0b-qwen-7b-ladder/{items.jsonl,outputs/Q4_K_M.jsonl,grades.jsonl}: the first 25 longctx_retrieval items in id order, rung Q4_K_M. Each row's item_id/text/finish_reason come from outputs/Q4_K_M.jsonl; state/truncated come from grades.jsonl (matched by item_id, suite=longctx_retrieval, quant_label=Q4_K_M). Extracted by a one-off script (not committed), by task-6 (scripts/repro_gate.py)."}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0000", "text": "7776, 6120, 8826, 8063", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0001", "text": "9580, 9641, 6586, 4559", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0002", "text": "8792, 5205, 8674, 3729", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0003", "text": "5060, 3058, 1919, 8747", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0004", "text": "5550, 3851, 4313, 1971", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0005", "text": "7622, 7352, 7467, 7211", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0006", "text": "9866, 6370, 9063, 7087", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0007", "text": "7157, 2243, 3920, 5135", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0008", "text": "7205, 4242, 4336, 9341", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0009", "text": "5005, 4220, 5949, 4988", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0010", "text": "8603, 9816, 6062, 1061", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0011", "text": "3166, 5999, 5445, 7861", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0012", "text": "7776, 8996, 7151, 4531", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0013", "text": "3767, 8455, 9139, 3672", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0014", "text": "6993, 1204, 8289, 3721", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0015", "text": "8833, 8657, 6471, 4917", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0016", "text": "5154, 6717, 8192, 4912", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0017", "text": "4720, 4561, 9226, 2772", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0018", "text": "2357, 5583, 1929, 1935", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0019", "text": "4952, 3042, 3694, 5112", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0020", "text": "7257, 6692, 3305, 7532", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0021", "text": "6982, 3697, 7196, 2027", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0022", "text": "8565, 9859, 4020, 1152", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0023", "text": "1205, 3495, 1028, 6098", "finish_reason": "stop", "state": "correct", "truncated": false}
+{"item_id": "longctx_retrieval-multivalue4-t8192-s2024-0024", "text": "The secret passcodes for zulu are 3833, 7276, 6984, 9020.", "finish_reason": "length", "state": "correct", "truncated": true}
