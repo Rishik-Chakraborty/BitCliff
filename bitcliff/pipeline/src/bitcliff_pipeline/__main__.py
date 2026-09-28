@@ -110,6 +110,47 @@ def _load_hf_tokenizer(path: Path):
     return AutoTokenizer.from_pretrained(str(path))
 
 
+def _longctx_corpus_text(suite_key: str, s: dict, base_dir: Path) -> str:
+    """The raw corpus text for one longctx suite block, from exactly one of
+    two sources: `corpus_path` (a committed file under the pipeline root --
+    2b's PG-1184, every pre-0B-prime config) or `corpus_dataset` (an HF
+    dataset from the local cache -- 2a's `sgoel9/paul_graham_essays`, PREREG
+    §3.1 Configuration 2a, which is never shipped as a file). Either way the
+    text is verified against the block's `corpus_sha256` by the builder."""
+    from .suites import longctx_retrieval
+
+    has_path = "corpus_path" in s
+    has_dataset = "corpus_dataset" in s
+    if has_path == has_dataset:
+        raise ValueError(
+            f"suite {suite_key!r}: exactly one of corpus_path / corpus_dataset "
+            f"must be set (got {'both' if has_path else 'neither'})"
+        )
+    if has_path:
+        return (base_dir / s["corpus_path"]).read_bytes().decode("utf-8")
+    return longctx_retrieval.load_corpus_dataset_text(s["corpus_dataset"])
+
+
+def _longctx_tokenizer_path(config: LadderConfig) -> str | None:
+    """The single `tokenizer_path` shared by every longctx suite in
+    `config` (None if it has none). A run gates ONE model's GGUF tokenizer
+    against ONE HF tokenizer (PREREG §3.1), so two longctx suites naming
+    different tokenizers is a config error, refused before any build."""
+    from .suites import longctx_retrieval
+
+    paths = {
+        config.suites[k]["tokenizer_path"]
+        for k in longctx_retrieval.SUITE_KEYS
+        if k in config.suites
+    }
+    if len(paths) > 1:
+        raise ValueError(
+            f"longctx suites name different tokenizer_path values "
+            f"{sorted(paths)} -- one run gates one model's tokenizer"
+        )
+    return next(iter(paths), None)
+
+
 def build_items(
     config: LadderConfig,
     base_dir: Path,
@@ -119,10 +160,11 @@ def build_items(
     """`longctx_answer_specs`, when passed a list, is populated in place
     with the longctx_retrieval suite's `longctx_retrieval.AnswerSpec`
     sidecar (0B P3 carried item (a)), aligned 1:1 with this call's
-    longctx_retrieval items in the same order they're appended to the
-    returned list. `None` (the default, every pre-existing caller) skips
-    this entirely and behaves exactly as before -- `build_items`'s return
-    type and every other suite's behavior are unchanged."""
+    longctx items (`longctx_retrieval`, then `longctx_retrieval_2a`) in the
+    same order they're appended to the returned list. `None` (the default,
+    every pre-existing caller) skips this entirely and behaves exactly as
+    before -- `build_items`'s return type and every other suite's behavior
+    are unchanged."""
     from .suites import arithmetic, arithmetic_twins, factual_qa, longctx_retrieval, spectacle
 
     items: list[EvalItem] = []
@@ -154,43 +196,43 @@ def build_items(
             s["n_items"], s["seed"],
             alias_augmentation_path=alias_augmentation_path, weights=weights,
         )
-    if "longctx_retrieval" in suites:
-        # PREREG §3.1 / RUN_0B.md §2 P1: needs a real tokenizer and a
-        # verified corpus. Every registered value (variant, target_tokens,
-        # seed, n_items, corpus_path, corpus_sha256, tokenizer_path) comes
-        # from the config block, never hardcoded here. The corpus-hash gate
-        # lives in `longctx_retrieval.build_items` itself (reused, not
-        # duplicated): a corpus_path whose bytes don't hash to
-        # corpus_sha256 raises AssertionError before any items are built.
-        s = suites["longctx_retrieval"]
+    # PREREG §3.1 / RUN_0B.md §2 P1: needs a real tokenizer and a verified
+    # corpus. Every registered value (variant, target_tokens, seed, n_items,
+    # corpus source, corpus_sha256, tokenizer_path) comes from the config
+    # block, never hardcoded here. The corpus-hash gate lives in
+    # `longctx_retrieval.build_items` itself (reused, not duplicated): a
+    # corpus whose bytes don't hash to corpus_sha256 raises AssertionError
+    # before any items are built.
+    #
+    # Two suite keys share this one builder (0B-prime controller ruling):
+    # `longctx_retrieval` (Configuration 2b) and `longctx_retrieval_2a`
+    # (Configuration 2a), built in that fixed order; items are tagged with
+    # their own key. A config lacking the 2a key builds exactly what it
+    # always did. `longctx_tokenizer`, when passed, is used for every
+    # longctx suite (run_pipeline guarantees they name one tokenizer_path).
+    for suite_key in longctx_retrieval.SUITE_KEYS:
+        if suite_key not in suites:
+            continue
+        s = suites[suite_key]
         tokenizer = (
             longctx_tokenizer
             if longctx_tokenizer is not None
             else _load_hf_tokenizer(base_dir / s["tokenizer_path"])
         )
-        corpus_text = (base_dir / s["corpus_path"]).read_bytes().decode("utf-8")
+        corpus_text = _longctx_corpus_text(suite_key, s, base_dir)
+        built, specs = longctx_retrieval.build_items_with_answer_spec(
+            tokenizer,
+            corpus_text,
+            s["corpus_sha256"],
+            n_items=s["n_items"],
+            seed=s["seed"],
+            variant=s["variant"],
+            target_tokens=s["target_tokens"],
+            suite=suite_key,
+        )
+        items += built
         if longctx_answer_specs is not None:
-            longctx_items, specs = longctx_retrieval.build_items_with_answer_spec(
-                tokenizer,
-                corpus_text,
-                s["corpus_sha256"],
-                n_items=s["n_items"],
-                seed=s["seed"],
-                variant=s["variant"],
-                target_tokens=s["target_tokens"],
-            )
-            items += longctx_items
             longctx_answer_specs.extend(specs)
-        else:
-            items += longctx_retrieval.build_items(
-                tokenizer,
-                corpus_text,
-                s["corpus_sha256"],
-                n_items=s["n_items"],
-                seed=s["seed"],
-                variant=s["variant"],
-                target_tokens=s["target_tokens"],
-            )
     if "spectacle" in suites:
         items += spectacle.load_items(base_dir / suites["spectacle"]["path"])
     return items
@@ -235,10 +277,15 @@ def run_pipeline(
         manifest = load_manifest(manifest_path)
         verify_manifest(manifest, paths)
 
-        longctx_cfg = config.suites.get("longctx_retrieval")
+        # Every longctx suite (2b `longctx_retrieval`, 2a
+        # `longctx_retrieval_2a`) shares one HF tokenizer (refused otherwise).
+        from .suites import longctx_retrieval
+
+        longctx_suites = [k for k in longctx_retrieval.SUITE_KEYS if k in config.suites]
+        longctx_tokenizer_path = _longctx_tokenizer_path(config)
         longctx_hf_tokenizer = (
-            _load_hf_tokenizer(base_dir / longctx_cfg["tokenizer_path"])
-            if longctx_cfg is not None
+            _load_hf_tokenizer(base_dir / longctx_tokenizer_path)
+            if longctx_tokenizer_path is not None
             else None
         )
         # 0B P3 carried item (a): capture the longctx_retrieval answer-span
@@ -289,8 +336,11 @@ def run_pipeline(
         # PREREG §3.1: the tokenizer-match gate must run before each
         # model's FIRST generation, over the registered 20-string sample
         # (the question strings of the run's first 20 longctx_retrieval
-        # items, in id order). Reuses `longctx_retrieval.assert_tokenizer_
-        # match` / `llama_tokenize_callable` -- the same mechanism
+        # items, in id order) -- one such sample PER longctx suite present
+        # (2b, then 2a), each checked in turn; a 2b-only config checks
+        # exactly the one sample it always did. Reuses
+        # `longctx_retrieval.assert_tokenizer_match` /
+        # `llama_tokenize_callable` -- the same mechanism
         # `calibrate_f16.py` already implements -- never a reimplemented
         # copy.
         #
@@ -309,16 +359,16 @@ def run_pipeline(
         # in THIS invocation is checked before its own first generation,
         # regardless of invocation order or prior partial runs.
         checked_tokenizer_shas: set[str] = set()
-        if longctx_cfg is not None:
-            from .suites import longctx_retrieval
-
-            longctx_sample = [
+        longctx_samples = [
+            [
                 it.prompt
                 for it in sorted(
-                    (i for i in items if i.suite == "longctx_retrieval"),
+                    (i for i in items if i.suite == suite_key),
                     key=lambda i: i.id,
                 )[:20]
             ]
+            for suite_key in longctx_suites
+        ]
 
         for label, path in paths.items():
             out_path = run_dir / "outputs" / f"{label}.jsonl"
@@ -328,14 +378,15 @@ def run_pipeline(
             print(f"generating {label} ({len(items)} items)...")
             llm = llm_factory(path, config.generation)
             gen_mod.assert_truncation_finish_reason(llm)
-            if longctx_cfg is not None:
+            if longctx_suites:
                 file_sha256 = manifest[label]["sha256"]
                 if file_sha256 not in checked_tokenizer_shas:
-                    longctx_retrieval.assert_tokenizer_match(
-                        longctx_hf_tokenizer,
-                        longctx_retrieval.llama_tokenize_callable(llm),
-                        longctx_sample,
-                    )
+                    for longctx_sample in longctx_samples:
+                        longctx_retrieval.assert_tokenizer_match(
+                            longctx_hf_tokenizer,
+                            longctx_retrieval.llama_tokenize_callable(llm),
+                            longctx_sample,
+                        )
                     checked_tokenizer_shas.add(file_sha256)
             records = gen_mod.run_items(
                 llm, items, label, manifest[label]["sha256"], config.generation,

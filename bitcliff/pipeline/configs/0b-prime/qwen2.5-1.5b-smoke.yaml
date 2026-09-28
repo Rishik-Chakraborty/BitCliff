@@ -1,0 +1,72 @@
+# Smoke config: Qwen2.5-1.5B-Instruct, F16 + Q4_K_M, 5 items per suite.
+#
+# EXPLORATORY and NON-REGISTERED -- not a confirmatory run, no number from
+# it is publishable. Purpose: a cheap local end-to-end check of the 0B-prime
+# pipeline shape (2a HF-dataset corpus + 2b file corpus + arithmetic +
+# factual_qa, tokenizer gate, answer-span sidecar, per-suite budgets) before
+# the registered run (configs/0b-prime/qwen2.5-1.5b-ladder.yaml).
+#
+# Every suite block matches the ladder config except `n_items: 5` (the
+# registered n is 96 / 500). A non-registered n makes the boot-time
+# item-set hash gate refuse outright, so `exploratory: true` below is
+# required: it skips that gate (loud printed warning) for every suite.
+#
+# arithmetic_twins is OMITTED: its n is fixed at all 94 pair items (PREREG
+# §3.3) with no n knob, and adding one only for a smoke run would be a new
+# registered-suite code path. The ladder config carries it.
+
+exploratory: true
+
+model_id: qwen2.5-1.5b-instruct
+hf_repo: bartowski/Qwen2.5-1.5B-Instruct-GGUF
+f16_path: models/f16/Qwen2.5-1.5B-Instruct-f16.gguf
+
+quants:
+  - label: Q4_K_M
+    filename: Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370
+
+# Same registered generation settings as the ladder config.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+suites:
+  longctx_retrieval_2a:
+    variant: multivalue2
+    target_tokens: 4096
+    seed: 2024
+    n_items: 5
+    corpus_dataset: sgoel9/paul_graham_essays
+    corpus_sha256: b6135331a3132d08cb84262870ae8f9d9acb6bae4cd7f0278926a64c38f9329e
+    tokenizer_path: models/hf/Qwen2.5-1.5B-Instruct
+    max_tokens: 32
+  longctx_retrieval:
+    variant: multivalue4
+    target_tokens: 8192
+    seed: 2024
+    n_items: 5
+    corpus_path: corpora/pg1184-monte-cristo.txt
+    corpus_sha256: 0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443
+    tokenizer_path: models/hf/Qwen2.5-1.5B-Instruct
+    max_tokens: 32
+  arithmetic:
+    n_items: 5
+    seed: 3141
+  factual_qa:
+    n_items: 5
+    seed: 2718
+    # Convention-correct M3 (OPEN_QUESTIONS §8), as in the ladder config.
+    weights: [0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64
+
+# Declarative only, as in the ladder config: no driver consumes it
+# (OPEN_QUESTIONS §16).
+nll:
+  suites: [longctx_retrieval_2a, longctx_retrieval]

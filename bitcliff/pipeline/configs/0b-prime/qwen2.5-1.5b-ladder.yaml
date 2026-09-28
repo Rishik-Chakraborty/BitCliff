@@ -1,0 +1,130 @@
+# 0B-prime confirmatory run: Qwen2.5-1.5B-Instruct, bartowski registered ladder.
+#
+# Registered-parameter carrier for the 1.5B confirmatory run (RUN_0B_PRIME.md):
+# the 7 Amendment 4 §C rungs + the F16 baseline (config.f16_path, generated
+# automatically alongside every quant by
+# bitcliff_pipeline.__main__.run_pipeline). Every value below is checked
+# against bitcliff_pipeline.registered / the stamped manifest by
+# tests/test_0b_prime_configs.py -- do not hand-edit a registered value here
+# without updating that test's assertion too.
+#
+# File pins: reference-manifests/qwen2.5-1.5b-bartowski.json (file sha256
+#   023a2c0e37031d764a59cbd25e36d1b15d24e8ba35dad1f6ed7e10404b9c6a3f, Amendment
+#   4 §D; repo bartowski/Qwen2.5-1.5B-Instruct-GGUF, revision
+#   9eadc66189c7641e1ddd226b8267a9119b2ce2d4). imatrix: true on every rung per
+#   the manifest's header evidence (reference-manifests/evidence/
+#   qwen2.5-1.5b-bartowski-gguf-headers.md), which covers these seven files.
+# Ladder: Amendment 4 §C -- F16 + Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q3_K_M, Q2_K,
+#   IQ2_M (IQ2_M = the lowest published file below Q2_K, Amendment 2 §C rule).
+
+model_id: qwen2.5-1.5b-instruct
+hf_repo: bartowski/Qwen2.5-1.5B-Instruct-GGUF
+f16_path: models/f16/Qwen2.5-1.5B-Instruct-f16.gguf
+
+quants:
+  - label: Q8_0
+    filename: Qwen2.5-1.5B-Instruct-Q8_0.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 7185d306cf45956c8c017cd0d3b05ecc6bc18b3ea8eb5c240dce40e87563db7f
+  - label: Q6_K
+    filename: Qwen2.5-1.5B-Instruct-Q6_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 1b01b4ea4ccdd5aa6a5972790002e120a5d500a5175be571114d642a8db4d14e
+  - label: Q5_K_M
+    filename: Qwen2.5-1.5B-Instruct-Q5_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: cf240adc57e126e86102335f6565fb23e523b28d287c75bdb0759f064e8bb572
+  - label: Q4_K_M
+    filename: Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370
+  - label: Q3_K_M
+    filename: Qwen2.5-1.5B-Instruct-Q3_K_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: 7437ad04011a14fb890074cc783df4c1d537197942337353a824ff7e6115ef9b
+  - label: Q2_K
+    filename: Qwen2.5-1.5B-Instruct-Q2_K.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: a8880f0de2348db67d00519ef7f4b40326ef67012bf5f2e90bd1d47474e2355c
+  - label: IQ2_M
+    filename: Qwen2.5-1.5B-Instruct-IQ2_M.gguf
+    uploader: bartowski
+    imatrix: true
+    sha256: cee720c998e71ff3f02fbb3d392c7598bc0f845ae08bbb585ef2ff5fcbd45b81
+
+# PREREG §6 / RUN_0B.md §3: greedy, temp 0.0, top_k 1, seed 42, global
+# 1024-token budget -- identical to configs/0b/*.yaml. n_ctx 16384: the 2b
+# t=8192 prompts (~8300 tokens) + answers, as in the 0B ladder configs.
+generation:
+  seed: 42
+  temperature: 0.0
+  top_k: 1
+  max_tokens: 1024
+  n_ctx: 16384
+
+suites:
+  # PREREG §3.1 Configuration 2a (Q5 comparability run, Qwen2.5-1.5B-Instruct
+  # only): the paper's multivalue2 @ 4096 on the sgoel9/paul_graham_essays
+  # corpus, n=96, seed=2024. The corpus is an HF dataset (local cache only,
+  # never shipped as a file), loaded by
+  # suites.longctx_retrieval.load_corpus_dataset_text and verified against
+  # corpus_sha256 (registered.CORPUS_2A_SHA256) before any item is built.
+  # Suite key `longctx_retrieval_2a` (controller ruling); same builder and
+  # grader as 2b. Item-set hash gate: registered.ITEM_SET_SHA256[
+  # ("longctx_retrieval_2a", "qwen2.5-1.5b-instruct")].
+  longctx_retrieval_2a:
+    variant: multivalue2
+    target_tokens: 4096
+    seed: 2024
+    n_items: 96
+    corpus_dataset: sgoel9/paul_graham_essays
+    corpus_sha256: b6135331a3132d08cb84262870ae8f9d9acb6bae4cd7f0278926a64c38f9329e
+    tokenizer_path: models/hf/Qwen2.5-1.5B-Instruct
+    max_tokens: 32
+  # PREREG §3.1 Configuration 2b + Amendment 1 §A (n=96, seed=2024) / §C: the
+  # 1.5B's calibrated in-band setting is multivalue4 @ t=8192 (F16 0.750).
+  longctx_retrieval:
+    variant: multivalue4
+    target_tokens: 8192
+    seed: 2024
+    n_items: 96
+    corpus_path: corpora/pg1184-monte-cristo.txt
+    corpus_sha256: 0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443
+    tokenizer_path: models/hf/Qwen2.5-1.5B-Instruct
+    max_tokens: 32
+  # PREREG §3.2: n=500, seed=3141 (registered, never amended).
+  arithmetic:
+    n_items: 500
+    seed: 3141
+  # PREREG §3.3: seed=1301 (fixed n = all 47 template pairs / 94 items).
+  # Runs on the 1.5B per OPEN_QUESTIONS §13 (no model restriction in §3.3).
+  arithmetic_twins:
+    seed: 1301
+  # PREREG §3.4 + §7: n=500, confirmatory seed=2718, M3 popularity mix
+  # (Amendment 1 §C), 64-token answer budget, seed-2718 alias augmentation
+  # (Amendment 1 §B).
+  factual_qa:
+    n_items: 500
+    seed: 2718
+    # Convention-correct M3 for items_from_records (deciles ASCENDING by
+    # s_pop: index 0 = least popular) -- PREREG §7's prose order reversed
+    # (OPEN_QUESTIONS §8; registered.M3_WEIGHTS_CONVENTION).
+    weights: [0.04, 0.04, 0.04, 0.04, 0.04, 0.16, 0.16, 0.16, 0.16, 0.16]
+    alias_augmentation_path: data/popqa_wikidata_aliases_seed2718.json
+    max_tokens: 64
+
+# The registered Q2 teacher-forced NLL passes (PREREG §3.1 answer-token spec;
+# OPEN_QUESTIONS §13: both the 2a and 2b items, all 8 loads).
+# DECLARATIVE ONLY: load_config parses and validates this block (every named
+# suite must exist above) into LadderConfig.nll, but NO driver in this repo
+# consumes it -- the NLL driver is not in the repo (OPEN_QUESTIONS §16), and
+# run_pipeline never reads it. The generate stage's answer_spans.jsonl
+# sidecar is what a recovered driver would consume.
+nll:
+  suites: [longctx_retrieval_2a, longctx_retrieval]

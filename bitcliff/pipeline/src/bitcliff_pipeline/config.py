@@ -57,6 +57,22 @@ class GenSettings:
 
 
 @dataclass(frozen=True)
+class NLLConfig:
+    """0B-prime (OPEN_QUESTIONS §13): the registered Q2 teacher-forced NLL
+    passes (PREREG §3.1's answer-token spec, full-span primary +
+    digits-only sensitivity) -- which suites' items they run over.
+
+    DECLARATIVE ONLY: `load_config` parses and validates it (every named
+    suite must be a key of the config's `suites` block, no duplicates, no
+    other keys) so the intent is carried in the reviewed config, but NO
+    driver in this repo consumes it -- the NLL driver that ran on the 0B
+    box is not in the repo (OPEN_QUESTIONS §16); `nll_scorer.py` is a
+    library only and `run_pipeline` never reads this field."""
+
+    suites: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class LadderConfig:
     model_id: str
     hf_repo: str
@@ -72,6 +88,33 @@ class LadderConfig:
     config stays gated; set True only for a deliberately non-registered
     exploratory config (e.g. a smoke config sampling a registered suite's n
     at a non-registered seed/weights on purpose)."""
+    nll: NLLConfig | None = None
+    """Optional `nll:` block (see NLLConfig) -- declarative, validated, and
+    unconsumed by any driver in this repo (OPEN_QUESTIONS §16). None (the
+    default) for every config without the block."""
+
+
+_NLL_KEYS = frozenset({"suites"})
+
+
+def _load_nll(raw_nll, suites: dict, path) -> NLLConfig:
+    if not isinstance(raw_nll, dict):
+        raise ValueError(f"{path}: `nll:` must be a mapping, got {type(raw_nll).__name__}")
+    unknown = set(raw_nll) - _NLL_KEYS
+    if unknown:
+        raise ValueError(f"{path}: unknown key(s) in `nll:` block: {sorted(unknown)}")
+    names = raw_nll.get("suites")
+    if not isinstance(names, list) or not names or not all(isinstance(n, str) for n in names):
+        raise ValueError(f"{path}: `nll.suites` must be a non-empty list of suite names")
+    if len(set(names)) != len(names):
+        raise ValueError(f"{path}: duplicate suite names in `nll.suites`: {names}")
+    missing = [n for n in names if n not in suites]
+    if missing:
+        raise ValueError(
+            f"{path}: `nll.suites` names suite(s) {missing} absent from the "
+            f"config's `suites` block"
+        )
+    return NLLConfig(suites=tuple(names))
 
 
 def _load_quant(raw_quant: dict) -> QuantFile:
@@ -95,4 +138,5 @@ def load_config(path: str | Path) -> LadderConfig:
         generation=GenSettings(**raw["generation"]),
         suites=raw["suites"],
         exploratory=raw.get("exploratory", False),
+        nll=_load_nll(raw["nll"], raw["suites"], path) if "nll" in raw else None,
     )

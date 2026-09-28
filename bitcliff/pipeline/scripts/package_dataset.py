@@ -68,6 +68,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from bitcliff_pipeline import registered  # noqa: E402
+# `load_2a_corpus_text` lives in src/ (moved there in the 0B-prime code turn
+# so `__main__.build_items` can share it without importing from scripts/);
+# re-imported here under the same name -- `_verify_2a_machinery` and
+# tests/test_registered.py (`pkg.load_2a_corpus_text()`) are unchanged.
+from bitcliff_pipeline.suites.longctx_retrieval import load_2a_corpus_text  # noqa: E402,F401
 
 PREREG_COMMIT = "5e6882b7a10c5e4670052855380e8646911db5f3"
 
@@ -911,42 +916,6 @@ def _verify_longctx_recipe(
         "FAIL",
         f"rebuilt digest {digest} != recorded {recipe['verification_digest']}",
     )
-
-
-def load_2a_corpus_text() -> str:
-    """Load the 2a corpus (`sgoel9/paul_graham_essays`, PREREG §3.1
-    Configuration 2a) exactly as `_verify_2a_machinery` needs it:
-    `load_dataset(mv2.CORPUS_DATASET, split="train")`, joined
-    `"\\n\\n".join(ds["text"])`. Forces HF_HUB_OFFLINE / HF_DATASETS_OFFLINE
-    for the duration of the call, restoring whatever was set before --
-    same behavior as the inline version this replaces.
-
-    Extracted so a second caller (tests/test_registered.py's 2a
-    item-set-hash reproduction test) reuses this loader instead of
-    duplicating the load_dataset/join logic -- registered.py's own rule
-    ("never hand-copy a registered value ... into code") extends to not
-    hand-copying the *derivation recipe* for one either.
-    """
-    import os
-
-    from datasets import load_dataset
-
-    from bitcliff_pipeline.vendor import generate_multivalue2 as mv2
-
-    old_env = {
-        k: os.environ.get(k) for k in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE")
-    }
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    os.environ["HF_DATASETS_OFFLINE"] = "1"
-    try:
-        ds = load_dataset(mv2.CORPUS_DATASET, split="train")
-        return "\n\n".join(ds["text"])
-    finally:
-        for k, v in old_env.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
 
 
 def _verify_2a_machinery(pipeline_root: Path) -> tuple[str, str]:

@@ -9,6 +9,10 @@ from .suites import arithmetic, factual_qa, longctx_retrieval, spectacle
 
 GRADERS = {
     "longctx_retrieval": longctx_retrieval.grade,
+    # PREREG §3.1 Configuration 2a (0B-prime controller ruling: suite key
+    # `longctx_retrieval_2a`) -- the identical paper grading rule as 2b,
+    # same function object.
+    "longctx_retrieval_2a": longctx_retrieval.grade,
     "arithmetic": arithmetic.grade,
     # PREREG §3.3: twins are graded by the identical §3.2 rule — same
     # function object, deliberately not a copy.

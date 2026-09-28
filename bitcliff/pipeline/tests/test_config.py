@@ -141,3 +141,46 @@ def test_quant_extra_files_parse(tmp_path):
     assert len(cfg.quants[0].extra_files) == 1
     assert cfg.quants[0].extra_files[0].filename == "shard2.gguf"
     assert cfg.quants[0].extra_files[0].sha256 == "bb"
+
+
+# ---------------------------------------------------------------------------
+# `nll:` block (0B-prime, OPEN_QUESTIONS §13: the registered Q2 teacher-
+# forced NLL passes). Declarative only -- parsed and validated here, never
+# consumed by any driver in this repo (OPEN_QUESTIONS §16).
+# ---------------------------------------------------------------------------
+
+
+def test_nll_defaults_to_none(tmp_path):
+    cfg = load_config(write_yaml(tmp_path, VALID_YAML))
+    assert cfg.nll is None
+
+
+def test_nll_block_parses_suite_names_in_order(tmp_path):
+    yaml_text = VALID_YAML + "nll:\n  suites: [longctx_retrieval, arithmetic]\n"
+    cfg = load_config(write_yaml(tmp_path, yaml_text))
+    assert cfg.nll is not None
+    assert cfg.nll.suites == ("longctx_retrieval", "arithmetic")
+
+
+def test_nll_block_rejects_a_suite_not_in_suites(tmp_path):
+    yaml_text = VALID_YAML + "nll:\n  suites: [longctx_retrieval, longctx_retrieval_2a]\n"
+    with pytest.raises(ValueError, match="longctx_retrieval_2a"):
+        load_config(write_yaml(tmp_path, yaml_text))
+
+
+def test_nll_block_rejects_empty_suite_list(tmp_path):
+    yaml_text = VALID_YAML + "nll:\n  suites: []\n"
+    with pytest.raises(ValueError, match="nll"):
+        load_config(write_yaml(tmp_path, yaml_text))
+
+
+def test_nll_block_rejects_duplicate_suite_names(tmp_path):
+    yaml_text = VALID_YAML + "nll:\n  suites: [longctx_retrieval, longctx_retrieval]\n"
+    with pytest.raises(ValueError, match="duplicate"):
+        load_config(write_yaml(tmp_path, yaml_text))
+
+
+def test_nll_block_rejects_unknown_keys(tmp_path):
+    yaml_text = VALID_YAML + "nll:\n  suites: [longctx_retrieval]\n  driver: foo\n"
+    with pytest.raises(ValueError, match="driver"):
+        load_config(write_yaml(tmp_path, yaml_text))

@@ -904,3 +904,196 @@ def test_main_base_dir_resolves_pipeline_root_for_nested_configs(tmp_path, monke
     stray = tmp_path / "stray.yaml"
     stray.write_text("x: 1\n")
     assert m._resolve_base_dir(stray) == tmp_path
+
+
+# ---------------------------------------------------------------------------
+# longctx_retrieval_2a (PREREG §3.1 Configuration 2a; 0B-prime controller
+# ruling): same builder as 2b, items tagged suite="longctx_retrieval_2a",
+# corpus either a committed file (`corpus_path`) or an HF dataset
+# (`corpus_dataset`, the real 2a corpus). Tokenizer gate, answer-span
+# sidecar and per-suite max_tokens cover it; 2b-only configs unchanged.
+# ---------------------------------------------------------------------------
+
+
+def _longctx_2a_block(**overrides) -> dict:
+    block = {
+        "variant": "multivalue2",
+        "target_tokens": 48,
+        "seed": 11,
+        "n_items": 2,
+        "corpus_path": "corpus.txt",
+        "corpus_sha256": LONGCTX_CORPUS_SHA256,
+        "tokenizer_path": "tok",
+        "max_tokens": 17,
+    }
+    block.update(overrides)
+    return block
+
+
+def _with_2a(tmp_path: Path, cfg: LadderConfig, keep_2b: bool = True, **overrides) -> LadderConfig:
+    cfg = _longctx_config(tmp_path, cfg)
+    suites = dict(cfg.suites)
+    if not keep_2b:
+        del suites["longctx_retrieval"]
+    suites["longctx_retrieval_2a"] = _longctx_2a_block(**overrides)
+    return dataclasses.replace(cfg, suites=suites)
+
+
+def test_build_items_tags_2a_items_with_the_2a_suite_key(tmp_path):
+    cfg = _with_2a(tmp_path, make_config(tmp_path))
+    items = build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+
+    two_a = [i for i in items if i.suite == "longctx_retrieval_2a"]
+    two_b = [i for i in items if i.suite == "longctx_retrieval"]
+    assert len(two_a) == 2 and len(two_b) == 3
+    assert all(i.prompt_tokens is not None for i in two_a)
+    # ids stay the builder's own (variant/tokens in the id), so 2a/2b ids
+    # never collide and the pinned 2a item-set hash (id-covering) holds.
+    assert all(i.id.startswith("longctx_retrieval-multivalue2-t48-s11-") for i in two_a)
+    assert not {i.id for i in two_a} & {i.id for i in two_b}
+
+
+def test_build_items_2a_items_equal_2b_builder_output_but_for_the_suite_tag(tmp_path):
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    cfg = _with_2a(tmp_path, make_config(tmp_path), keep_2b=False)
+    stub = StubHfTokenizer()
+    items = [i for i in build_items(cfg, base_dir=tmp_path, longctx_tokenizer=stub)
+             if i.suite == "longctx_retrieval_2a"]
+    direct = longctx_retrieval.build_items(
+        stub, LONGCTX_CORPUS_TEXT, LONGCTX_CORPUS_SHA256,
+        n_items=2, seed=11, variant="multivalue2", target_tokens=48,
+    )
+    assert [dataclasses.replace(i, suite="longctx_retrieval") for i in items] == direct
+
+
+def test_build_items_2a_corpus_dataset_goes_through_the_dataset_loader(tmp_path, monkeypatch):
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    seen = []
+
+    def fake_loader(dataset):
+        seen.append(dataset)
+        return LONGCTX_CORPUS_TEXT
+
+    monkeypatch.setattr(longctx_retrieval, "load_corpus_dataset_text", fake_loader)
+    block = _longctx_2a_block(corpus_dataset="someone/some_dataset")
+    del block["corpus_path"]
+    cfg = dataclasses.replace(
+        make_config(tmp_path), suites={"longctx_retrieval_2a": block},
+    )
+    items = build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+    assert seen == ["someone/some_dataset"]
+    assert len([i for i in items if i.suite == "longctx_retrieval_2a"]) == 2
+
+
+def test_build_items_2a_corpus_dataset_still_goes_through_the_corpus_hash_gate(tmp_path, monkeypatch):
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    monkeypatch.setattr(longctx_retrieval, "load_corpus_dataset_text", lambda dataset: "not the corpus")
+    block = _longctx_2a_block(corpus_dataset="someone/some_dataset")
+    del block["corpus_path"]
+    cfg = dataclasses.replace(make_config(tmp_path), suites={"longctx_retrieval_2a": block})
+    with pytest.raises(AssertionError, match="sha256"):
+        build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+
+
+@pytest.mark.parametrize("which", ["both", "neither"])
+def test_build_items_longctx_requires_exactly_one_corpus_source(tmp_path, which):
+    block = _longctx_2a_block()
+    if which == "both":
+        block["corpus_dataset"] = "someone/some_dataset"
+    else:
+        del block["corpus_path"]
+    (tmp_path / "corpus.txt").write_text(LONGCTX_CORPUS_TEXT)
+    cfg = dataclasses.replace(make_config(tmp_path), suites={"longctx_retrieval_2a": block})
+    with pytest.raises(ValueError, match="corpus_path.*corpus_dataset"):
+        build_items(cfg, base_dir=tmp_path, longctx_tokenizer=StubHfTokenizer())
+
+
+def _run_generate(tmp_path, cfg, run_id, llm_factory):
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+    run_pipeline(
+        cfg, run_id=run_id, models_dir=models_dir, runs_dir=runs_dir,
+        stage="all", llm_factory=llm_factory, base_dir=tmp_path,
+    )
+    return runs_dir / run_id
+
+
+def test_generate_stage_tokenizer_gate_covers_a_2a_only_config(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    cfg = _with_2a(tmp_path, make_config(tmp_path), keep_2b=False)
+
+    with pytest.raises(AssertionError, match="tokenizer mismatch"):
+        _run_generate(tmp_path, cfg, "2a-mismatch",
+                      lambda path, gen: MismatchingLongctxFakeLlm(hf_tokenizer))
+    assert not (tmp_path / "runs" / "2a-mismatch" / "outputs" / "F16.jsonl").exists()
+
+
+def test_generate_stage_tokenizer_gate_samples_each_longctx_suite(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    from bitcliff_pipeline.suites import longctx_retrieval
+
+    calls = []
+    real = longctx_retrieval.assert_tokenizer_match
+
+    def spy(hf, llama_tok, samples):
+        calls.append(list(samples))
+        return real(hf, llama_tok, samples)
+
+    monkeypatch.setattr(longctx_retrieval, "assert_tokenizer_match", spy)
+    cfg = _with_2a(tmp_path, make_config(tmp_path))
+    run = _run_generate(tmp_path, cfg, "2a2b-gate", lambda path, gen: LongctxFakeLlm(hf_tokenizer))
+
+    items = [json.loads(l) for l in (run / "items.jsonl").read_text().splitlines()]
+    sample_2b = [i["prompt"] for i in sorted(
+        (i for i in items if i["suite"] == "longctx_retrieval"), key=lambda i: i["id"])][:20]
+    sample_2a = [i["prompt"] for i in sorted(
+        (i for i in items if i["suite"] == "longctx_retrieval_2a"), key=lambda i: i["id"])][:20]
+    # Two files (F16, Q4_K_M) x one registered 20-string sample per suite.
+    assert calls == [sample_2b, sample_2a, sample_2b, sample_2a]
+
+
+def test_generate_stage_answer_spans_cover_2a_and_2b_aligned(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    cfg = _with_2a(tmp_path, make_config(tmp_path))
+    run = _run_generate(tmp_path, cfg, "2a2b-spans", lambda path, gen: LongctxFakeLlm(hf_tokenizer))
+
+    spans = [json.loads(l) for l in (run / "answer_spans.jsonl").read_text().splitlines()]
+    items = [json.loads(l) for l in (run / "items.jsonl").read_text().splitlines()]
+    longctx_items = [i for i in items
+                     if i["suite"] in ("longctx_retrieval", "longctx_retrieval_2a")]
+    assert len(spans) == len(longctx_items) == 5
+    assert [s["item_id"] for s in spans] == [i["id"] for i in longctx_items]
+
+
+def test_generate_stage_2a_uses_its_own_max_tokens(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    budgets = []
+
+    class RecordingLlm(LongctxFakeLlm):
+        def create_completion(self, prompt, max_tokens=None, **kwargs):
+            if max_tokens != gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
+                budgets.append(max_tokens)
+            return super().create_completion(prompt, max_tokens=max_tokens, **kwargs)
+
+    cfg = _with_2a(tmp_path, make_config(tmp_path), keep_2b=False)
+    cfg = dataclasses.replace(cfg, suites={"longctx_retrieval_2a": cfg.suites["longctx_retrieval_2a"]})
+    _run_generate(tmp_path, cfg, "2a-budget", lambda path, gen: RecordingLlm(hf_tokenizer))
+    assert budgets and set(budgets) == {17}
+
+
+def test_generate_stage_refuses_disagreeing_longctx_tokenizer_paths(tmp_path, monkeypatch):
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    cfg = _with_2a(tmp_path, make_config(tmp_path), tokenizer_path="other-tok")
+    with pytest.raises(ValueError, match="tokenizer_path"):
+        _run_generate(tmp_path, cfg, "tok-disagree", lambda path, gen: LongctxFakeLlm(hf_tokenizer))
