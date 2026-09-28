@@ -101,6 +101,45 @@ run. Concretely:
   committed files. **The diff must be empty.** Any difference: stop, sync
   the 25 records to S3, report, do not start 0B′.
 
+**Second gate — NLL reproduction, before any 1.5B NLL pass (§3):**
+reproduce 0B's teacher-forced NLL records for two rungs on their 2b items,
+with `scripts/nll_driver.py` (commit `ba146e7`):
+
+```
+uv run python scripts/nll_driver.py configs/0b/0b-qwen-7b-ladder.yaml \
+    --run-id 0b-qwen-7b-ladder-nllgate --runs-dir runs --models-dir models \
+    --suites longctx_retrieval --labels Q4_K_M
+uv run python scripts/nll_driver.py configs/0b/0b-llama-8b-ladder.yaml \
+    --run-id 0b-llama-8b-ladder-nllgate --runs-dir runs --models-dir models \
+    --suites longctx_retrieval --labels Q4_K_M
+```
+
+(Qwen-7B Q4_K_M is the rung already on the box for the first gate above;
+Llama-8B Q4_K_M re-downloads.) Write into scratch run dirs
+(`0b-qwen-7b-ladder-nllgate`, `0b-llama-8b-ladder-nllgate`) — never over the
+committed `runs-cloud/` records. Compare per item, field for field, against
+the committed `runs-cloud/pipeline/runs/0b-qwen-7b-ladder/nll/Q4_K_M.jsonl`
+and `runs-cloud/pipeline/runs/0b-llama-8b-ladder/nll/Q4_K_M.jsonl`. **Exact
+match required** on every `NLLRecord` field (`item_id`, `suite`,
+`quant_label`, `model_sha256`, `per_token_nll`, `span_mean_nll`,
+`digits_only_mean_nll`, `n_answer_tokens`, `machine`) except `machine`,
+which is identical only if the box fingerprint matches the 0B fingerprint
+(§1); a `machine` difference alone means the box is not the 0B fingerprint
+— stop, that is a fingerprint mismatch, not an NLL-gate failure. Any other
+field mismatch: stop, report; the ruling is regenerating all 26 NLL passes.
+
+Provenance caveat (OPEN_QUESTIONS §16): the committed Llama-8B ladder NLL
+records were produced by the pre-fix provider (before commit `7364672`,
+"NLL provider reads llama scores array, not eval_logits") with an
+n_ctx unrecoverable from the 0B log; the committed Qwen-7B ladder records
+were produced by the post-fix provider with n_ctx 8448 (`ceil(8263/256)*256`,
+`runs-cloud/0b-nll.log`). `nll_driver.py` always uses the post-fix
+`llm.scores` path and leaves every other llama-cpp-python constructor
+argument (n_batch/n_ubatch, flash-attention, ...) at the 0.3.35 default, so
+the Llama-8B leg of this gate is the only test of whether that provider
+path reproduces the pre-fix numbers; a pass on Qwen-7B alone does not cover
+it.
+
 ## 5. Timing
 
 No run to date has recorded generation timing: neither pilot-0a, 0b, nor 0b2
@@ -149,14 +188,15 @@ likely conservative. Rough.
 |---|---|---|
 | Setup: launch from CUDA AMI, 7 quant downloads (~7 GB), F16 obtain/convert + hash gates, smoke | 1.0–1.5 | 2.24–3.36 |
 | Reproduction gate (§4): Qwen-7B Q4_K_M download + 25 longctx items + diff | 0.25–0.5 | 0.56–1.12 |
+| NLL reproduction gate (§4, second gate): Llama-8B Q4_K_M download (~4.9 GB) + two gate NLL passes (Qwen-7B, Llama-8B; 2b items; post-fix 0B timing ≈ 6.8 min per 7B-class load at t=8192) | 0.25–0.5 | 0.56–1.12 |
 | Q5 suites only (2a longctx + arithmetic, 8 loads, 596 items each) | 0.5–0.7 | 1.12–1.57 |
 | Full registered scope (§2: 1286 items × 8 loads) | 1.0–1.5 | 2.24–3.36 |
 | NLL passes on 2a (§3: 8 loads × 96 items at t=4096, logits_all) | 2.0–3.5 | 4.48–7.84 |
 | NLL passes on 2b (§3: 8 loads × 96 items at t=8192; 0B's post-fix 6.8 min/load for the 7B scaled 3–4× down, plus load overhead) | 0.25–0.5 | 0.56–1.12 |
 | Optional benchmark (§6: 16 files, ~1 h re-downloads + ~5 min each) | 2.0–2.5 | 4.48–5.60 |
 | EBS (AMI-backed gp3 volume for the run's hours) + S3 puts | — | ≈ 1.00 |
-| **Total, full scope + NLL (2a + 2b), no benchmark** | **4.5–7.5** | **≈ 11–18** |
-| **Total, with benchmark** | **6.5–10.0** | **≈ 16–23** |
+| **Total, full scope + NLL (2a + 2b), no benchmark** | **4.75–8.0** | **≈ 12–19** |
+| **Total, with benchmark** | **6.75–10.5** | **≈ 16–25** |
 
 (The Q5-suites row is a subset of the full-scope row and is not added into
 the totals.)
