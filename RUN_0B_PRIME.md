@@ -192,18 +192,38 @@ Write into scratch run dirs (`0b-qwen-7b-ladder-nllgate`,
 `0b-llama-8b-ladder-nllgate`) — never over the committed `runs-cloud/`
 records (the driver refuses any `--runs-dir` inside `runs-cloud/`).
 
-**The comparison is `cmp`** of each produced `nll/Q4_K_M.jsonl` against the
-committed file. Byte identity is the right test: re-writing either
-committed file with `nll_scorer.write_records` (the driver's writer)
-reproduces it byte for byte (checked locally, 2026-09-28), so identical
-`NLLRecord`s (`item_id`, `suite`, `quant_label`, `model_sha256`,
-`per_token_nll`, `span_mean_nll`, `digits_only_mean_nll`,
-`n_answer_tokens`, `machine`) in the same item order give identical bytes.
-**Any difference is a stop, `machine` included** — then diagnose: a difference in `machine`
-alone means the box is not the 0B fingerprint (§1), a fingerprint
-mismatch rather than an NLL-gate failure; any other field mismatch means
-the driver does not reproduce 0B, and the ruling is regenerating all 26
-NLL passes. Report either way before any §3 pass.
+**Match rule (user ruling 2026-10-03; supersedes the earlier `cmp`-only
+rule).** Each produced `nll/Q4_K_M.jsonl` is compared record by record, in
+file order, against the committed file. Metadata fields are excluded from
+the comparison: the `machine` string and the run id (and the gate run's
+`nll/manifest.json`). Every other `NLLRecord` field is compared
+(`item_id`, `suite`, `quant_label`, `model_sha256`, `n_answer_tokens`,
+`per_token_nll`, `span_mean_nll`, `digits_only_mean_nll`). `cmp` is still
+run first: byte identity implies tier 1, since `nll_scorer.write_records`
+reproduces either committed file byte for byte (checked locally,
+2026-09-28).
+
+- **Tier 1 — exact.** Identical record count and order, and every compared
+  field equal, per-token NLL values exactly equal. Reported as reproduced
+  exactly.
+- **Tier 2 — within floating-point tolerance.** Identical item ids (same
+  set, same order), identical token counts (`n_answer_tokens` and the
+  length of `per_token_nll`), identical span fields (`suite`,
+  `quant_label`, `model_sha256`), and the maximum absolute per-token NLL
+  difference over all items and positions at most **1e-3**. Reported as
+  "reproduced within floating-point tolerance", with that maximum
+  difference disclosed (and the maximum absolute differences of
+  `span_mean_nll` and `digits_only_mean_nll`, which the per-token bound
+  also bounds).
+- **Anything else is a mismatch** (a leg fails).
+
+A leg passes on tier 1 or tier 2. Outcomes across the two legs: both pass
+→ no regeneration, proceed to the 1.5B; Qwen-7B passes and Llama-8B fails
+→ regenerate all 26 0B NLL passes with the committed driver under the §8
+regeneration cap; both fail → no regeneration, stop (sync, terminate,
+report). A `machine` difference is not a gate failure; it is reported
+with the §1 fingerprint check. Report every gate result with its numbers
+before any §3 pass.
 
 Provenance caveat (OPEN_QUESTIONS §16): the committed Llama-8B ladder NLL
 records were produced by the pre-fix provider (before commit `7364672`,
@@ -297,6 +317,17 @@ the totals.)
 
 Cap: **$50 hard stop, benchmark included. Burn reports at 50/80/100 of cap.
 Set by user 2026-09-27.**
+
+**Caps as ruled 2026-10-03 (with the "proceed", benchmark included):**
+
+1. **Planned scope: $50 hard stop**, burn reports at $25, $40, $50 (aws-ops
+   rule). At $50 with work unfinished: sync to S3, terminate, report.
+2. **Conditional NLL regeneration: session total $80.** Pre-authorized only
+   if the §4 NLL gate's Qwen-7B leg passes and its Llama-8B leg fails: then
+   all 26 0B NLL passes are regenerated with the committed driver, within a
+   session total of $80, burn reports at $40, $64, $80. Both legs fail: no
+   regeneration (sync, terminate, report). Both pass: no regeneration, and
+   cap 1 governs.
 
 ## 9. Before "proceed" — what must be committed
 

@@ -688,11 +688,13 @@ gate before any 1.5B NLL pass): re-run `nll_driver.py` for Qwen-7B Q4_K_M
 and Llama-8B Q4_K_M on their 2b items into scratch run dirs, and compare
 field-for-field against the committed
 `runs-cloud/pipeline/runs/0b-{qwen-7b,llama-8b}-ladder/nll/Q4_K_M.jsonl`.
-Exact match required on every `NLLRecord` field except `machine`, which
-matches only if the box fingerprint matches the 0B fingerprint (a
-`machine`-only difference means the box isn't the 0B fingerprint — stop,
-that's a fingerprint mismatch, not a driver failure). Any other field
-mismatch: stop, report; the ruling is regenerating all 26 NLL passes.
+**The match rule is RUN_0B_PRIME.md §4** (user ruling 2026-10-03: tier 1
+exact, tier 2 within a 1e-3 per-token tolerance, metadata such as the
+`machine` string and run id excluded; the leg outcomes and the conditional
+regeneration with its $80 session cap are stated there and in §8). The
+sentences this pointer replaces required an exact match on every field
+except `machine` and made any other mismatch a stop with all-26
+regeneration as the ruling.
 
 Provider history, from the `NLLCFG_*` lines in `runs-cloud/0b-full.log`
 (run id, timestamp, exit code only — no settings) and the non-START/DONE
