@@ -1,4 +1,5 @@
-# HANDOFF — BitCliff session handoff (rewritten 2026-09-07; updated 2026-09-14)
+Push status (2026-10-03): HEAD = origin/main = the "handoff: rotation before 0B-prime" commit (parent `87092f0`), ahead/behind 0/0 — verify with `git rev-list --left-right --count main...origin/main`.
+# HANDOFF — BitCliff session handoff (rewritten 2026-09-07; updated 2026-10-03)
 
 For a fresh Claude Code session with no memory. This is an index, not an
 archive: every claim below is verifiable in the named files, git history,
@@ -8,12 +9,15 @@ or messages anyone without the user's explicit go.
 ## 1. Repo state (as of this handoff's commit)
 
 Branch list: `main` only (work branches `pre-0b-tickets`, `0b-analysis`,
-`factualqa-rerun` were merged no-ff and deleted). Origin last pushed at
-`1977521e55d92dfda374e7119eb66c1828b6218b` (2026-09-12, Amendment 4 stamp);
-commits after it are local until the user says push — check
-`git rev-list --left-right --count main...origin/main` first. Test suite:
-438 passing (`uv run pytest -q` in `bitcliff/pipeline/`, ~5 s; includes
-`tests/test_registered.py`, which rebuilds item sets from live HF).
+`factualqa-rerun`, `code-turn-0b-prime`, `code-turn-nll-driver` were
+merged no-ff and deleted). State is current through `87092f0` (merge of
+`code-turn-nll-driver`, 2026-09-28), pushed; nothing local-only. Always
+check `git rev-list --left-right --count main...origin/main` first. Test
+suite: 592 passing (`uv run pytest -q` in `bitcliff/pipeline/`, ~14 s; run
+with `HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1` —
+`tests/test_registered.py` and the 0B-prime config tests rebuild item sets
+from the local HF cache and the HF tokenizers under `models/hf/`, so a
+cold machine needs network or a warm cache).
 
 ## 2. 0B final state
 
@@ -208,6 +212,43 @@ commits after it are local until the user says push — check
   reproduction gate** (RUN_0B_PRIME.md §4, second gate) before the §3 NLL
   passes can run. Machine ruling: the 0B
   fingerprint / CUDA AMI.
+  **Code prerequisites complete through `87092f0`; the box procedure lives
+  in `RUN_0B_PRIME.md`:** §1 pre-launch statement; §3 the single fixed
+  1.5B NLL invocation (after the generate stage, same `--run-id`; the
+  driver refuses a non-exploratory run without that run's
+  `manifest.json`); §4 gate 1 (`scripts/repro_gate.py`, Qwen-7B Q4_K_M,
+  first 25 longctx items, empty diff) and gate 2 (`scripts/nll_driver.py`
+  `--allow-no-manifest`, Qwen-7B and Llama-8B Q4_K_M on 2b, `cmp` exact
+  match vs committed `nll/Q4_K_M.jsonl`; any mismatch → stop, report, and
+  the ruling is regenerating all 26 NLL passes); the per-run
+  `fingerprint.txt` step before sync-back (required by `analyze_0b.py` for
+  non-0B run sets); every box command is `uv run --no-sync`; §8 cost
+  table at $2.2421/h (≈ $12–19 without benchmark, ≈ $16–25 with), cap $50.
+  **Open: the two-rung NLL reproduction gate on the box** (nothing has
+  run; no "proceed" given). Risk to weigh before "proceed": the Llama leg
+  may mismatch — the pre-fix Llama/arm1 n_ctx and all unlogged llama-cpp
+  constructor args are unrecoverable (OPEN_QUESTIONS §16; the NLLCFG_*
+  log lines carry no settings) — and a full 26-pass regeneration would
+  exceed the $50 0B′ cap.
+- **Parked items (ruled, deferred; none blocks the box run):**
+  no committed box command captures `llama_cpp_commit` for
+  `fingerprint.txt` (operator records it from the build); the Llama-8B
+  Q4_K_M gate download is identified by its pinned sha256 only
+  (`ensure_quants` passes no HF revision); `nll_driver.py` has no
+  GGUF-vs-HF tokenizer-match gate of its own (covered for the 1.5B by the
+  same-`--run-id` manifest requirement after generation; for the gate
+  rungs by the `model_sha256` field match), a small resume crash window
+  (jsonl written before its manifest entry), and a manifest that records
+  module-constant `logits_all`/`n_gpu_layers` even under an injected
+  factory; `analyze_0b.py` hardcodes "7 ladder cells" in the Holm
+  preamble (correct for every current ladder), supports shootout arms for
+  the 0B run set only (the 7B shootout needs its own code turn), checks a
+  missing sweep dir only after `run_analysis`, and keeps byte-identical
+  0B prose whose wording is stale (the two "re-append after any FINDINGS
+  regeneration" HTML comments; "all 8 cliff rungs" counts families);
+  `scripts/repro_gate.py`'s `_read_output_dicts` is now redundant with
+  `generate.read_records`; the 1.5B FINDINGS fingerprint prose has no
+  committed target yet.
 - **Site/launch work not started.** `site/` still serves PILOT fixtures
   only (exploratory data, browse-only banners, 50 items × 11 rungs from
   pilot-0a); no confirmatory fixtures exported, no cliff tables,
