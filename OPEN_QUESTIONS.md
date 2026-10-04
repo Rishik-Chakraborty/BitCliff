@@ -719,3 +719,48 @@ none null; every record's schema is exactly `nll_scorer.NLLRecord`):
 total, all carrying `machine`
 "Linux-6.8.0-1063-aws-x86_64-with-glibc2.35 / x86_64 / llama-cpp-python
 0.3.35".
+
+## 17. 0B′ stopped at the generation reproduction gate (2026-10-04)
+
+The 0B′ box (`i-0752e31e5f1a00f0c`, g6e.2xlarge, us-east-1c, AMI
+`ami-0dc0c90fcfca46f7c`, code = `git archive 5cc029b` + the Monte Cristo
+corpus) ran 03:39:16 → terminated 03:57:26 UTC. Realized cost ≈ $0.70
+(≈ 0.30 h × $2.2421/h plus EBS). It stopped at RUN_0B_PRIME.md §4's first gate,
+a registered stop condition. No 0B′ item was generated, no NLL gate ran, and
+nothing was benchmarked.
+
+**Gate 1 result: FAIL, 1 of 25 items.** `scripts/repro_gate.py`,
+`0b-qwen-7b-ladder` / Q4_K_M (pinned sha256 verified at download), first 25
+longctx items, settings from the committed output records. 24/25 items
+reproduced exactly. One differed, in 3 fields:
+
+    longctx_retrieval-multivalue4-t8192-s2024-0005
+      text      expected '7622, 7352, 7467, 7211'
+                actual   'The secret passcodes for zulu are 7622, 7352, 7467, 7211.'
+      finish_reason  expected 'stop', got 'length'
+      truncated      expected False, got True
+
+The script persists no records. Its diff log, the box fingerprint and the
+download logs are in
+`s3://bitcliff-artifacts-048568674517/0b-prime/attempt-20261004/`. Not
+diagnosed on the box (the stop rule says terminate). Open questions for the user: whether the
+difference is run-to-run GPU nondeterminism or a software difference, and
+what re-running the gate requires.
+
+**Fingerprint note: `llama_cpp_commit` labels two different things.** On the box, every
+fingerprint field matched `runs-cloud/fingerprint.txt` (instance type, AMI,
+AZ, GPU + driver, CUDA 13.2, kernel, Python, llama-cpp-python 0.3.35 CUDA
+with GPU offload) except `llama_cpp_commit`. The installed build embeds
+`GGML_COMMIT="4df29be-dirty"` (`libggml-base.so`; `cuda-rebuild2.log`).
+`4df29be4f4c3673f428170fda944a5b19f743bb8` is the `vendor/llama.cpp`
+submodule of llama-cpp-python tag v0.3.35 (GitHub API). The
+fingerprint's `bf942164…` is the HEAD of the separate F16 conversion clone
+`~/bitcliff/llama.cpp`. The library's mtime (2026-09-02 02:42 UTC) predates the AMI bake
+(02:43) and 0B generation (05:17), so 0B ran this same build. The
+0B record's label names the conversion clone, not the inference build.
+
+Other deviations: the box has no AWS credentials or instance role, so S3 syncs
+relay box → local → S3 under the local `bitcliff-agent` profile. The security
+group rule already held the current IP, so it was not replaced. The Pricing API is
+denied to `bitcliff-agent`, so the $2.2421/h rate was confirmed from AWS's public
+us-east-1 price list instead ($2.24208/h, effective 2026-09-01).
