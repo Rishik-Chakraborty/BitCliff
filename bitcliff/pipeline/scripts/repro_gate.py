@@ -259,15 +259,24 @@ def _replay_plan(
         raise ValueError(f"replay needs the source run's outputs, missing: {out_path}")
     rows = _read_output_dicts(out_path)
     recorded_ids = [d["item_id"] for d in rows]
-    items_order = [i.id for i in items if i.id in set(recorded_ids)]
-    if recorded_ids != items_order:
-        raise ValueError(
-            f"{out_path} record order differs from items.jsonl order; the "
-            "recorded call order cannot be replayed from items.jsonl"
-        )
-    absent = [g for g in gate_ids if g not in set(recorded_ids)]
+    recorded_set = set(recorded_ids)
+    absent = [g for g in gate_ids if g not in recorded_set]
     if absent:
         raise ValueError(f"gate items absent from {out_path}: {sorted(absent)}")
+    items_order = [i.id for i in items]
+    if recorded_ids != items_order:
+        missing = [i for i in items_order if i not in recorded_set]
+        first = next(
+            (k for k, (r, e) in enumerate(zip(recorded_ids, items_order)) if r != e),
+            min(len(recorded_ids), len(items_order)),
+        )
+        raise ValueError(
+            f"{out_path} record order differs from items.jsonl order (the "
+            "generate stage runs every item in items.jsonl order, so a "
+            f"faithful outputs file holds exactly that sequence); first "
+            f"mismatch at position {first}; items missing from outputs: "
+            f"{missing[:10]}"
+        )
     last = max(recorded_ids.index(g) for g in gate_ids)
     by_id = {i.id: i for i in items}
     budgets: dict[str, int] = {}

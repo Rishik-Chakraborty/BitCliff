@@ -591,6 +591,16 @@ def test_replay_raises_when_outputs_order_differs_from_items_order(tmp_path):
         _run(run_dir, _fake_llm_factory())
 
 
+def test_replay_raises_when_non_gate_record_before_gate_is_missing(tmp_path):
+    run_dir = _write_replay_run(tmp_path)
+    out = run_dir / "outputs" / "Q4_K_M.jsonl"
+    lines = out.read_text().splitlines()
+    del lines[0]  # arithmetic-000 precedes the gate items
+    out.write_text("\n".join(lines) + "\n")
+    with pytest.raises(ValueError, match="arithmetic-000"):
+        _run(run_dir, _fake_llm_factory())
+
+
 def test_replay_raises_when_gate_item_absent_from_outputs(tmp_path):
     run_dir = _write_replay_run(tmp_path)
     out = run_dir / "outputs" / "Q4_K_M.jsonl"
