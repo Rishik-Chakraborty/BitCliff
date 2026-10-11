@@ -68,6 +68,29 @@ generation:
   max_tokens: 1024
   n_ctx: 16384
 
+# As-run execution settings, NOT registered (PREREG registers none of these).
+# They equal 0B's llama-cpp-python 0.3.35 library defaults, with values read
+# back from the live model on the 0B-prime diagnostic box 2026-10-07
+# (g6e.2xlarge, 8 vCPU), and are pinned from 0B-prime on. n_ctx and seed must
+# equal the generation block's (load_config enforces it).
+execution:
+  n_ctx: 16384
+  n_batch: 512
+  n_ubatch: 512
+  n_threads: 4
+  n_threads_batch: 8
+  flash_attn: false          # LLAMA_FLASH_ATTN_TYPE_DISABLED
+  type_k: 1                  # GGML_TYPE_F16
+  type_v: 1                  # GGML_TYPE_F16
+  offload_kqv: true
+  op_offload: true
+  rope_scaling_type: -1      # LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED (from model)
+  rope_freq_base: 0.0        # 0 = from model
+  rope_freq_scale: 0.0       # 0 = from model
+  yarn_ext_factor: -1.0      # negative = from model
+  n_gpu_layers: -1           # all layers
+  seed: 42
+
 suites:
   # PREREG §3.1 Configuration 2a (Q5 comparability run, Qwen2.5-1.5B-Instruct
   # only): the paper's multivalue2 @ 4096 on the sgoel9/paul_graham_essays

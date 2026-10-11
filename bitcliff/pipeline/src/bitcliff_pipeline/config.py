@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 import yaml
@@ -57,6 +57,33 @@ class GenSettings:
 
 
 @dataclass(frozen=True)
+class ExecutionSettings:
+    """As-run llama.cpp execution settings (0B-prime diagnostic, RUN_0B_PRIME /
+    OPEN_QUESTIONS §17): field names and types are the llama-cpp-python
+    `Llama(...)` keyword arguments. NOT registered (PREREG registers none of
+    these); pinned from 0B-prime on so the as-run values are explicit rather
+    than library defaults. `n_ctx` and `seed` must equal the config's
+    `generation` values (checked by `load_config`)."""
+
+    n_ctx: int
+    n_batch: int
+    n_ubatch: int
+    n_threads: int
+    n_threads_batch: int
+    flash_attn: bool
+    type_k: int
+    type_v: int
+    offload_kqv: bool
+    op_offload: bool
+    rope_scaling_type: int
+    rope_freq_base: float
+    rope_freq_scale: float
+    yarn_ext_factor: float
+    n_gpu_layers: int
+    seed: int
+
+
+@dataclass(frozen=True)
 class NLLConfig:
     """0B-prime (OPEN_QUESTIONS §13): the registered Q2 teacher-forced NLL
     passes (PREREG §3.1's answer-token spec, full-span primary +
@@ -91,6 +118,10 @@ class LadderConfig:
     """Optional `nll:` block (see NLLConfig) -- validated here, consumed by
     `scripts/nll_driver.py` (OPEN_QUESTIONS §16). None (the default) for
     every config without the block."""
+    execution: ExecutionSettings | None = None
+    """Optional top-level `execution:` block (see ExecutionSettings). None
+    (the default) for every config without it -- generation then uses the
+    library defaults exactly as before."""
 
 
 _NLL_KEYS = frozenset({"suites"})
@@ -116,6 +147,26 @@ def _load_nll(raw_nll, suites: dict, path) -> NLLConfig:
     return NLLConfig(suites=tuple(names))
 
 
+def _load_execution(raw_exec, generation: GenSettings, path) -> ExecutionSettings:
+    if not isinstance(raw_exec, dict):
+        raise ValueError(f"{path}: `execution:` must be a mapping, got {type(raw_exec).__name__}")
+    names = {f.name for f in fields(ExecutionSettings)}
+    unknown = set(raw_exec) - names
+    if unknown:
+        raise ValueError(f"{path}: unknown key(s) in `execution:` block: {sorted(unknown)}")
+    missing = names - set(raw_exec)
+    if missing:
+        raise ValueError(f"{path}: missing key(s) in `execution:` block: {sorted(missing)}")
+    execution = ExecutionSettings(**raw_exec)
+    for key in ("n_ctx", "seed"):
+        if getattr(execution, key) != getattr(generation, key):
+            raise ValueError(
+                f"{path}: `execution.{key}` ({getattr(execution, key)!r}) must equal "
+                f"`generation.{key}` ({getattr(generation, key)!r})"
+            )
+    return execution
+
+
 def _load_quant(raw_quant: dict) -> QuantFile:
     raw_quant = dict(raw_quant)
     raw_extra = raw_quant.pop("extra_files", None) or []
@@ -129,13 +180,17 @@ def load_config(path: str | Path) -> LadderConfig:
     labels = [q.label for q in quants]
     if len(set(labels)) != len(labels):
         raise ValueError(f"duplicate quant labels in {path}")
+    generation = GenSettings(**raw["generation"])
     return LadderConfig(
         model_id=raw["model_id"],
         hf_repo=raw["hf_repo"],
         f16_path=Path(raw["f16_path"]),
         quants=quants,
-        generation=GenSettings(**raw["generation"]),
+        generation=generation,
         suites=raw["suites"],
         exploratory=raw.get("exploratory", False),
         nll=_load_nll(raw["nll"], raw["suites"], path) if "nll" in raw else None,
+        execution=(
+            _load_execution(raw["execution"], generation, path) if "execution" in raw else None
+        ),
     )

@@ -273,3 +273,37 @@ def test_2b_items_built_from_the_ladder_config_pass_the_real_item_set_gate():
     assert [s.item_id for s in specs] == [i.id for i in items]
     assert item_set_sha256(items) == registered.ITEM_SET_SHA256[(SUITE_2B, MODEL_ID)]
     assert_item_sets_match_registered(items, cfg.model_id)  # must not raise
+
+AS_RUN_EXECUTION = {
+    "n_ctx": 16384,
+    "n_batch": 512,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "n_threads_batch": 8,
+    "flash_attn": False,
+    "type_k": 1,
+    "type_v": 1,
+    "offload_kqv": True,
+    "op_offload": True,
+    "rope_scaling_type": -1,
+    "rope_freq_base": 0.0,
+    "rope_freq_scale": 0.0,
+    "yarn_ext_factor": -1.0,
+    "n_gpu_layers": -1,
+    "seed": 42,
+}
+
+
+def test_ladder_pins_as_run_execution_settings():
+    """Unregistered as-run llama.cpp settings (0B library defaults, read back
+    on the 0B-prime diagnostic box 2026-10-07), pinned verbatim."""
+    execution = load_config(LADDER_PATH).execution
+    assert execution is not None
+    assert dataclasses.asdict(execution) == AS_RUN_EXECUTION
+    assert [type(v) for v in dataclasses.asdict(execution).values()] == [
+        type(v) for v in AS_RUN_EXECUTION.values()
+    ]
+
+
+def test_smoke_config_has_no_execution_block():
+    assert load_config(SMOKE_PATH).execution is None

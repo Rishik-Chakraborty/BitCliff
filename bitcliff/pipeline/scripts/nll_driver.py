@@ -109,19 +109,30 @@ LOGITS_ALL = True
 UNRECOVERED_LLAMA_ARGS = "llama-cpp-python defaults (n_batch, n_ubatch, flash_attn, n_threads, type_k/type_v, ...): unrecoverable from the 0B log"
 
 
-def make_nll_llm(model_path: Path, n_ctx: int, seed: int):
+PINNED_LLAMA_ARGS = "pinned as-run execution settings from the config's `execution:` block (n_ctx and seed set by the driver's own rule)"
+
+
+def make_nll_llm(model_path: Path, n_ctx: int, seed: int, execution=None):
     """Default factory: `llama_cpp.Llama` with the recovered settings (see
     module docstring). Every other constructor argument is left at the
-    llama-cpp-python 0.3.35 default (unrecoverable)."""
+    llama-cpp-python 0.3.35 default (unrecoverable) unless `execution`
+    (config.ExecutionSettings) is given: then every pinned field except
+    `n_ctx` and `seed` (the driver sets those) is passed too."""
     from llama_cpp import Llama
 
+    pinned = {}
+    if execution is not None:
+        pinned = {
+            k: v for k, v in dataclasses.asdict(execution).items() if k not in ("n_ctx", "seed")
+        }
+    pinned.setdefault("n_gpu_layers", N_GPU_LAYERS)
     return Llama(
         model_path=str(model_path),
         n_ctx=n_ctx,
         seed=seed,
-        n_gpu_layers=N_GPU_LAYERS,
         logits_all=LOGITS_ALL,
         verbose=False,
+        **pinned,
     )
 
 
@@ -339,7 +350,12 @@ def run_nll(
         "logits_all": LOGITS_ALL,
         "seed": seed,
         "n_gpu_layers": N_GPU_LAYERS,
-        "other_llama_args": UNRECOVERED_LLAMA_ARGS,
+        "other_llama_args": (
+            UNRECOVERED_LLAMA_ARGS if config.execution is None else PINNED_LLAMA_ARGS
+        ),
+        "execution": (
+            dataclasses.asdict(config.execution) if config.execution is not None else None
+        ),
         "digit_token_ids": {"count": len(digit_ids), "ids": sorted(digit_ids)},
         "machine": nll_scorer._machine_fingerprint(),
         "driver_sha256": sha256_file(Path(__file__)),
@@ -373,7 +389,11 @@ def run_nll(
             continue
         model_sha, source = _model_sha256(label, path, run_manifest, no_manifest_source)
         print(f"NLL_START {label} {path.name}")
-        llm = llm_factory(path, n_ctx, seed)
+        llm = (
+            llm_factory(path, n_ctx, seed)
+            if config.execution is None
+            else llm_factory(path, n_ctx, seed, config.execution)
+        )
         try:
             records = nll_scorer.score_records(llm, nll_items, label, model_sha, digit_ids)
         finally:

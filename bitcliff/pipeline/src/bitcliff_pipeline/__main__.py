@@ -268,6 +268,9 @@ def run_pipeline(
         manifest["_run_config"] = {
             "model_id": config.model_id,
             "suites": config.suites,
+            "execution": (
+                dataclasses.asdict(config.execution) if config.execution is not None else None
+            ),
         }
         write_manifest(manifest, manifest_path)
         print(f"manifest written: {manifest_path}")
@@ -376,7 +379,11 @@ def run_pipeline(
                 print(f"skip {label}: {out_path} exists")
                 continue
             print(f"generating {label} ({len(items)} items)...")
-            llm = llm_factory(path, config.generation)
+            llm = (
+                llm_factory(path, config.generation)
+                if config.execution is None
+                else llm_factory(path, config.generation, config.execution)
+            )
             gen_mod.assert_truncation_finish_reason(llm)
             if longctx_suites:
                 file_sha256 = manifest[label]["sha256"]

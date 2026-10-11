@@ -72,9 +72,14 @@ class OutputRecord:
     same legacy-record-compatibility reason as `gen_wall_seconds` above."""
 
 
-def make_llm(model_path: Path, gen: GenSettings):
+def make_llm(model_path: Path, gen: GenSettings, execution=None):
+    """Load a model. `execution` (config.ExecutionSettings, OPEN_QUESTIONS
+    §17): when None the call is the historical library-defaults one; when
+    given, every pinned field is passed as the same-named `Llama` keyword."""
     from llama_cpp import Llama
 
+    if execution is not None:
+        return Llama(model_path=str(model_path), **dataclasses.asdict(execution), verbose=False)
     return Llama(
         model_path=str(model_path),
         n_ctx=gen.n_ctx,

@@ -544,3 +544,64 @@ def test_cli_main_parses_and_dispatches(tmp_path, monkeypatch):
         str(cfg_path), "--run-id", "g1", "--labels", "Q4_K_M", "--allow-no-manifest",
     ])
     assert seen["allow_no_manifest"] is True
+
+
+def _exec_settings(n_ctx=16384, seed=42):
+    from bitcliff_pipeline.config import ExecutionSettings
+
+    return ExecutionSettings(
+        n_ctx=n_ctx, n_batch=512, n_ubatch=512, n_threads=4, n_threads_batch=8,
+        flash_attn=False, type_k=1, type_v=1, offload_kqv=True, op_offload=True,
+        rope_scaling_type=-1, rope_freq_base=0.0, rope_freq_scale=0.0,
+        yarn_ext_factor=-1.0, n_gpu_layers=-1, seed=seed,
+    )
+
+
+def test_manifest_execution_null_when_absent(tmp_path, tok):
+    out = _run(tmp_path, tok)
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["execution"] is None
+    assert manifest["other_llama_args"] == nd.UNRECOVERED_LLAMA_ARGS
+
+
+def test_execution_threaded_to_factory_and_manifest(tmp_path, tok):
+    execution = _exec_settings()
+    cfg = dataclasses.replace(_config(tmp_path), execution=execution)
+    seen = []
+
+    def factory(model_path, n_ctx, seed, ex):
+        seen.append(ex)
+        return FakeLogitsLlm(len(tok), SALTS[Path(model_path).name])
+
+    nd.run_nll(
+        cfg, run_id="r1", runs_dir=tmp_path / "runs", models_dir=tmp_path / "models",
+        base_dir=tmp_path, llm_factory=factory,
+    )
+    assert seen and all(e == execution for e in seen)
+    manifest = json.loads((tmp_path / "runs" / "r1" / "nll" / "manifest.json").read_text())
+    assert manifest["execution"] == dataclasses.asdict(execution)
+    assert manifest["other_llama_args"] == nd.PINNED_LLAMA_ARGS
+
+
+def test_make_nll_llm_kwargs(monkeypatch):
+    import llama_cpp
+
+    calls = []
+
+    class Recorder:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(llama_cpp, "Llama", Recorder)
+    nd.make_nll_llm(Path("m.gguf"), 2048, 42)
+    execution = _exec_settings()
+    nd.make_nll_llm(Path("m.gguf"), 2048, 42, execution)
+    assert calls[0] == {
+        "model_path": "m.gguf", "n_ctx": 2048, "seed": 42, "n_gpu_layers": -1,
+        "logits_all": True, "verbose": False,
+    }
+    expected = {k: v for k, v in dataclasses.asdict(execution).items() if k not in ("n_ctx", "seed")}
+    assert calls[1] == {
+        "model_path": "m.gguf", "n_ctx": 2048, "seed": 42, "logits_all": True,
+        "verbose": False, **expected,
+    }

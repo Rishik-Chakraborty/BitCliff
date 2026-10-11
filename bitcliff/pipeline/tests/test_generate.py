@@ -233,3 +233,41 @@ def test_truncation_preflight_passes_on_length():
 def test_truncation_preflight_raises_on_wrong_finish_reason(bad):
     with pytest.raises(RuntimeError, match="finish_reason"):
         assert_truncation_finish_reason(PreflightFakeLlm(bad))
+
+
+def _recording_llama(monkeypatch):
+    import llama_cpp
+
+    calls = []
+
+    class Recorder:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(llama_cpp, "Llama", Recorder)
+    return calls
+
+
+def test_make_llm_without_execution_is_the_historical_call(monkeypatch):
+    from bitcliff_pipeline.generate import make_llm
+
+    calls = _recording_llama(monkeypatch)
+    make_llm(Path("m.gguf"), GenSettings(42, 0.0, 1, 64, 4096))
+    assert calls == [
+        {"model_path": "m.gguf", "n_ctx": 4096, "seed": 42, "n_gpu_layers": -1, "verbose": False}
+    ]
+
+
+def test_make_llm_passes_every_execution_field(monkeypatch):
+    from bitcliff_pipeline.config import ExecutionSettings
+    from bitcliff_pipeline.generate import make_llm
+
+    calls = _recording_llama(monkeypatch)
+    execution = ExecutionSettings(
+        n_ctx=4096, n_batch=512, n_ubatch=256, n_threads=4, n_threads_batch=8,
+        flash_attn=False, type_k=1, type_v=1, offload_kqv=True, op_offload=True,
+        rope_scaling_type=-1, rope_freq_base=0.0, rope_freq_scale=0.0,
+        yarn_ext_factor=-1.0, n_gpu_layers=-1, seed=42,
+    )
+    make_llm(Path("m.gguf"), GenSettings(42, 0.0, 1, 64, 4096), execution)
+    assert calls == [{"model_path": "m.gguf", **asdict(execution), "verbose": False}]

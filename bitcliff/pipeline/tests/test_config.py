@@ -184,3 +184,65 @@ def test_nll_block_rejects_unknown_keys(tmp_path):
     yaml_text = VALID_YAML + "nll:\n  suites: [longctx_retrieval]\n  driver: foo\n"
     with pytest.raises(ValueError, match="driver"):
         load_config(write_yaml(tmp_path, yaml_text))
+
+
+EXEC_BLOCK = """\
+execution:
+  n_ctx: 4096
+  n_batch: 512
+  n_ubatch: 512
+  n_threads: 4
+  n_threads_batch: 8
+  flash_attn: false
+  type_k: 1
+  type_v: 1
+  offload_kqv: true
+  op_offload: true
+  rope_scaling_type: -1
+  rope_freq_base: 0.0
+  rope_freq_scale: 0.0
+  yarn_ext_factor: -1.0
+  n_gpu_layers: -1
+  seed: 42
+"""
+
+
+def test_execution_defaults_to_none(tmp_path):
+    assert load_config(write_yaml(tmp_path, VALID_YAML)).execution is None
+
+
+def test_execution_block_parses(tmp_path):
+    cfg = load_config(write_yaml(tmp_path, VALID_YAML + EXEC_BLOCK))
+    assert cfg.execution is not None
+    assert cfg.execution.n_batch == 512
+    assert cfg.execution.flash_attn is False
+    assert cfg.execution.yarn_ext_factor == -1.0
+    assert cfg.execution.n_ctx == cfg.generation.n_ctx
+
+
+def test_execution_block_rejects_missing_key(tmp_path):
+    text = EXEC_BLOCK.replace("  n_batch: 512\n", "")
+    with pytest.raises(ValueError, match="missing.*n_batch"):
+        load_config(write_yaml(tmp_path, VALID_YAML + text))
+
+
+def test_execution_block_rejects_unknown_key(tmp_path):
+    with pytest.raises(ValueError, match="unknown.*logits_all"):
+        load_config(write_yaml(tmp_path, VALID_YAML + EXEC_BLOCK + "  logits_all: true\n"))
+
+
+def test_execution_block_rejects_n_ctx_mismatch(tmp_path):
+    text = EXEC_BLOCK.replace("n_ctx: 4096", "n_ctx: 8192")
+    with pytest.raises(ValueError, match="execution.n_ctx"):
+        load_config(write_yaml(tmp_path, VALID_YAML + text))
+
+
+def test_execution_block_rejects_seed_mismatch(tmp_path):
+    text = EXEC_BLOCK.replace("seed: 42", "seed: 7")
+    with pytest.raises(ValueError, match="execution.seed"):
+        load_config(write_yaml(tmp_path, VALID_YAML + text))
+
+
+def test_execution_block_must_be_mapping(tmp_path):
+    with pytest.raises(ValueError, match="mapping"):
+        load_config(write_yaml(tmp_path, VALID_YAML + "execution: [1, 2]\n"))

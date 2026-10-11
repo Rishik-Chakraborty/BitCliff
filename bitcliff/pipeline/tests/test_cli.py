@@ -1151,3 +1151,56 @@ def test_generate_stage_refuses_disagreeing_longctx_tokenizer_paths(tmp_path, mo
     cfg = _with_2a(tmp_path, make_config(tmp_path), tokenizer_path="other-tok")
     with pytest.raises(ValueError, match="tokenizer_path"):
         _run_generate(tmp_path, cfg, "tok-disagree", lambda path, gen: LongctxFakeLlm(hf_tokenizer))
+
+
+def _execution_settings(n_ctx=4096, seed=42):
+    from bitcliff_pipeline.config import ExecutionSettings
+
+    return ExecutionSettings(
+        n_ctx=n_ctx, n_batch=512, n_ubatch=512, n_threads=4, n_threads_batch=8,
+        flash_attn=False, type_k=1, type_v=1, offload_kqv=True, op_offload=True,
+        rope_scaling_type=-1, rope_freq_base=0.0, rope_freq_scale=0.0,
+        yarn_ext_factor=-1.0, n_gpu_layers=-1, seed=seed,
+    )
+
+
+def _download_manifest(tmp_path, cfg):
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    runs_dir = tmp_path / "runs"
+    run_pipeline(
+        cfg, run_id="exec-test", models_dir=models_dir, runs_dir=runs_dir,
+        stage="download", llm_factory=lambda path, gen: FakeLlm(), base_dir=tmp_path,
+    )
+    return json.loads((runs_dir / "exec-test" / "manifest.json").read_text())["_run_config"]
+
+
+def test_manifest_run_config_execution_none_when_absent(tmp_path):
+    assert _download_manifest(tmp_path, make_config(tmp_path))["execution"] is None
+
+
+def test_manifest_run_config_records_execution_block(tmp_path):
+    cfg = dataclasses.replace(make_config(tmp_path), execution=_execution_settings())
+    rc = _download_manifest(tmp_path, cfg)
+    assert rc["execution"] == dataclasses.asdict(cfg.execution)
+
+
+def test_generate_calls_factory_with_execution_only_when_pinned(tmp_path):
+    cfg = dataclasses.replace(make_config(tmp_path), execution=_execution_settings())
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    seen = []
+
+    def factory(path, gen, execution):
+        seen.append(execution)
+        return FakeLlm()
+
+    run_pipeline(
+        cfg, run_id="exec-gen", models_dir=models_dir, runs_dir=tmp_path / "runs",
+        stage="all", llm_factory=factory, base_dir=tmp_path,
+    )
+    assert seen and all(e == cfg.execution for e in seen)
