@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import generate as gen_mod
 from . import registered
-from .config import LadderConfig, load_config
+from .config import LadderConfig, check_manifest_execution, load_config
 from .divergence import divergence_for_records
 from .grading import grade_record, read_grades
 from .hashing import build_manifest, item_set_sha256, load_manifest, verify_manifest, write_manifest
@@ -280,6 +280,10 @@ def run_pipeline(
         paths = resolve_all(config, models_dir)
         manifest = load_manifest(manifest_path)
         verify_manifest(manifest, paths)
+        check_manifest_execution(
+            (manifest.get("_run_config") or {}).get("execution"), config.execution,
+            f"generate stage ({manifest_path})",
+        )
 
         # Every longctx suite (2b `longctx_retrieval`, 2a
         # `longctx_retrieval_2a`) shares one HF tokenizer (refused otherwise).

@@ -99,7 +99,7 @@ from pathlib import Path
 
 import bitcliff_pipeline.__main__ as main_mod
 from bitcliff_pipeline import nll_scorer
-from bitcliff_pipeline.config import LadderConfig, load_config
+from bitcliff_pipeline.config import LadderConfig, check_manifest_execution, load_config
 from bitcliff_pipeline.hashing import item_set_sha256, load_manifest, sha256_file
 from bitcliff_pipeline.suites import longctx_retrieval
 
@@ -362,6 +362,11 @@ def run_nll(
     _check_run_manifest(
         config, run_manifest, labels is not None, allow_no_manifest, run_manifest_path, paths
     )
+    if run_manifest is not None and run_manifest.get("_run_config") is not None:
+        check_manifest_execution(
+            run_manifest["_run_config"].get("execution"), config.execution,
+            f"NLL driver ({run_manifest_path})",
+        )
     no_manifest_source = (
         NO_MANIFEST_SHA_SOURCE if (run_manifest is None and allow_no_manifest) else "hashed"
     )

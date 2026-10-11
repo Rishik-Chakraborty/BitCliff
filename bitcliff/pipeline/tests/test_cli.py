@@ -1250,3 +1250,67 @@ def test_generate_calls_factory_with_execution_only_when_pinned(tmp_path):
         stage="all", llm_factory=factory, base_dir=tmp_path,
     )
     assert seen and all(e == cfg.execution for e in seen)
+
+
+def _stage_setup(tmp_path, cfg):
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "m-Q4_K_M.gguf").write_bytes(b"quant bytes")
+    cfg.f16_path.write_bytes(b"f16 bytes")
+    return models_dir, tmp_path / "runs"
+
+
+def _rewrite_run_config(runs_dir, mutate):
+    mp = runs_dir / "exec-gen" / "manifest.json"
+    m = json.loads(mp.read_text())
+    mutate(m)
+    mp.write_text(json.dumps(m))
+
+
+def _generate_only(cfg, tmp_path, models_dir, runs_dir, factory):
+    run_pipeline(
+        cfg, run_id="exec-gen", models_dir=models_dir, runs_dir=runs_dir,
+        stage="generate", llm_factory=factory, base_dir=tmp_path,
+    )
+
+
+def test_generate_refuses_manifest_execution_mismatch_before_model_load(tmp_path):
+    cfg = dataclasses.replace(make_config(tmp_path), execution=_execution_settings())
+    models_dir, runs_dir = _stage_setup(tmp_path, cfg)
+    run_pipeline(
+        cfg, run_id="exec-gen", models_dir=models_dir, runs_dir=runs_dir,
+        stage="download", llm_factory=lambda p, g, e: FakeLlm(), base_dir=tmp_path,
+    )
+    _rewrite_run_config(runs_dir, lambda m: m["_run_config"].update(execution=None))
+    loaded = []
+
+    def factory(path, gen, execution):
+        loaded.append(path)
+        return FakeLlm()
+
+    with pytest.raises(RuntimeError, match="stale or foreign manifest"):
+        _generate_only(cfg, tmp_path, models_dir, runs_dir, factory)
+    assert loaded == []
+
+
+def test_generate_accepts_matching_manifest_execution(tmp_path):
+    cfg = dataclasses.replace(make_config(tmp_path), execution=_execution_settings())
+    models_dir, runs_dir = _stage_setup(tmp_path, cfg)
+    run_pipeline(
+        cfg, run_id="exec-gen", models_dir=models_dir, runs_dir=runs_dir,
+        stage="download", llm_factory=lambda p, g, e: FakeLlm(), base_dir=tmp_path,
+    )
+    _generate_only(cfg, tmp_path, models_dir, runs_dir, lambda p, g, e: FakeLlm())
+    assert (runs_dir / "exec-gen" / "outputs").exists()
+
+
+def test_generate_legacy_manifest_without_execution_key_and_no_block_proceeds(tmp_path):
+    cfg = make_config(tmp_path)
+    models_dir, runs_dir = _stage_setup(tmp_path, cfg)
+    run_pipeline(
+        cfg, run_id="exec-gen", models_dir=models_dir, runs_dir=runs_dir,
+        stage="download", llm_factory=lambda p, g: FakeLlm(), base_dir=tmp_path,
+    )
+    _rewrite_run_config(runs_dir, lambda m: m["_run_config"].pop("execution"))
+    _generate_only(cfg, tmp_path, models_dir, runs_dir, lambda p, g: FakeLlm())
+    assert (runs_dir / "exec-gen" / "outputs").exists()

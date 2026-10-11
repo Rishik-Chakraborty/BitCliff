@@ -558,10 +558,10 @@ def test_replay_fresh_makes_only_gate_calls(tmp_path):
 
 
 def test_replay_passes_execution_from_manifest(tmp_path):
-    ex = dict(n_ctx=16384, n_batch=512, n_ubatch=512, n_threads=4, n_threads_batch=4,
+    ex = dict(n_ctx=GEN.n_ctx, n_batch=512, n_ubatch=512, n_threads=4, n_threads_batch=4,
               flash_attn=True, type_k=1, type_v=1, offload_kqv=True, op_offload=False,
               rope_scaling_type=0, rope_freq_base=1e6, rope_freq_scale=1.0,
-              yarn_ext_factor=-1.0, n_gpu_layers=-1, seed=42)
+              yarn_ext_factor=-1.0, n_gpu_layers=-1, seed=GEN.seed)
     run_dir = _write_replay_run(tmp_path, execution=ex)
     factory = _fake_llm_factory()
     assert _run(run_dir, factory) == []
@@ -647,3 +647,17 @@ def test_main_exits_nonzero_and_prints_diffs(tmp_path, capsys, monkeypatch):
     assert rc != 0
     out = capsys.readouterr().out
     assert "text differs" in out
+
+
+@pytest.mark.parametrize("field", ["n_ctx", "seed"])
+def test_replay_raises_when_execution_n_ctx_or_seed_differs_from_records(tmp_path, field):
+    ex = dict(n_ctx=GEN.n_ctx, n_batch=512, n_ubatch=512, n_threads=4, n_threads_batch=4,
+              flash_attn=True, type_k=1, type_v=1, offload_kqv=True, op_offload=False,
+              rope_scaling_type=0, rope_freq_base=1e6, rope_freq_scale=1.0,
+              yarn_ext_factor=-1.0, n_gpu_layers=-1, seed=GEN.seed)
+    ex[field] += 1
+    run_dir = _write_replay_run(tmp_path, execution=ex)
+    factory = _fake_llm_factory()
+    with pytest.raises(ValueError, match="n_ctx/seed"):
+        _run(run_dir, factory)
+    assert not hasattr(factory, "llm") or not factory.llm.calls

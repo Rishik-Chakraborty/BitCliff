@@ -194,3 +194,20 @@ def load_config(path: str | Path) -> LadderConfig:
             _load_execution(raw["execution"], generation, path) if "execution" in raw else None
         ),
     )
+
+
+def check_manifest_execution(manifest_execution, config_execution, where: str) -> None:
+    """Raise if a manifest's recorded `_run_config.execution` (a dict, or
+    None / absent for legacy manifests) differs from the config's
+    `execution` block (an ExecutionSettings or None). The replay gate trusts
+    the manifest's value (RUN_0B_PRIME §4), so a stage that runs with pinned
+    settings must not do so against a manifest that says otherwise."""
+    from dataclasses import asdict
+
+    expected = asdict(config_execution) if config_execution is not None else None
+    if manifest_execution != expected:
+        raise RuntimeError(
+            f"{where}: manifest `_run_config.execution` is {manifest_execution!r} but "
+            f"the config's execution block is {expected!r} -- stale or foreign "
+            f"manifest; re-run the download stage with this config"
+        )

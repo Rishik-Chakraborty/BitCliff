@@ -180,7 +180,7 @@ SALTS = {"f16.gguf": 0, "m-Q4_K_M.gguf": 5, "m-Q3_K_M.gguf": 11}
 
 
 def _factory(tok, calls=None):
-    def factory(model_path, n_ctx, seed):
+    def factory(model_path, n_ctx, seed, *execution):
         if calls is not None:
             calls.append((Path(model_path).name, n_ctx, seed))
         return FakeLogitsLlm(len(tok), SALTS[Path(model_path).name])
@@ -642,3 +642,40 @@ def test_items_jsonl_order_mismatch_raises(tmp_path, tok):
     _write_items_jsonl(tmp_path, rows)
     with pytest.raises(RuntimeError, match="item order differs"):
         _run(tmp_path, tok, cfg=cfg)
+
+
+def _write_run_manifest_with_execution(tmp_path, execution):
+    _write_run_manifest(tmp_path)
+    mp = tmp_path / "runs" / "r1" / "manifest.json"
+    m = json.loads(mp.read_text())
+    m["_run_config"] = {"model_id": "m", "suites": {}}
+    if execution is not None:
+        m["_run_config"]["execution"] = execution
+    mp.write_text(json.dumps(m))
+
+
+def test_run_manifest_execution_mismatch_refused(tmp_path, tok, no_item_gate):
+    cfg = dataclasses.replace(_config(tmp_path, exploratory=False), execution=_exec_settings())
+    _write_run_manifest_with_execution(tmp_path, None)
+    with pytest.raises(RuntimeError, match="execution"):
+        _run(tmp_path, tok, cfg=cfg)
+    assert not (tmp_path / "runs" / "r1" / "nll" / "F16.jsonl").exists()
+
+
+def test_run_manifest_execution_match_accepted(tmp_path, tok, no_item_gate):
+    ex = _exec_settings()
+    cfg = dataclasses.replace(_config(tmp_path, exploratory=False), execution=ex)
+    _write_run_manifest_with_execution(tmp_path, dataclasses.asdict(ex))
+    assert (_run(tmp_path, tok, cfg=cfg) / "manifest.json").exists()
+
+
+def test_run_manifest_legacy_without_execution_key_accepted(tmp_path, tok, no_item_gate):
+    cfg = _config(tmp_path, exploratory=False)
+    _write_run_manifest_with_execution(tmp_path, None)
+    assert (_run(tmp_path, tok, cfg=cfg) / "manifest.json").exists()
+
+
+def test_no_run_manifest_skips_execution_check(tmp_path, tok, no_item_gate):
+    cfg = dataclasses.replace(_config(tmp_path, exploratory=False), execution=_exec_settings())
+    out = _run(tmp_path, tok, cfg=cfg, labels=["Q4_K_M"], allow_no_manifest=True)
+    assert (out / "manifest.json").exists()

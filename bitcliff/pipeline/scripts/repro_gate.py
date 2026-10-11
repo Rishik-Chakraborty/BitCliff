@@ -17,6 +17,9 @@ of the N gate items, each with its own recorded `max_tokens_effective`. Only
 the N gate items are compared. `--fresh` is the old fresh-object, gate-items-
 only form; it is NOT a reproduction test (see above) and is kept only for
 diagnosis.
+The original generate stage's longctx tokenizer-match check is not replayed
+because it only calls `llm.tokenize` (no decode, no KV state) -- cf. the run
+manifest's `_call_sequence.tokenizer_match`.
 
 Given a committed run directory, a rung (quant label), a suite and an N,
 regenerates the first N items (id order) of that suite with the exact
@@ -332,6 +335,12 @@ def run_repro_gate(
 
     execution = (manifest.get("_run_config") or {}).get("execution")
     if execution is not None:
+        if execution.get("n_ctx") != gen.n_ctx or execution.get("seed") != gen.seed:
+            raise ValueError(
+                f"source manifest execution n_ctx/seed "
+                f"({execution.get('n_ctx')}/{execution.get('seed')}) differ from the "
+                f"records' gen_settings ({gen.n_ctx}/{gen.seed}) -- refusing to replay"
+            )
         llm = llm_factory(model_path, gen, ExecutionSettings(**execution))
     else:
         llm = llm_factory(model_path, gen)
@@ -355,7 +364,9 @@ def run_repro_gate(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Task 6: reproduction gate -- regenerate the first N "
-        "items of a suite/rung and diff against the committed run."
+        "items of a suite/rung and diff against the committed run. The default "
+        "is the replay form (one model object, the source run's call sequence "
+        "replayed); --fresh is NOT a reproduction test."
     )
     parser.add_argument("--run-dir", required=True, type=Path)
     parser.add_argument("--rung", required=True, help="quant label, e.g. Q4_K_M")
