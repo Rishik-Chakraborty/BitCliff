@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
-"""Task 6: reproduction gate.
+"""Task 6: reproduction gate (replay form by default, RUN_0B_PRIME §4).
+
+Generated text depends on call history: llama-cpp-python reuses the longest
+shared KV-cache token prefix with the previous call (llama.py `generate`),
+so the same item can decode differently after different predecessors
+(OPEN_QUESTIONS §17, diagnostic 2026-10-07: fresh-object runs differed from
+0B on item 0005; replaying 0B's whole call sequence on one object matched
+25/25 gate items and 1094/1094 earlier calls). The reproduction gate is
+therefore the REPLAY form (default): one model object, built with the source
+manifest's `_run_config.execution` when present; the truncation preflight
+first (`generate.assert_truncation_finish_reason`, the first call 0B made on
+every model object); then every record of the source run's
+`outputs/<rung>.jsonl`, in that file's record order (= the recorded call
+order, asserted equal to `items.jsonl` order), up to and including the last
+of the N gate items, each with its own recorded `max_tokens_effective`. Only
+the N gate items are compared. `--fresh` is the old fresh-object, gate-items-
+only form; it is NOT a reproduction test (see above) and is kept only for
+diagnosis.
 
 Given a committed run directory, a rung (quant label), a suite and an N,
 regenerates the first N items (id order) of that suite with the exact
@@ -40,7 +57,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bitcliff_pipeline import generate as gen_mod
-from bitcliff_pipeline.config import GenSettings
+from bitcliff_pipeline.config import ExecutionSettings, GenSettings
 from bitcliff_pipeline.grading import grade_record, read_grades
 from bitcliff_pipeline.hashing import load_manifest
 from bitcliff_pipeline.items import EvalItem
@@ -230,6 +247,40 @@ def diff_against_expected(
     return diffs
 
 
+def _replay_plan(
+    run_dir: Path, rung: str, items: list[EvalItem], gate_ids: list[str]
+) -> tuple[list[EvalItem], dict[str, int]]:
+    """The recorded call sequence up to and including the last gate item, and
+    the per-suite budget. Raises if `outputs/<rung>.jsonl` order differs from
+    `items.jsonl` order, a gate item is absent, or a suite's records disagree
+    on `max_tokens_effective`."""
+    out_path = run_dir / "outputs" / f"{rung}.jsonl"
+    if not out_path.exists():
+        raise ValueError(f"replay needs the source run's outputs, missing: {out_path}")
+    rows = _read_output_dicts(out_path)
+    recorded_ids = [d["item_id"] for d in rows]
+    items_order = [i.id for i in items if i.id in set(recorded_ids)]
+    if recorded_ids != items_order:
+        raise ValueError(
+            f"{out_path} record order differs from items.jsonl order; the "
+            "recorded call order cannot be replayed from items.jsonl"
+        )
+    absent = [g for g in gate_ids if g not in set(recorded_ids)]
+    if absent:
+        raise ValueError(f"gate items absent from {out_path}: {sorted(absent)}")
+    last = max(recorded_ids.index(g) for g in gate_ids)
+    by_id = {i.id: i for i in items}
+    budgets: dict[str, int] = {}
+    for d in rows[: last + 1]:
+        b = d["gen_settings"]["max_tokens_effective"]
+        if budgets.setdefault(d["suite"], b) != b:
+            raise ValueError(
+                f"suite {d['suite']!r} records disagree on max_tokens_effective "
+                f"({budgets[d['suite']]} vs {b}) in {out_path}"
+            )
+    return [by_id[i] for i in recorded_ids[: last + 1]], budgets
+
+
 def run_repro_gate(
     run_dir: Path,
     rung: str,
@@ -238,13 +289,17 @@ def run_repro_gate(
     model_path: Path,
     llm_factory=gen_mod.make_llm,
     fixture_path: Path | None = None,
+    fresh: bool = False,
 ) -> list[str]:
     """Regenerates the first `n` `suite` items of `rung` in `run_dir` with
     the recorded settings and diffs them against either the committed
-    run's own files (default) or `fixture_path` when given. `llm_factory`
-    is injectable (`(model_path, GenSettings) -> llm`) so tests can pass a
-    fake provider instead of `generate.make_llm`; no real model run
-    happens in this repo's test suite."""
+    run's own files (default) or `fixture_path` when given. Default is the
+    replay form (module docstring); `fresh=True` generates the gate items
+    only on a fresh object, no preflight (NOT a reproduction test).
+    `llm_factory` is injectable (`(model_path, GenSettings[, execution])
+    -> llm`; the third argument is passed only when the source manifest
+    records `_run_config.execution`) so tests can pass a fake provider; no
+    real model run happens in this repo's test suite."""
     manifest = load_manifest(run_dir / "manifest.json")
     model_sha256 = manifest[rung]["sha256"]
 
@@ -253,6 +308,11 @@ def run_repro_gate(
     selected = select_first_n(items, suite, n)
     item_ids = [i.id for i in selected]
 
+    if not fresh and not (run_dir / "outputs" / f"{rung}.jsonl").exists():
+        raise ValueError(
+            f"replay needs the source run's outputs, missing: "
+            f"{run_dir / 'outputs' / f'{rung}.jsonl'}"
+        )
     gen, max_tokens_effective = gen_settings_from_output(run_dir, rung, suite)
 
     expected = (
@@ -261,11 +321,25 @@ def run_repro_gate(
         else load_expected_from_run(run_dir, rung, suite, item_ids)
     )
 
-    llm = llm_factory(model_path, gen)
-    records = gen_mod.run_items(
-        llm, selected, rung, model_sha256, gen,
-        max_tokens_by_suite={suite: max_tokens_effective},
-    )
+    execution = (manifest.get("_run_config") or {}).get("execution")
+    if execution is not None:
+        llm = llm_factory(model_path, gen, ExecutionSettings(**execution))
+    else:
+        llm = llm_factory(model_path, gen)
+
+    if fresh:
+        records = gen_mod.run_items(
+            llm, selected, rung, model_sha256, gen,
+            max_tokens_by_suite={suite: max_tokens_effective},
+        )
+    else:
+        sequence, budgets = _replay_plan(run_dir, rung, items, item_ids)
+        gen_mod.assert_truncation_finish_reason(llm)
+        replayed = gen_mod.run_items(
+            llm, sequence, rung, model_sha256, gen, max_tokens_by_suite=budgets,
+        )
+        gate = set(item_ids)
+        records = [r for r in replayed if r.item_id in gate]
     return diff_against_expected(expected, items_by_id, records)
 
 
@@ -284,23 +358,35 @@ def main(argv: list[str] | None = None) -> int:
         help="compare against a merged fixture file instead of the "
         "committed run's outputs/<rung>.jsonl + grades.jsonl",
     )
+    parser.add_argument(
+        "--fresh", action="store_true",
+        help="old form: fresh model object, gate items only, no preflight. "
+        "NOT a reproduction test: generated text depends on call history "
+        "through llama-cpp-python's KV-prefix reuse (OPEN_QUESTIONS §17, "
+        "diagnostic 2026-10-07: fresh runs differed from 0B on item 0005; "
+        "replay matched 25/25).",
+    )
     args = parser.parse_args(argv)
 
     diffs = run_repro_gate(
         args.run_dir, args.rung, args.suite, args.n, args.model_path,
         llm_factory=gen_mod.make_llm, fixture_path=args.fixture,
+        fresh=args.fresh,
     )
+    form = "fresh (NOT a reproduction test)" if args.fresh else "replay"
     if diffs:
         for d in diffs:
             print(d)
         print(
             f"FAIL: {len(diffs)} difference(s) reproducing the first "
-            f"{args.n} {args.suite} items of {args.rung} in {args.run_dir}"
+            f"{args.n} {args.suite} items of {args.rung} in {args.run_dir} "
+            f"[{form} form]"
         )
         return 1
     print(
         f"PASS: first {args.n} {args.suite} items of {args.rung} in "
-        f"{args.run_dir} reproduce exactly"
+        f"{args.run_dir} reproduce exactly "
+        f"[{form} form]"
     )
     return 0
 

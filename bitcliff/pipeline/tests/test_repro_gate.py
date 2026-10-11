@@ -119,24 +119,41 @@ class FakeLlm:
     """Echoes a fixed completion text for every prompt (token-id path,
     since longctx items in this pipeline always carry prompt_tokens)."""
 
+    PREFLIGHT_TOKENS = [999]
+
     def __init__(self, text="The code is 4404.", finish_reason="stop"):
         self._text = text
         self._finish_reason = finish_reason
         self.calls = []
 
+    def tokenize(self, data, add_bos=True, special=False):
+        return list(self.PREFLIGHT_TOKENS)
+
     def create_completion(self, prompt, max_tokens, temperature, top_k, seed):
         self.calls.append({"prompt": prompt, "max_tokens": max_tokens})
+        finish = "length" if prompt == self.PREFLIGHT_TOKENS else self._finish_reason
         return {
-            "choices": [{"text": self._text, "finish_reason": self._finish_reason}],
+            "choices": [{"text": self._text, "finish_reason": finish}],
             "usage": _kv_usage(self, len(prompt), len(self._text.split())),
+        }
+
+    def create_chat_completion(self, messages, max_tokens, temperature, top_k, seed):
+        self.calls.append({"prompt": messages[0]["content"], "max_tokens": max_tokens})
+        return {
+            "choices": [{
+                "message": {"content": self._text}, "finish_reason": self._finish_reason,
+            }],
+            "usage": _kv_usage(self, 3, len(self._text.split())),
         }
 
 
 def _fake_llm_factory(text="The code is 4404.", finish_reason="stop"):
-    def factory(model_path, gen):
+    def factory(model_path, gen, *execution):
         factory.model_path = model_path
         factory.gen = gen
-        return FakeLlm(text=text, finish_reason=finish_reason)
+        factory.execution_args = execution
+        factory.llm = FakeLlm(text=text, finish_reason=finish_reason)
+        return factory.llm
 
     return factory
 
@@ -341,6 +358,21 @@ def test_main_exits_zero_and_prints_pass(tmp_path, capsys, monkeypatch):
     assert rc == 0
     out = capsys.readouterr().out
     assert "PASS" in out
+    assert "replay form" in out
+    assert factory.llm.calls[0]["prompt"] == FakeLlm.PREFLIGHT_TOKENS
+
+
+def test_main_fresh_flag_names_fresh_form(tmp_path, capsys, monkeypatch):
+    run_dir, items = _write_run_dir(tmp_path, n=2)
+    factory = _fake_llm_factory()
+    monkeypatch.setattr(rg.gen_mod, "make_llm", factory)
+    rc = rg.main([
+        "--run-dir", str(run_dir), "--rung", "Q4_K_M", "--suite", "longctx_retrieval",
+        "--n", "2", "--model-path", "/fake/model.gguf", "--fresh",
+    ])
+    assert rc == 0
+    assert "fresh" in capsys.readouterr().out
+    assert len(factory.llm.calls) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -357,60 +389,241 @@ REAL_FIXTURE = (
 )
 
 
-class SequentialFakeLlm:
-    """Returns the fixture's (text, finish_reason) pairs in order -- valid
-    because `run_items` calls the llm once per item, in the exact order
-    `select_first_n` (id order) hands it items, which is the same order
-    the fixture rows are in (both built by sorting on item id)."""
+class ReplayFakeLlm:
+    """Answers each replayed call from the committed outputs, looked up by
+    prompt (chat) or by the item's prompt_tokens (completion). The first
+    call is the truncation preflight."""
 
-    def __init__(self, texts_and_finish_reasons):
-        self._rows = iter(texts_and_finish_reasons)
+    def __init__(self, run_dir):
+        items = {i.id: i for i in rg.read_items(run_dir)}
+        self._by_tokens, self._by_prompt = {}, {}
+        for d in rg._read_output_dicts(run_dir / "outputs" / "Q4_K_M.jsonl"):
+            it = items[d["item_id"]]
+            ans = (d["text"], d["finish_reason"])
+            if it.prompt_tokens is not None:
+                self._by_tokens[tuple(it.prompt_tokens)] = ans
+            else:
+                self._by_prompt[it.prompt] = ans
+        self.n_calls = 0
+
+    def tokenize(self, data, add_bos=True, special=False):
+        return [999_999_999]
 
     def create_completion(self, prompt, max_tokens, temperature, top_k, seed):
-        text, finish_reason = next(self._rows)
+        self.n_calls += 1
+        if prompt == [999_999_999]:
+            text, finish = "x", "length"
+        else:
+            text, finish = self._by_tokens[tuple(prompt)]
         return {
-            "choices": [{"text": text, "finish_reason": finish_reason}],
+            "choices": [{"text": text, "finish_reason": finish}],
             "usage": _kv_usage(self, len(prompt), len(text.split())),
+        }
+
+    def create_chat_completion(self, messages, max_tokens, temperature, top_k, seed):
+        self.n_calls += 1
+        text, finish = self._by_prompt[messages[0]["content"]]
+        return {
+            "choices": [{"message": {"content": text}, "finish_reason": finish}],
+            "usage": _kv_usage(self, 3, len(text.split())),
         }
 
 
 def test_run_repro_gate_against_real_run_and_fixture_passes():
-    fixture_rows = [
-        json.loads(line)
-        for line in REAL_FIXTURE.read_text().splitlines()
-        if "_extraction_note" not in line
-    ]
-    rows = [(row["text"], row["finish_reason"]) for row in fixture_rows]
+    fakes = []
 
     def factory(model_path, gen):
-        return SequentialFakeLlm(rows)
+        fakes.append(ReplayFakeLlm(REAL_RUN_DIR))
+        return fakes[0]
 
+    n = sum(1 for line in REAL_FIXTURE.read_text().splitlines() if "_extraction_note" not in line)
     diffs = rg.run_repro_gate(
-        REAL_RUN_DIR, "Q4_K_M", "longctx_retrieval", len(rows),
+        REAL_RUN_DIR, "Q4_K_M", "longctx_retrieval", n,
         Path("/fake/model.gguf"), llm_factory=factory, fixture_path=REAL_FIXTURE,
     )
     assert diffs == []
+    assert fakes[0].n_calls > n  # replayed the earlier calls too
 
 
 def test_run_repro_gate_against_real_run_without_fixture_passes():
-    """Same real run, but comparing straight against the committed
-    outputs/Q4_K_M.jsonl + grades.jsonl (no --fixture) -- exercises the
-    default (non-fixture) path end to end."""
-    items = rg.read_items(REAL_RUN_DIR)
-    selected = rg.select_first_n(items, "longctx_retrieval", 25)
-    expected = rg.load_expected_from_run(
-        REAL_RUN_DIR, "Q4_K_M", "longctx_retrieval", [i.id for i in selected]
-    )
-    rows = [(expected[i.id].text, expected[i.id].finish_reason) for i in selected]
+    """Same real run, comparing straight against the committed
+    outputs/Q4_K_M.jsonl + grades.jsonl (no --fixture), replay form."""
+    fakes = []
 
     def factory(model_path, gen):
-        return SequentialFakeLlm(rows)
+        fakes.append(ReplayFakeLlm(REAL_RUN_DIR))
+        return fakes[0]
 
     diffs = rg.run_repro_gate(
         REAL_RUN_DIR, "Q4_K_M", "longctx_retrieval", 25,
         Path("/fake/model.gguf"), llm_factory=factory,
     )
     assert diffs == []
+    assert fakes[0].n_calls > 1000
+
+
+def test_run_repro_gate_against_real_run_fresh_makes_only_gate_calls():
+    fakes = []
+
+    def factory(model_path, gen):
+        fakes.append(ReplayFakeLlm(REAL_RUN_DIR))
+        return fakes[0]
+
+    diffs = rg.run_repro_gate(
+        REAL_RUN_DIR, "Q4_K_M", "longctx_retrieval", 25,
+        Path("/fake/model.gguf"), llm_factory=factory, fresh=True,
+    )
+    assert diffs == []
+    assert fakes[0].n_calls == 25
+
+
+# ---------------------------------------------------------------------------
+# Replay form (OPEN_QUESTIONS §17)
+# ---------------------------------------------------------------------------
+
+
+def _write_replay_run(tmp_path, execution=None, order=None, budgets=None):
+    """Source run whose recorded order puts 2 `arithmetic` items before the
+    longctx gate items, with a different budget per suite."""
+    rung = "Q4_K_M"
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    ids = order or [
+        ("arithmetic", "arithmetic-000"), ("arithmetic", "arithmetic-001"),
+        ("longctx_retrieval", "longctx_retrieval-0000"),
+        ("longctx_retrieval", "longctx_retrieval-0001"),
+        ("longctx_retrieval", "longctx_retrieval-0002"),
+    ]
+    budgets = budgets or {"arithmetic": 16, "longctx_retrieval": 32}
+    items = [
+        EvalItem(
+            iid, suite, f"prompt {iid}", ("4404",),
+            (1, 2, 3) if suite == "longctx_retrieval" else None,
+        )
+        for suite, iid in ids
+    ]
+    (run_dir / "items.jsonl").write_text("".join(
+        json.dumps({
+            "id": it.id, "suite": it.suite, "prompt": it.prompt,
+            "expected": list(it.expected),
+            "prompt_tokens": list(it.prompt_tokens) if it.prompt_tokens else None,
+        }) + "\n" for it in items
+    ))
+    cfg = {"model_id": "m", "suites": {}}
+    if execution is not None:
+        cfg["execution"] = execution
+    write_manifest(
+        {rung: {"filename": "x.gguf", "sha256": "deadbeef", "size_bytes": 1}, "_run_config": cfg},
+        run_dir / "manifest.json",
+    )
+    (run_dir / "outputs").mkdir()
+    write_records(
+        [_output_record(it.id, it.suite, rung, "The code is 4404.",
+                        max_tokens_effective=budgets[it.suite]) for it in items],
+        run_dir / "outputs" / f"{rung}.jsonl",
+    )
+    write_grades(
+        [GradeResult(it.id, it.suite, rung, "correct", False, False) for it in items],
+        run_dir / "grades.jsonl",
+    )
+    return run_dir
+
+
+def _run(run_dir, factory, n=2, **kw):
+    return rg.run_repro_gate(
+        run_dir, "Q4_K_M", "longctx_retrieval", n, Path("/fake/model.gguf"),
+        llm_factory=factory, **kw,
+    )
+
+
+def test_replay_calls_preflight_then_recorded_order_through_last_gate_item(tmp_path):
+    run_dir = _write_replay_run(tmp_path)
+    factory = _fake_llm_factory()
+    assert _run(run_dir, factory, n=2) == []
+    calls = factory.llm.calls
+    # preflight, 2 arithmetic (chat), 2 gate items; the 3rd longctx item is not replayed
+    assert [c["prompt"] for c in calls] == [
+        FakeLlm.PREFLIGHT_TOKENS, "prompt arithmetic-000", "prompt arithmetic-001", [1, 2, 3], [1, 2, 3],
+    ]
+    assert [c["max_tokens"] for c in calls][1:] == [16, 16, 32, 32]
+    assert factory.execution_args == ()
+
+
+def test_replay_fresh_makes_only_gate_calls(tmp_path):
+    run_dir = _write_replay_run(tmp_path)
+    factory = _fake_llm_factory()
+    assert _run(run_dir, factory, n=2, fresh=True) == []
+    assert [c["max_tokens"] for c in factory.llm.calls] == [32, 32]
+    assert all(c["prompt"] == [1, 2, 3] for c in factory.llm.calls)
+
+
+def test_replay_passes_execution_from_manifest(tmp_path):
+    ex = dict(n_ctx=16384, n_batch=512, n_ubatch=512, n_threads=4, n_threads_batch=4,
+              flash_attn=True, type_k=1, type_v=1, offload_kqv=True, op_offload=False,
+              rope_scaling_type=0, rope_freq_base=1e6, rope_freq_scale=1.0,
+              yarn_ext_factor=-1.0, n_gpu_layers=-1, seed=42)
+    run_dir = _write_replay_run(tmp_path, execution=ex)
+    factory = _fake_llm_factory()
+    assert _run(run_dir, factory) == []
+    assert factory.execution_args == (rg.ExecutionSettings(**ex),)
+
+
+def test_replay_gate_items_not_contiguous_replays_through_last(tmp_path):
+    order = [
+        ("longctx_retrieval", "longctx_retrieval-0000"),
+        ("arithmetic", "arithmetic-000"),
+        ("longctx_retrieval", "longctx_retrieval-0001"),
+        ("arithmetic", "arithmetic-001"),
+    ]
+    run_dir = _write_replay_run(tmp_path, order=order)
+    factory = _fake_llm_factory()
+    assert _run(run_dir, factory, n=2) == []
+    assert len(factory.llm.calls) == 1 + 3
+
+
+def test_replay_raises_when_outputs_order_differs_from_items_order(tmp_path):
+    run_dir = _write_replay_run(tmp_path)
+    out = run_dir / "outputs" / "Q4_K_M.jsonl"
+    lines = out.read_text().splitlines()
+    lines[0], lines[1] = lines[1], lines[0]
+    out.write_text("\n".join(lines) + "\n")
+    with pytest.raises(ValueError, match="order differs"):
+        _run(run_dir, _fake_llm_factory())
+
+
+def test_replay_raises_when_gate_item_absent_from_outputs(tmp_path):
+    run_dir = _write_replay_run(tmp_path)
+    out = run_dir / "outputs" / "Q4_K_M.jsonl"
+    lines = out.read_text().splitlines()
+    out.write_text("\n".join(lines[:-1]) + "\n")
+    fixture = tmp_path / "f.jsonl"
+    fixture.write_text("".join(
+        json.dumps({"item_id": f"longctx_retrieval-000{i}", "text": "t",
+                    "finish_reason": "stop", "state": "correct", "truncated": False}) + "\n"
+        for i in range(3)))
+    with pytest.raises(ValueError, match="absent"):
+        _run(run_dir, _fake_llm_factory(), n=3, fixture_path=fixture)
+
+
+def test_replay_raises_when_suite_budgets_disagree(tmp_path):
+    run_dir = _write_replay_run(tmp_path)
+    out = run_dir / "outputs" / "Q4_K_M.jsonl"
+    lines = out.read_text().splitlines()
+    d = json.loads(lines[3])
+    d["gen_settings"]["max_tokens_effective"] = 99
+    lines[3] = json.dumps(d)
+    out.write_text("\n".join(lines) + "\n")
+    with pytest.raises(ValueError, match="disagree"):
+        _run(run_dir, _fake_llm_factory())
+
+
+def test_replay_with_fixture_still_requires_run_outputs(tmp_path):
+    run_dir = _write_replay_run(tmp_path)
+    (run_dir / "outputs" / "Q4_K_M.jsonl").unlink()
+    fixture = tmp_path / "f.jsonl"
+    fixture.write_text("")
+    with pytest.raises(ValueError, match="missing"):
+        _run(run_dir, _fake_llm_factory(), fixture_path=fixture)
 
 
 def test_main_exits_nonzero_and_prints_diffs(tmp_path, capsys, monkeypatch):
