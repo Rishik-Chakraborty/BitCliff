@@ -23,6 +23,7 @@ Exit 0 for tier 1 or 2, 1 for mismatch.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,14 +80,20 @@ def compare_records(produced, committed) -> GateResult:
             )
         for j, (a, b) in enumerate(zip(p.per_token_nll, c.per_token_nll)):
             d = abs(a - b)
-            if d > TOLERANCE:
+            if not (math.isfinite(a) and math.isfinite(b) and d <= TOLERANCE):
                 return _mismatch(
                     n, c.item_id, "per_token_nll",
-                    f"position {j}: produced {a!r}, committed {b!r}, |diff| {d:.3g} > {TOLERANCE}",
+                    f"position {j}: produced {a!r}, committed {b!r}, |diff| {d:.3g} "
+                    f"(non-finite or > {TOLERANCE})",
                 )
             max_pt = max(max_pt, d)
         if p.per_token_nll != c.per_token_nll:
             exact = False
+        if not (math.isfinite(p.span_mean_nll) and math.isfinite(c.span_mean_nll)):
+            return _mismatch(
+                n, c.item_id, "span_mean_nll",
+                f"non-finite: produced {p.span_mean_nll!r}, committed {c.span_mean_nll!r}",
+            )
         d = abs(p.span_mean_nll - c.span_mean_nll)
         max_span = max(max_span, d)
         if p.span_mean_nll != c.span_mean_nll:
@@ -97,6 +104,11 @@ def compare_records(produced, committed) -> GateResult:
                 n, c.item_id, "digits_only_mean_nll", f"produced {pd!r}, committed {cd!r}"
             )
         if pd is not None:
+            if not (math.isfinite(pd) and math.isfinite(cd)):
+                return _mismatch(
+                    n, c.item_id, "digits_only_mean_nll",
+                    f"non-finite: produced {pd!r}, committed {cd!r}",
+                )
             max_dig = max(max_dig, abs(pd - cd))
             if pd != cd:
                 exact = False

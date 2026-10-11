@@ -106,3 +106,38 @@ def test_main_exit_codes(tmp_path, capsys):
     assert gc.main([str(c), str(a)]) == 1
     out = capsys.readouterr().out
     assert "MISMATCH" in out and "recorded (file) order" in out
+
+
+def _with_pt(vals_prod, vals_com):
+    prod, com = _base(), _base()
+    prod[0] = dataclasses.replace(prod[0], per_token_nll=vals_prod)
+    com[0] = dataclasses.replace(com[0], per_token_nll=vals_com)
+    return gc.compare_records(prod, com)
+
+
+def test_nan_per_token_produced_side_is_mismatch():
+    r = _with_pt([1.0, float("nan")], [1.0, 2.0])
+    assert r.outcome == "mismatch" and (r.offending_item, r.offending_field) == ("it0", "per_token_nll")
+
+
+def test_nan_per_token_both_sides_is_mismatch():
+    nan = float("nan")
+    assert _with_pt([1.0, nan], [1.0, nan]).outcome == "mismatch"
+
+
+def test_inf_vs_inf_per_token_is_mismatch():
+    inf = float("inf")
+    assert _with_pt([1.0, inf], [1.0, inf]).outcome == "mismatch"
+
+
+def test_nan_span_mean_is_mismatch():
+    prod = _base()
+    prod[1] = dataclasses.replace(prod[1], span_mean_nll=float("nan"))
+    r = gc.compare_records(prod, _base())
+    assert r.outcome == "mismatch" and (r.offending_item, r.offending_field) == ("it1", "span_mean_nll")
+
+
+def test_nan_digits_only_is_mismatch():
+    prod = _base()
+    prod[0] = dataclasses.replace(prod[0], digits_only_mean_nll=float("nan"))
+    assert gc.compare_records(prod, _base()).offending_field == "digits_only_mean_nll"
