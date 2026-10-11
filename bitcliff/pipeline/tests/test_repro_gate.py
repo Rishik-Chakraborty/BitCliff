@@ -107,6 +107,14 @@ def _write_run_dir(tmp_path, rung="Q4_K_M", suite="longctx_retrieval", n=3):
     return run_dir, items
 
 
+def _kv_usage(llm, prompt_tokens, completion_tokens):
+    """Mimic llama-cpp's post-call state (OPEN_QUESTIONS §17):
+    `_input_ids[:n_tokens]` is prompt + evaluated generation."""
+    llm._input_ids = [0] * prompt_tokens + list(range(100, 100 + completion_tokens))
+    llm.n_tokens = prompt_tokens + completion_tokens
+    return {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
+
+
 class FakeLlm:
     """Echoes a fixed completion text for every prompt (token-id path,
     since longctx items in this pipeline always carry prompt_tokens)."""
@@ -120,7 +128,7 @@ class FakeLlm:
         self.calls.append({"prompt": prompt, "max_tokens": max_tokens})
         return {
             "choices": [{"text": self._text, "finish_reason": self._finish_reason}],
-            "usage": {"completion_tokens": len(self._text.split())},
+            "usage": _kv_usage(self, len(prompt), len(self._text.split())),
         }
 
 
@@ -362,7 +370,7 @@ class SequentialFakeLlm:
         text, finish_reason = next(self._rows)
         return {
             "choices": [{"text": text, "finish_reason": finish_reason}],
-            "usage": {"completion_tokens": len(text.split())},
+            "usage": _kv_usage(self, len(prompt), len(text.split())),
         }
 
 

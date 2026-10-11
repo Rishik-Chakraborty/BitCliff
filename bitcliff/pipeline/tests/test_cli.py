@@ -72,13 +72,21 @@ class FakeLlm:
     def tokenize(self, text, add_bos=True, special=False):
         return list(range(len(text.split())))
 
+    def _kv(self, prompt_tokens, completion_tokens):
+        """Mimic llama-cpp's post-call state (OPEN_QUESTIONS §17):
+        `_input_ids[:n_tokens]` is prompt + evaluated generation. Returns
+        the matching `usage` dict."""
+        self._input_ids = [0] * prompt_tokens + list(range(100, 100 + completion_tokens))
+        self.n_tokens = prompt_tokens + completion_tokens
+        return {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
+
     def create_chat_completion(self, messages, **kwargs):
         prompt = messages[0]["content"]
         m = self._ARITH_RE.search(prompt)
         content = f"#### {int(m.group(1)) + int(m.group(2))}" if m else prompt
         return {
             "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
-            "usage": {"completion_tokens": len(content.split())},
+            "usage": self._kv(4, len(content.split())),
         }
 
     def create_completion(self, prompt, max_tokens, **kwargs):
@@ -86,7 +94,7 @@ class FakeLlm:
         # path with a small budget and expects an honest "length"
         return {
             "choices": [{"text": "1, 2, 3", "finish_reason": "length"}],
-            "usage": {"completion_tokens": max_tokens},
+            "usage": self._kv(len(prompt), max_tokens),
         }
 
 
@@ -334,7 +342,7 @@ class TokenAwareFakeLlm(FakeLlm):
             return super().create_completion(prompt, max_tokens, **kwargs)
         return {
             "choices": [{"text": "The passcode is 42.", "finish_reason": "stop"}],
-            "usage": {"completion_tokens": 5},
+            "usage": self._kv(len(prompt), 5),
         }
 
 
@@ -478,11 +486,11 @@ class LongctxFakeLlm(FakeLlm):
         if max_tokens == gen_mod.TRUNCATION_PREFLIGHT_MAX_TOKENS:
             return {
                 "choices": [{"text": "1, 2, 3", "finish_reason": "length"}],
-                "usage": {"completion_tokens": max_tokens},
+                "usage": self._kv(len(prompt), max_tokens),
             }
         return {
             "choices": [{"text": "irrelevant completion", "finish_reason": "stop"}],
-            "usage": {"completion_tokens": 3},
+            "usage": self._kv(len(prompt), 3),
         }
 
 
@@ -1112,6 +1120,44 @@ def test_generate_stage_tokenizer_gate_samples_each_longctx_suite(tmp_path, monk
         (i for i in items if i["suite"] == "longctx_retrieval_2a"), key=lambda i: i["id"])][:20]
     # Two files (F16, Q4_K_M) x one registered 20-string sample per suite.
     assert calls == [sample_2b, sample_2a, sample_2b, sample_2a]
+
+
+def test_generate_stage_persists_call_sequence_in_manifest_before_generating(tmp_path, monkeypatch):
+    """OPEN_QUESTIONS §17: manifest["_call_sequence"] records the call order
+    and is on disk before the first model is even loaded; generation order
+    (build_items order, not config key order) is unchanged."""
+    hf_tokenizer = StubHfTokenizer()
+    monkeypatch.setattr(main_mod, "_load_hf_tokenizer", lambda path: hf_tokenizer)
+    cfg = _with_2a(tmp_path, make_config(tmp_path))
+    seen_at_load = []
+
+    def factory(path, gen):
+        manifest_path = tmp_path / "runs" / "callseq" / "manifest.json"
+        seen_at_load.append(json.loads(manifest_path.read_text()).get("_call_sequence"))
+        return LongctxFakeLlm(hf_tokenizer)
+
+    run = _run_generate(tmp_path, cfg, "callseq", factory)
+    items = [json.loads(l) for l in (run / "items.jsonl").read_text().splitlines()]
+    manifest = json.loads((run / "manifest.json").read_text())
+    seq = manifest["_call_sequence"]
+
+    suite_order = list(dict.fromkeys(i["suite"] for i in items))
+    assert seq == {
+        "model_object": "one fresh llama_cpp.Llama per load (label), all items on it",
+        "preflight": "generate.assert_truncation_finish_reason: first call on every model object",
+        "tokenizer_match": "longctx_retrieval.assert_tokenizer_match after the preflight: tokenize only, no decode, no KV state",
+        "suite_order": suite_order,
+        "config_suite_order": list(cfg.suites),
+        "item_order": "items.jsonl order",
+        "n_items": len(items),
+        "item_ids_sha256": hashlib.sha256(
+            "\n".join(i["id"] for i in items).encode()
+        ).hexdigest(),
+    }
+    assert suite_order != list(cfg.suites)  # the two orders are recorded separately
+    assert seen_at_load and all(v == seq for v in seen_at_load)
+    # rung entries untouched and still verifiable
+    assert {k for k in manifest if not k.startswith("_")} == {"F16", "Q4_K_M"}
 
 
 def test_generate_stage_answer_spans_cover_2a_and_2b_aligned(tmp_path, monkeypatch):

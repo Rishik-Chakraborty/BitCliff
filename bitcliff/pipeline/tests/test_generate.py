@@ -41,12 +41,21 @@ class FakeLlm:
     def __init__(self):
         self.calls = []
         self.completion_calls = []
+        self._input_ids = []
+        self.n_tokens = 0
+
+    def _kv(self, prompt_tokens, completion_tokens):
+        """Mimic llama-cpp's post-call state: `_input_ids[:n_tokens]` is
+        prompt + evaluated generation. Generated ids are 1000, 1001, ..."""
+        self._input_ids = [0] * prompt_tokens + [1000 + i for i in range(completion_tokens)]
+        self.n_tokens = prompt_tokens + completion_tokens
 
     def create_chat_completion(self, messages, max_tokens, temperature, top_k, seed):
         self.calls.append(
             {"messages": messages, "max_tokens": max_tokens,
              "temperature": temperature, "top_k": top_k, "seed": seed}
         )
+        self._kv(9, 11)
         return {
             "choices": [
                 {"message": {"content": f"echo: {messages[0]['content'][:10]}"},
@@ -63,6 +72,7 @@ class FakeLlm:
             {"prompt": prompt, "max_tokens": max_tokens,
              "temperature": temperature, "top_k": top_k, "seed": seed}
         )
+        self._kv(5, 7)
         return {
             "choices": [
                 {"text": f"tok-echo: {prompt[:3]}", "finish_reason": "stop"}
@@ -271,3 +281,44 @@ def test_make_llm_passes_every_execution_field(monkeypatch):
     )
     make_llm(Path("m.gguf"), GenSettings(42, 0.0, 1, 64, 4096), execution)
     assert calls == [{"model_path": "m.gguf", **asdict(execution), "verbose": False}]
+
+
+def test_run_items_records_generated_token_ids_on_both_paths():
+    llm = FakeLlm()
+    chat = run_items(llm, ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN)
+    assert chat[0].gen_token_ids == [1000 + i for i in range(11)]
+    tok = run_items(llm, TOKEN_ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN)
+    assert tok[0].gen_token_ids == [1000 + i for i in range(7)]
+    assert all(type(t) is int for t in tok[0].gen_token_ids)
+
+
+def test_run_items_length_stop_yields_one_fewer_id_than_gen_tokens():
+    """llama-cpp-python 0.3.35 yields the final sampled token without
+    evaluating it: on 'length' only completion_tokens - 1 ids are in
+    _input_ids (OPEN_QUESTIONS §17)."""
+
+    class LengthLlm(FakeLlm):
+        def create_chat_completion(self, messages, **kwargs):
+            out = super().create_chat_completion(messages, **kwargs)
+            self._kv(9, 10)  # 11 sampled, last one never evaluated
+            out["choices"][0]["finish_reason"] = "length"
+            return out
+
+    records = run_items(LengthLlm(), ITEMS, quant_label="Q4_K_M", model_sha256="abc123", gen=GEN)
+    assert records[0].finish_reason == "length"
+    assert records[0].gen_tokens == 11
+    assert len(records[0].gen_token_ids) == records[0].gen_tokens - 1
+
+
+def test_run_items_call_kwargs_are_exactly_the_historical_ones():
+    llm = FakeLlm()
+    run_items(llm, ITEMS + TOKEN_ITEMS, quant_label="Q4_K_M", model_sha256="abc", gen=GEN)
+    common = {"max_tokens": GEN.max_tokens, "temperature": 0.0, "top_k": 1, "seed": 42}
+    assert all(c == {**common, "messages": c["messages"]} for c in llm.calls)
+    assert all(c == {**common, "prompt": c["prompt"]} for c in llm.completion_calls)
+    assert llm.calls and llm.completion_calls
+
+
+def test_read_records_loads_legacy_output_file_with_none_gen_token_ids():
+    records = read_records(LEGACY_F16_JSONL)
+    assert records and all(r.gen_token_ids is None for r in records)

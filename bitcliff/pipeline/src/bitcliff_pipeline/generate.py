@@ -70,6 +70,19 @@ class OutputRecord:
     on both create_completion and create_chat_completion) -- also read only
     after the call returns, never passed into it. Defaults to None for the
     same legacy-record-compatibility reason as `gen_wall_seconds` above."""
+    gen_token_ids: list[int] | None = None
+    """OPEN_QUESTIONS §17 (replay gate): the generated token ids llama-cpp
+    evaluated for this item, read AFTER the call returns as
+    `llm._input_ids[usage.prompt_tokens : llm.n_tokens]` -- nothing is
+    passed into the call, so it cannot alter what got generated. Because
+    llama-cpp-python 0.3.35 yields the final sampled token without
+    evaluating it, the list holds all `gen_tokens` ids when generation
+    stopped on EOS, but only `gen_tokens - 1` ids when
+    `finish_reason == "length"` (the last sampled token is not
+    recoverable without changing the call). Defaults to None for the same
+    legacy-record-compatibility reason as `gen_wall_seconds` above --
+    `run_items` always sets a list; None only ever appears on a legacy
+    record loaded from disk."""
 
 
 def make_llm(model_path: Path, gen: GenSettings, execution=None):
@@ -136,6 +149,9 @@ def run_items(
         # argument above, so neither can alter the generated text.
         gen_wall_seconds = time.perf_counter() - start
         gen_tokens = out["usage"]["completion_tokens"]
+        gen_token_ids = [
+            int(t) for t in llm._input_ids[out["usage"]["prompt_tokens"]:llm.n_tokens]
+        ]
         records.append(
             OutputRecord(
                 item_id=item.id,
@@ -149,6 +165,7 @@ def run_items(
                 machine=machine,
                 gen_wall_seconds=gen_wall_seconds,
                 gen_tokens=gen_tokens,
+                gen_token_ids=gen_token_ids,
             )
         )
     return records

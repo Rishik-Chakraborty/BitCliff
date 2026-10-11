@@ -1,5 +1,6 @@
 import argparse
 import dataclasses
+import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -317,6 +318,23 @@ def run_pipeline(
             )
         else:
             assert_item_sets_match_registered(items, config.model_id)
+
+        # OPEN_QUESTIONS §17: generated text depends on call history
+        # (llama-cpp KV-prefix reuse), so record the call sequence in the
+        # manifest BEFORE any generation. Generation order is unchanged.
+        manifest["_call_sequence"] = {
+            "model_object": "one fresh llama_cpp.Llama per load (label), all items on it",
+            "preflight": "generate.assert_truncation_finish_reason: first call on every model object",
+            "tokenizer_match": "longctx_retrieval.assert_tokenizer_match after the preflight: tokenize only, no decode, no KV state",
+            "suite_order": list(dict.fromkeys(i.suite for i in items)),
+            "config_suite_order": list(config.suites),
+            "item_order": "items.jsonl order",
+            "n_items": len(items),
+            "item_ids_sha256": hashlib.sha256(
+                "\n".join(i.id for i in items).encode()
+            ).hexdigest(),
+        }
+        write_manifest(manifest, manifest_path)
 
         items_path = run_dir / "items.jsonl"
         items_path.write_text(

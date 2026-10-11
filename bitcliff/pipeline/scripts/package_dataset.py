@@ -317,7 +317,7 @@ def build_suite_records(
         rec["suite"] = suite
 
         rungs = {}
-        for quant_label in sorted(manifest.keys()):
+        for quant_label in sorted(k for k in manifest if not k.startswith("_")):
             out_rec = outputs_by_label.get(quant_label, {}).get(item["id"])
             grade_rec = grades_by_item_quant.get((item["id"], quant_label))
             if out_rec is None or grade_rec is None:
