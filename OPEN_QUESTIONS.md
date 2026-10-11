@@ -720,47 +720,151 @@ total, all carrying `machine`
 "Linux-6.8.0-1063-aws-x86_64-with-glibc2.35 / x86_64 / llama-cpp-python
 0.3.35".
 
-## 17. 0B′ stopped at the generation reproduction gate (2026-10-04)
+## 17. Call-history dependence of generated text (2026-10-07)
 
-The 0B′ box (`i-0752e31e5f1a00f0c`, g6e.2xlarge, us-east-1c, AMI
-`ami-0dc0c90fcfca46f7c`, code = `git archive 5cc029b` + the Monte Cristo
-corpus) ran 03:39:16 → terminated 03:57:26 UTC. Realized cost ≈ $0.70
-(≈ 0.30 h × $2.2421/h plus EBS). It stopped at RUN_0B_PRIME.md §4's first gate,
-a registered stop condition. No 0B′ item was generated, no NLL gate ran, and
-nothing was benchmarked.
+Disclosure. No registered slot is filled, nothing is amended, nothing
+stamped.
 
-**Gate 1 result: FAIL, 1 of 25 items.** `scripts/repro_gate.py`,
+**2026-10-04 stop.** The 0B′ box (`i-0752e31e5f1a00f0c`, g6e.2xlarge,
+us-east-1c, AMI `ami-0dc0c90fcfca46f7c`, code = `git archive 5cc029b` + the
+Monte Cristo corpus) ran 03:39:16 → terminated 03:57:26 UTC. Realized cost
+≈ $0.70 (≈ 0.30 h × $2.2421/h plus EBS). It stopped at RUN_0B_PRIME.md §4's
+first gate, a registered stop condition. No 0B′ item was generated, no NLL
+gate ran, and nothing was benchmarked.
+
+Gate 1 result: FAIL, 1 of 25 items. `scripts/repro_gate.py`,
 `0b-qwen-7b-ladder` / Q4_K_M (pinned sha256 verified at download), first 25
-longctx items, settings from the committed output records. 24/25 items
-reproduced exactly. One differed, in 3 fields:
+longctx items, fresh model object, settings from the committed output
+records. 24/25 items reproduced exactly. One differed:
 
     longctx_retrieval-multivalue4-t8192-s2024-0005
-      text      expected '7622, 7352, 7467, 7211'
-                actual   'The secret passcodes for zulu are 7622, 7352, 7467, 7211.'
-      finish_reason  expected 'stop', got 'length'
-      truncated      expected False, got True
+      text      0B  '7622, 7352, 7467, 7211'  (stop, 22 tokens)
+                now 'The secret passcodes for zulu are 7622, 7352, 7467, 7211.'
+                    (length, 32 tokens)
+      first divergence at generated token 0 (0B token 22 '7' vs 785 'The')
+      graded    correct in both
+      truncated False vs True
 
 The script persists no records. Its diff log, the box fingerprint and the
 download logs are in
-`s3://bitcliff-artifacts-048568674517/0b-prime/attempt-20261004/`. Not
-diagnosed on the box (the stop rule says terminate). Open questions for the user: whether the
-difference is run-to-run GPU nondeterminism or a software difference, and
-what re-running the gate requires.
+`s3://bitcliff-artifacts-048568674517/0b-prime/attempt-20261004/`.
 
-**Fingerprint note: `llama_cpp_commit` labels two different things.** On the box, every
-fingerprint field matched `runs-cloud/fingerprint.txt` (instance type, AMI,
-AZ, GPU + driver, CUDA 13.2, kernel, Python, llama-cpp-python 0.3.35 CUDA
-with GPU offload) except `llama_cpp_commit`. The installed build embeds
-`GGML_COMMIT="4df29be-dirty"` (`libggml-base.so`; `cuda-rebuild2.log`).
-`4df29be4f4c3673f428170fda944a5b19f743bb8` is the `vendor/llama.cpp`
-submodule of llama-cpp-python tag v0.3.35 (GitHub API). The
-fingerprint's `bf942164…` is the HEAD of the separate F16 conversion clone
-`~/bitcliff/llama.cpp`. The library's mtime (2026-09-02 02:42 UTC) predates the AMI bake
-(02:43) and 0B generation (05:17), so 0B ran this same build. The
-0B record's label names the conversion clone, not the inference build.
+**Fingerprint note: `llama_cpp_commit` labels two different things.** On
+the box, every fingerprint field matched `runs-cloud/fingerprint.txt`
+(instance type, AMI, AZ, GPU + driver, CUDA 13.2, kernel, Python,
+llama-cpp-python 0.3.35 CUDA with GPU offload) except `llama_cpp_commit`.
+The installed build is llama.cpp `4df29be4f4c3673f428170fda944a5b19f743bb8`,
+the `vendor/llama.cpp` submodule of llama-cpp-python v0.3.35; it embeds
+`GGML_COMMIT="4df29be-dirty"` in `libggml-base.so`. The fingerprint's
+`bf942164…` is the HEAD of the separate F16 conversion clone. The library
+was built 2026-09-02 02:42 UTC, before the AMI bake (02:43) and the 0B
+start (05:17), so 0B ran this same library. The 0B record's label names
+the conversion clone, not the inference build.
 
-Other deviations: the box has no AWS credentials or instance role, so S3 syncs
-relay box → local → S3 under the local `bitcliff-agent` profile. The security
-group rule already held the current IP, so it was not replaced. The Pricing API is
-denied to `bitcliff-agent`, so the $2.2421/h rate was confirmed from AWS's public
-us-east-1 price list instead ($2.24208/h, effective 2026-09-01).
+Other deviations on 2026-10-04: the box has no AWS credentials or instance
+role, so S3 syncs relay box → local → S3 under the local `bitcliff-agent`
+profile. The security group rule already held the current IP, so it was
+not replaced. The Pricing API is denied to `bitcliff-agent`, so the
+$2.2421/h rate was confirmed from AWS's public us-east-1 price list instead
+($2.24208/h, effective 2026-09-01).
+
+**Settings audit (2026-10-04/06, read-only).** Every llama-cpp-python
+constructor and sampling setting was identical between 0B and the gate.
+Most were unpinned library defaults recorded nowhere in 0B: n_batch 512,
+n_ubatch 512, n_threads 4, n_threads_batch 8, flash_attn off,
+type_k/type_v F16, offload_kqv on, op_offload on, rope/yarn from the model.
+The one difference was call history. 0B built one model object per rung
+and called it 1094 times (truncation preflight, then 500 arithmetic, 94
+twins, 500 factual_qa items) before longctx item 0000; the gate started
+from a fresh object. llama-cpp-python keeps the longest token prefix
+shared with the previous call's input (`Llama.generate`, llama.py
+~916-952); consecutive longctx prompts share 24 tokens. The timing-field
+change (`1b6f418`, `9546a93`) touches nothing between prompt and output.
+
+Generation calls suites in `build_items`' fixed order (arithmetic,
+arithmetic_twins, factual_qa, then the longctx suites), not config key
+order; 0B ran in that order too.
+
+**Diagnostic (2026-10-07).** Box `i-013396830e7c01c0a` (g6e.2xlarge,
+us-east-1c, same AMI), 02:03:22 → terminated 02:36:00 UTC, ≈ $1.23, cap
+$5. Qwen-7B Q4_K_M only. Every run built the model with `generate.make_llm`
+(0B's constructor) and logged the live settings, which were identical in
+all runs and equal to the values above.
+
+- Run A and run B: the gate as on 2026-10-04, each from a fresh model
+  object.
+- Run C: one fresh object; 0B's truncation preflight, then 0B's items in
+  0B's exact order through longctx item 0024 (1119 calls).
+
+Interpretation fixed by the user before the run, as written:
+
+- "A differs from B on any item: run-to-run nondeterminism on identical
+  state; count the items; stop."
+- "A equals B but either differs from 0B, and C reproduces 0B on all 25:
+  cause is call history through KV-prefix reuse; the gate's correct form
+  is a replay of 0B's call sequence."
+- "C still differs from 0B: cause unknown; stop; no 0B-prime until it is
+  understood."
+
+**Result.** A equals B on 25/25 items. Both differ from 0B on item 0005
+only, with the same divergence as on 2026-10-04. C reproduces 0B on 25 of
+25 gate items and on 1094 of 1094 earlier calls (text and finish_reason).
+This is the second branch. Outputs:
+`s3://bitcliff-artifacts-048568674517/0b-prime/diag-20261007/`.
+
+**Cause.** Call history through llama-cpp-python's KV-prefix reuse.
+
+0B′ cost to date: $0.70 + $1.23 = $1.93.
+
+**Consequences.**
+
+1. PREREG §6's determinism scope includes the call sequence. This is an
+   execution finding, disclosed only; no rule is changed.
+2. A single item rerun in isolation can differ at a near-tie token. It was
+   observed as a verbosity change (item 0005), not a correctness change.
+3. The Phase 2 constrained live box reproduces published outputs only if
+   the curated prompts are regenerated with KV-prefix reuse disabled and
+   served the same way.
+4. 0B's execution settings were library defaults. They are pinned from
+   0B′ on (`8218bf9`).
+
+**Fix turn (code commits on `main` after `1806754`).**
+
+- `8218bf9`: as-run execution settings pinned in an `execution:` block in
+  `configs/0b-prime/qwen2.5-1.5b-ladder.yaml` only (not the smoke config,
+  not `configs/0b/`); `config.ExecutionSettings`;
+  `generate.make_llm(..., execution)`; recorded in the manifest's
+  `_run_config.execution`; the NLL driver factory uses them (except
+  n_ctx/seed).
+- `8a31ac4`: `OutputRecord.gen_token_ids`, the generated ids read after
+  the call from `llm._input_ids[usage.prompt_tokens:llm.n_tokens]`. They
+  are complete on an EOS stop and one short on finish 'length', because
+  llama-cpp-python 0.3.35 never evaluates the final sampled token;
+  `gen_tokens` carries the true count. Manifest `_call_sequence` records
+  both `suite_order` (actual) and `config_suite_order`.
+- `88e2252`, `289babe`: `scripts/repro_gate.py`'s replay form is the
+  default: one model object; `generate.assert_truncation_finish_reason`
+  first; then every record of the source run's `outputs/<rung>.jsonl` in
+  file order, required to equal `items.jsonl` order exactly, through the
+  last gate item, each with its recorded `max_tokens_effective`; only the
+  gate items are compared. `--fresh` keeps the old form and is documented
+  as not a reproduction test.
+- `2ab8ca4`, `e6cf3a9`: NLL driver manifest `call_sequence` (one model
+  object per load; `llm.reset()` + one full `eval` per item, no KV-prefix
+  reuse across items; item order asserted equal to `items.jsonl` order
+  when present); new `scripts/nll_gate_compare.py` implementing
+  RUN_0B_PRIME.md §4's tiers (non-finite values are a mismatch), whose
+  output notes "compared in recorded (file) order".
+- `c621e5f`: the generate stage and the NLL driver refuse a run manifest
+  whose `_run_config.execution` differs from the config's
+  (`config.check_manifest_execution`); replay refuses a manifest whose
+  execution n_ctx/seed disagree with the records; `repro_gate.py`
+  help/docstring updated.
+
+Tests: 651 passing (was 592). Smoke proof: the local 1.5B smoke config
+(F16 + Q4_K_M, 20 items each) was run at `1806754` and at `8a31ac4`: 0 of
+40 records differ in text or finish_reason, with the same item order and
+the same grades; `gen_token_ids` was present on 40/40 and the length rule
+held on 40/40. Re-run at the final code commit `c621e5f`: again 0 of 40
+differ from `1806754`, grades identical, `gen_token_ids` identical to the
+`8a31ac4` run.

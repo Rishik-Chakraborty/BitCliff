@@ -1,4 +1,4 @@
-Push status (2026-10-03): HEAD = origin/main = the "handoff: rotation before 0B-prime" commit (parent `87092f0`), ahead/behind 0/0 — verify with `git rev-list --left-right --count main...origin/main`.
+Push status (2026-10-11): HEAD = origin/main = the "docs: replay-form gate, pinned execution settings, §17 call-history dependence" commit (parent `c621e5f`), ahead/behind 0/0 — verify with `git rev-list --left-right --count main...origin/main`.
 # HANDOFF — BitCliff session handoff (rewritten 2026-09-07; updated 2026-10-03)
 
 For a fresh Claude Code session with no memory. This is an index, not an
@@ -10,11 +10,11 @@ or messages anyone without the user's explicit go.
 
 Branch list: `main` only (work branches `pre-0b-tickets`, `0b-analysis`,
 `factualqa-rerun`, `code-turn-0b-prime`, `code-turn-nll-driver` were
-merged no-ff and deleted). State is current through `87092f0` (merge of
-`code-turn-nll-driver`, 2026-09-28), pushed; nothing local-only. Always
-check `git rev-list --left-right --count main...origin/main` first. Test
-suite: 592 passing (`uv run pytest -q` in `bitcliff/pipeline/`, ~14 s; run
-with `HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1` —
+merged no-ff and deleted). State is current through `c621e5f` (last code
+commit of the 0B′ replay-gate fix turn, 2026-10-11); push status is on
+line 1. Always check `git rev-list --left-right --count
+main...origin/main` first. Test suite: 651 passing (`uv run pytest -q` in
+`bitcliff/pipeline/`, ~14 s; run with `HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1` —
 `tests/test_registered.py` and the 0B-prime config tests rebuild item sets
 from the local HF cache and the HF tokenizers under `models/hf/`, so a
 cold machine needs network or a warm cache).
@@ -163,6 +163,9 @@ cold machine needs network or a warm cache).
 - **Credentials never in chat.** HF tokens enter via the user's own SSH
   session only; AWS keys live in the local profile (`bitcliff-agent`);
   never echo, read back, or log either.
+- **Token guard.** Any HF token placed on a box is used for the immediate
+  download and unset within 30 minutes, never written to disk or shell
+  history.
 - **No eyeball-narration before registered machinery.** Raw accuracies
   are not "findings" until the §8 machinery (states, CIs, Holm) has run;
   never report a curve's story ahead of the registered statistics, and
@@ -195,41 +198,49 @@ cold machine needs network or a warm cache).
   `shootout-7b.json` manifest section fixing the items OPEN_QUESTIONS §12
   lists, then a user go for spend. "Run after the launch analyses."
 - **0B′ (1.5B confirmatory run): ladder registered (Amendment 4), run
-  plan drafted (`RUN_0B_PRIME.md`), NOT started.** Plan readings confirmed
-  2026-09-27 (OPEN_QUESTIONS §13): twins run for the 1.5B; the 2a NLL pass
-  is registered Q2 data, not exploratory. §8's rate corrected to
-  $2.2421/h; cap set to $50. Of RUN_0B_PRIME.md §9's pre-"proceed" list,
-  done this code turn: 2a item-set hash in `registered.py` (`05537fe`);
-  `configs/0b-prime/` ladder + smoke configs and cross-check tests
-  (`fca1a25`); the runner's per-item timing field (`1b6f418`, legacy-load
-  fix `9546a93`); the reproduction-gate script (`7e9db50`); the item-set
-  hash gate's n-mismatch fix (`bf6ac1f`). The NLL driver that produced
-  0B's `nll/*.jsonl` records was not recoverable — the S3 `0b/code/`
-  prefix holds only a 2026-08-30 snapshot predating the NLL runs, and no
-  driver exists in git history (OPEN_QUESTIONS §16) — so a new one was
+  plan in `RUN_0B_PRIME.md`; two box attempts, no 0B′ item generated.**
+  Plan readings confirmed 2026-09-27 (OPEN_QUESTIONS §13): twins run for
+  the 1.5B; the 2a NLL pass is registered Q2 data, not exploratory. §8's
+  rate $2.2421/h. Of RUN_0B_PRIME.md §9's pre-"proceed" list, done: 2a
+  item-set hash in `registered.py` (`05537fe`); `configs/0b-prime/` ladder
+  + smoke configs and cross-check tests (`fca1a25`); the runner's per-item
+  timing field (`1b6f418`, legacy-load fix `9546a93`); the
+  reproduction-gate script (`7e9db50`); the item-set hash gate's
+  n-mismatch fix (`bf6ac1f`). The NLL driver that produced 0B's
+  `nll/*.jsonl` records was not recoverable — the S3 `0b/code/` prefix
+  holds only a 2026-08-30 snapshot predating the NLL runs, and no driver
+  exists in git history (OPEN_QUESTIONS §16) — so a new one was
   **written** (`scripts/nll_driver.py`, commit `ba146e7`, against
   `nll_scorer.score_records`) **and reviewed; pending the box NLL
   reproduction gate** (RUN_0B_PRIME.md §4, second gate) before the §3 NLL
-  passes can run. Machine ruling: the 0B
-  fingerprint / CUDA AMI.
-  **Code prerequisites complete through `87092f0`; the box procedure lives
-  in `RUN_0B_PRIME.md`:** §1 pre-launch statement; §3 the single fixed
+  passes can run. Machine ruling: the 0B fingerprint / CUDA AMI.
+  **Code prerequisites complete through `c621e5f`** (fix turn after
+  `1806754`: pinned as-run execution settings `8218bf9`; `gen_token_ids`
+  and manifest `_call_sequence` `8a31ac4`; replay-form gate `88e2252`,
+  `289babe`; NLL `call_sequence` and `scripts/nll_gate_compare.py`
+  `2ab8ca4`, `e6cf3a9`; stale-manifest execution guard `c621e5f`).
+  **Attempts:** 2026-10-04 stopped at gate 1 (1/25 items differed,
+  item 0005); the 2026-10-07 diagnostic resolved it — cause is call
+  history through llama-cpp-python's KV-prefix reuse; the replay gate was
+  adopted (OPEN_QUESTIONS §17). Spent to date: $1.93. **A relaunch needs
+  the user's "proceed".** Box procedure in `RUN_0B_PRIME.md`: §1
+  pre-launch statement and pinned execution settings; §3 the single fixed
   1.5B NLL invocation (after the generate stage, same `--run-id`; the
   driver refuses a non-exploratory run without that run's
-  `manifest.json`); §4 gate 1 (`scripts/repro_gate.py`, Qwen-7B Q4_K_M,
-  first 25 longctx items, empty diff) and gate 2 (`scripts/nll_driver.py`
-  `--allow-no-manifest`, Qwen-7B and Llama-8B Q4_K_M on 2b, `cmp` exact
-  match vs committed `nll/Q4_K_M.jsonl`; any mismatch → stop, report, and
-  the ruling is regenerating all 26 NLL passes); the per-run
-  `fingerprint.txt` step before sync-back (required by `analyze_0b.py` for
-  non-0B run sets); every box command is `uv run --no-sync`; §8 cost
-  table at $2.2421/h (≈ $12–19 without benchmark, ≈ $16–25 with), cap $50.
-  **Open: the two-rung NLL reproduction gate on the box** (nothing has
-  run; no "proceed" given). Risk to weigh before "proceed": the Llama leg
+  `manifest.json`); §4 gate 1 is the replay form (`scripts/repro_gate.py`
+  default, Qwen-7B Q4_K_M, 0B's call sequence through the first 25 longctx
+  items, empty diff on those 25); gate 2 unchanged in substance
+  (`scripts/nll_driver.py` `--allow-no-manifest`, Qwen-7B and Llama-8B
+  Q4_K_M on 2b, tiered match rule via `scripts/nll_gate_compare.py`); the
+  per-run `fingerprint.txt` step before sync-back (required by
+  `analyze_0b.py` for non-0B run sets); every box command is `uv run
+  --no-sync`; §8 cost table at $2.2421/h (≈ $12–19 without benchmark,
+  ≈ $16–25 with); caps: $50 relaunch session hard stop, conditional $80
+  session cap unchanged. Risk to weigh before "proceed": the Llama leg
   may mismatch — the pre-fix Llama/arm1 n_ctx and all unlogged llama-cpp
-  constructor args are unrecoverable (OPEN_QUESTIONS §16; the NLLCFG_*
-  log lines carry no settings) — and a full 26-pass regeneration would
-  exceed the $50 0B′ cap.
+  constructor args are unrecoverable (OPEN_QUESTIONS §16; the NLLCFG_* log
+  lines carry no settings) — and a full 26-pass regeneration would exceed
+  the $50 0B′ cap.
 - **Parked items (ruled, deferred; none blocks the box run):**
   no committed box command captures `llama_cpp_commit` for
   `fingerprint.txt` (operator records it from the build); the Llama-8B

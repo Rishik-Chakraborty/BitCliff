@@ -31,6 +31,20 @@ playground prompts and is the Phase 2 reproduction gate for the live box.
 It does not bind 0B′, which produces reference measurements, not the
 playground fixtures.
 
+**Execution settings (pinned 2026-10-11).** The llama-cpp-python
+constructor settings — n_batch 512, n_ubatch 512, n_threads 4,
+n_threads_batch 8, flash_attn off, type_k/type_v F16, offload_kqv on,
+op_offload on, rope/yarn from the model — are pinned in the `execution:`
+block of `configs/0b-prime/qwen2.5-1.5b-ladder.yaml` (commit `8218bf9`).
+They are labeled as-run execution settings, not registered. They equal
+0B's settings, which were the llama-cpp-python 0.3.35 library defaults
+and were recorded nowhere in 0B. They were read back from the live model
+on 2026-10-07 (OPEN_QUESTIONS §17). Each run manifest records them in
+`_run_config.execution`. The fingerprint's `llama_cpp_commit` value
+`bf942164…` names the F16 conversion clone's HEAD, not the inference
+build, which is llama.cpp `4df29be4f4c3673f428170fda944a5b19f743bb8`
+(OPEN_QUESTIONS §17).
+
 ## 2. Scope
 
 **Ladder:** the Amendment 4 ladder — F16 (local, sha256 `954b4492…`) +
@@ -112,23 +126,36 @@ uv run --no-sync python scripts/nll_driver.py configs/0b-prime/qwen2.5-1.5b-ladd
 
 ## 4. Reproduction gate at box start
 
-Before any 0B′ item is generated: re-run one 0B Qwen-7B rung on its first
-25 longctx items with the recorded settings and diff against the committed
-run. Concretely:
+Before any 0B′ item is generated: replay one 0B Qwen-7B rung's call
+sequence through its first 25 longctx items and diff those 25 against the
+committed run. `scripts/repro_gate.py` (replay form, the default; commits
+`88e2252`, `289babe`) builds one model object, runs the truncation
+preflight (`generate.assert_truncation_finish_reason`) first, then every
+record of the source run's `outputs/Q4_K_M.jsonl` in recorded (file)
+order, required to equal `items.jsonl` order, through the last of the 25
+gate items, each with its recorded `max_tokens_effective`; only the 25
+gate items are compared. **The diff must be empty.** `--fresh` (a fresh
+model object, gate items only) is not a reproduction test: generated text
+depends on call history (OPEN_QUESTIONS §17). Concretely:
+
+```
+uv run --no-sync python scripts/repro_gate.py --run-dir runs-cloud/pipeline/runs/0b-qwen-7b-ladder --rung Q4_K_M --suite longctx_retrieval --n 25 --model-path models/Qwen2.5-7B-Instruct-Q4_K_M.gguf
+```
 
 - Rung: `0b-qwen-7b-ladder` / Q4_K_M (file sha256 per
   `qwen2.5-7b-bartowski.json`; the F16 is baked into the AMI, the quant
   re-downloads).
-- Items: `longctx_retrieval-multivalue4-t8192-s2024-0000` … `-0024`, built
-  by the same generator from the pinned PG-1184 corpus (sha `0a21a138…`),
-  identical `items.jsonl` ids asserted.
-- Settings: from `runs-cloud/pipeline/runs/0b-qwen-7b-ladder/manifest.json`
-  `_run_config` (greedy, temperature 0.0, top_k 1, seed 42, max_tokens 32,
-  n_ctx 16384, multivalue4 @ 8192).
+- Items: `longctx_retrieval-multivalue4-t8192-s2024-0000` … `-0024`, read
+  with their `prompt_tokens` from the run's own `items.jsonl` (no item is
+  rebuilt from the corpus).
+- Settings: from the committed output records' `gen_settings` (greedy,
+  temperature 0.0, top_k 1, seed 42, max_tokens 32, n_ctx 16384,
+  multivalue4 @ 8192) and, when present, the run manifest's
+  `_run_config.execution`.
 - Compare: `outputs/Q4_K_M.jsonl` `text` and `finish_reason`, and
   `grades.jsonl` `state`/`truncated`, for those 25 ids, against the
-  committed files. **The diff must be empty.** Any difference: stop, sync
-  the 25 records to S3, report, do not start 0B′.
+  committed files. Any difference: stop, sync the 25 records to S3,
+  report, do not start 0B′.
 
 **Second gate — NLL reproduction, before any 1.5B NLL pass (§3):**
 reproduce 0B's teacher-forced NLL records for two rungs on their 2b items,
@@ -182,7 +209,17 @@ cmp runs/0b-qwen-7b-ladder-nllgate/nll/Q4_K_M.jsonl \
     runs-cloud/pipeline/runs/0b-qwen-7b-ladder/nll/Q4_K_M.jsonl
 cmp runs/0b-llama-8b-ladder-nllgate/nll/Q4_K_M.jsonl \
     runs-cloud/pipeline/runs/0b-llama-8b-ladder/nll/Q4_K_M.jsonl
+uv run --no-sync python scripts/nll_gate_compare.py \
+    runs/0b-qwen-7b-ladder-nllgate/nll/Q4_K_M.jsonl \
+    runs-cloud/pipeline/runs/0b-qwen-7b-ladder/nll/Q4_K_M.jsonl
+uv run --no-sync python scripts/nll_gate_compare.py \
+    runs/0b-llama-8b-ladder-nllgate/nll/Q4_K_M.jsonl \
+    runs-cloud/pipeline/runs/0b-llama-8b-ladder/nll/Q4_K_M.jsonl
 ```
+
+A nonzero `cmp` exit is not a stop: byte identity is only the tier-1
+shortcut, and a tier-2 pass differs byte-wise by construction; the verdict
+is `nll_gate_compare.py`'s exit code (0 tier 1 or 2, 1 mismatch).
 
 `--allow-no-manifest` (valid only with `--labels`) is required because
 these scratch gate run dirs have no generate-stage `manifest.json`; the
@@ -191,6 +228,12 @@ driver then hashes each file directly (recorded as the label's
 Write into scratch run dirs (`0b-qwen-7b-ladder-nllgate`,
 `0b-llama-8b-ladder-nllgate`) — never over the committed `runs-cloud/`
 records (the driver refuses any `--runs-dir` inside `runs-cloud/`).
+
+**NLL order rule.** The driver builds one model object per load and scores
+the items in recorded order (asserted equal to `items.jsonl` order when
+present); each item is `llm.reset()` plus one full `eval`, so no KV prefix
+is reused across items. `nll/manifest.json` states this in
+`call_sequence` (commit `2ab8ca4`).
 
 **Match rule (user ruling 2026-10-03; supersedes the earlier `cmp`-only
 rule).** Each produced `nll/Q4_K_M.jsonl` is compared record by record, in
@@ -201,7 +244,9 @@ the comparison: the `machine` string and the run id (and the gate run's
 `per_token_nll`, `span_mean_nll`, `digits_only_mean_nll`). `cmp` is still
 run first: byte identity implies tier 1, since `nll_scorer.write_records`
 reproduces either committed file byte for byte (checked locally,
-2026-09-28).
+2026-09-28). The comparison is `scripts/nll_gate_compare.py` (commits
+`2ab8ca4`, `e6cf3a9`), which implements the tiers below, compares records
+in recorded (file) order, and treats a non-finite value as a mismatch.
 
 - **Tier 1 — exact.** Identical record count and order, and every compared
   field equal, per-token NLL values exactly equal. Reported as reproduced
@@ -301,7 +346,7 @@ likely conservative. Rough.
 | item | GPU-hours | $ at 2.24/h |
 |---|---|---|
 | Setup: launch from CUDA AMI, 7 quant downloads (~7 GB), F16 obtain/convert + hash gates, smoke | 1.0–1.5 | 2.24–3.36 |
-| Reproduction gate (§4): Qwen-7B Q4_K_M download + 25 longctx items + diff | 0.25–0.5 | 0.56–1.12 |
+| Reproduction gate (§4, replay form): Qwen-7B Q4_K_M download + 1119-call replay (2026-10-07 run C: 19.5 min) + diff | 0.4–0.6 | 0.90–1.34 |
 | NLL reproduction gate (§4, second gate): Llama-8B Q4_K_M download (~4.9 GB) + two gate NLL passes (Qwen-7B, Llama-8B; 2b items; post-fix 0B timing ≈ 6.8 min per 7B-class load at t=8192) | 0.25–0.5 | 0.56–1.12 |
 | Q5 suites only (2a longctx + arithmetic, 8 loads, 596 items each) | 0.5–0.7 | 1.12–1.57 |
 | Full registered scope (§2: 1286 items × 8 loads) | 1.0–1.5 | 2.24–3.36 |
@@ -328,6 +373,10 @@ Set by user 2026-09-27.**
    session total of $80, burn reports at $40, $64, $80. Both legs fail: no
    regeneration (sync, terminate, report). Both pass: no regeneration, and
    cap 1 governs.
+
+0B′ attempts to date: $1.93 (2026-10-04 stop ≈ $0.70; 2026-10-07
+diagnostic ≈ $1.23). Relaunch session cap: $50 hard stop (burn reports
+$25/$40/$50); the conditional $80 session cap (ruling 2) is unchanged.
 
 ## 9. Before "proceed" — what must be committed
 
