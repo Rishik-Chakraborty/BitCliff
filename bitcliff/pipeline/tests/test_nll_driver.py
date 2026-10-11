@@ -605,3 +605,40 @@ def test_make_nll_llm_kwargs(monkeypatch):
         "model_path": "m.gguf", "n_ctx": 2048, "seed": 42, "logits_all": True,
         "verbose": False, **expected,
     }
+
+
+def test_manifest_call_sequence(tmp_path, tok):
+    cfg = _config(tmp_path)
+    out = _run(tmp_path, tok, cfg=cfg)
+    m = json.loads((out / "manifest.json").read_text())
+    _, nll_items = _expected_items(tmp_path, tok, cfg)
+    cs = m["call_sequence"]
+    assert cs["model_object"] == "one per load"
+    assert cs["item_order"] == "recorded order"
+    assert "llm.reset() then one eval of gen_prompt_ids+answer_ids" in cs["per_item"]
+    assert "no KV-prefix reuse across items" in cs["per_item"]
+    assert cs["item_ids_sha256"] == nd.item_ids_sha256([i.id for i in nll_items])
+
+
+def _write_items_jsonl(tmp_path, rows):
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "items.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_items_jsonl_order_accepted_and_filtered_by_suite(tmp_path, tok):
+    cfg = _config(tmp_path)
+    _, nll_items = _expected_items(tmp_path, tok, cfg)
+    rows = [{"id": "arith-0", "suite": "arithmetic"}]
+    rows += [{"id": i.id, "suite": i.suite} for i in nll_items]
+    _write_items_jsonl(tmp_path, rows)
+    _run(tmp_path, tok, cfg=cfg)
+
+
+def test_items_jsonl_order_mismatch_raises(tmp_path, tok):
+    cfg = _config(tmp_path)
+    _, nll_items = _expected_items(tmp_path, tok, cfg)
+    rows = [{"id": i.id, "suite": i.suite} for i in reversed(nll_items)]
+    _write_items_jsonl(tmp_path, rows)
+    with pytest.raises(RuntimeError, match="item order differs"):
+        _run(tmp_path, tok, cfg=cfg)

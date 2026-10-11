@@ -91,6 +91,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import hashlib
 import json
 import math
 import sys
@@ -134,6 +135,59 @@ def make_nll_llm(model_path: Path, n_ctx: int, seed: int, execution=None):
         verbose=False,
         **pinned,
     )
+
+# Call sequence (OPEN_QUESTIONS 2026-10-07 diagnostic: generation depends on
+# call history through llama-cpp-python's KV-prefix reuse). NLL does not:
+# `nll_scorer.make_llama_logits_provider` calls `llm.reset()` then ONE
+# `llm.eval(gen_prompt_ids + answer_ids)` per item. In llama-cpp-python
+# 0.3.35 (llama_cpp/llama.py) `reset()` sets `self.n_tokens = 0` (l.656-658)
+# and `eval()` begins with `self._ctx.kv_cache_seq_rm(-1, self.n_tokens, -1)`
+# (l.672), i.e. removes KV from position 0 onward, then evaluates the batch
+# from `n_past = self.n_tokens = 0` (l.675). So every item is re-evaluated
+# from position 0 with no KV-prefix reuse across items; the prefix-reuse
+# logic lives only in `Llama.generate` (l.~917-952), which NLL never calls.
+# Item order is therefore not a numeric input, but it is still recorded and
+# asserted so the gate's call sequence is the same as the run's.
+NLL_CALL_SEQUENCE = {
+    "model_object": "one per load",
+    "item_order": "recorded order",
+    "per_item": (
+        "llm.reset() then one eval of gen_prompt_ids+answer_ids; "
+        "no KV-prefix reuse across items"
+    ),
+}
+
+
+def item_ids_sha256(ids: list[str]) -> str:
+    """sha256 of the ordered item ids (compact JSON list, UTF-8)."""
+    return hashlib.sha256(json.dumps(list(ids), separators=(",", ":")).encode()).hexdigest()
+
+
+def assert_order_matches_items_jsonl(run_dir: Path, nll_items, suites: list[str]) -> None:
+    """When the run dir has `items.jsonl` (the generate stage's recorded
+    item order), the NLL item ids must equal, in order, its ids whose suite
+    is one of the NLL suites. No file (the --allow-no-manifest gate scratch
+    dirs): no assertion -- `nll_gate_compare` checks order against the
+    committed records."""
+    items_path = run_dir / "items.jsonl"
+    if not items_path.exists():
+        return
+    recorded = []
+    for line in items_path.read_text().splitlines():
+        if line.strip():
+            d = json.loads(line)
+            if d["suite"] in suites:
+                recorded.append(d["id"])
+    got = [i.id for i in nll_items]
+    if got != recorded:
+        first = next(
+            (k for k, (a, b) in enumerate(zip(got, recorded)) if a != b), min(len(got), len(recorded))
+        )
+        raise RuntimeError(
+            f"NLL item order differs from {items_path} (NLL suites {suites}): "
+            f"{len(got)} NLL items vs {len(recorded)} recorded; first difference "
+            f"at position {first} ({got[first:first + 1]} vs {recorded[first:first + 1]})"
+        )
 
 
 def n_ctx_for(items: list[nll_scorer.NLLItem]) -> tuple[int, int]:
@@ -323,6 +377,7 @@ def run_nll(
     else:
         main_mod.assert_item_sets_match_registered(items, config.model_id)
         gate = "passed"
+    assert_order_matches_items_jsonl(run_dir, nll_items, suites)
     print(f"nll items: {len(nll_items)}")
 
     n_ctx, max_seq = n_ctx_for(nll_items)
@@ -356,6 +411,10 @@ def run_nll(
         "execution": (
             dataclasses.asdict(config.execution) if config.execution is not None else None
         ),
+        "call_sequence": {
+            **NLL_CALL_SEQUENCE,
+            "item_ids_sha256": item_ids_sha256([i.id for i in nll_items]),
+        },
         "digit_token_ids": {"count": len(digit_ids), "ids": sorted(digit_ids)},
         "machine": nll_scorer._machine_fingerprint(),
         "driver_sha256": sha256_file(Path(__file__)),
