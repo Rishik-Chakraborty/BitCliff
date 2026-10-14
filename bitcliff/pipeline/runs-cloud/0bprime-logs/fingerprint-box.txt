@@ -1,0 +1,10 @@
+instance=i-04147e175eba11337
+instance_type=g6e.2xlarge
+ami=ami-0dc0c90fcfca46f7c
+az=us-east-1a
+gpu=NVIDIA L40S, 595.91.07
+cuda=release 13.2
+kernel=6.8.0-1063-aws
+llama_cpp_commit=4df29be4f4c3673f428170fda944a5b19f743bb8
+llama_cpp_python=0.3.35 CUDA build, gpu_offload_supported=True
+python=Python 3.11.16

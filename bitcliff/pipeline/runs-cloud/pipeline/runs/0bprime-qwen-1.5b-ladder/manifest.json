@@ -1,0 +1,156 @@
+{
+  "F16": {
+    "filename": "Qwen2.5-1.5B-Instruct-f16.gguf",
+    "imatrix": false,
+    "sha256": "954b449288dd7989c3ddc193666c88d1bb43857c1a2468d04e422b47cc234fe4",
+    "size_bytes": 3093669536,
+    "spectacle_only": false,
+    "uploader": "bitcliff-local-f16-conversion"
+  },
+  "IQ2_M": {
+    "filename": "Qwen2.5-1.5B-Instruct-IQ2_M.gguf",
+    "imatrix": true,
+    "sha256": "cee720c998e71ff3f02fbb3d392c7598bc0f845ae08bbb585ef2ff5fcbd45b81",
+    "size_bytes": 601054816,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q2_K": {
+    "filename": "Qwen2.5-1.5B-Instruct-Q2_K.gguf",
+    "imatrix": true,
+    "sha256": "a8880f0de2348db67d00519ef7f4b40326ef67012bf5f2e90bd1d47474e2355c",
+    "size_bytes": 676304992,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q3_K_M": {
+    "filename": "Qwen2.5-1.5B-Instruct-Q3_K_M.gguf",
+    "imatrix": true,
+    "sha256": "7437ad04011a14fb890074cc783df4c1d537197942337353a824ff7e6115ef9b",
+    "size_bytes": 824178784,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q4_K_M": {
+    "filename": "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+    "imatrix": true,
+    "sha256": "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
+    "size_bytes": 986048768,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q5_K_M": {
+    "filename": "Qwen2.5-1.5B-Instruct-Q5_K_M.gguf",
+    "imatrix": true,
+    "sha256": "cf240adc57e126e86102335f6565fb23e523b28d287c75bdb0759f064e8bb572",
+    "size_bytes": 1125050624,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q6_K": {
+    "filename": "Qwen2.5-1.5B-Instruct-Q6_K.gguf",
+    "imatrix": true,
+    "sha256": "1b01b4ea4ccdd5aa6a5972790002e120a5d500a5175be571114d642a8db4d14e",
+    "size_bytes": 1272740096,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "Q8_0": {
+    "filename": "Qwen2.5-1.5B-Instruct-Q8_0.gguf",
+    "imatrix": true,
+    "sha256": "7185d306cf45956c8c017cd0d3b05ecc6bc18b3ea8eb5c240dce40e87563db7f",
+    "size_bytes": 1646573312,
+    "spectacle_only": false,
+    "uploader": "bartowski"
+  },
+  "_call_sequence": {
+    "config_suite_order": [
+      "longctx_retrieval_2a",
+      "longctx_retrieval",
+      "arithmetic",
+      "arithmetic_twins",
+      "factual_qa"
+    ],
+    "item_ids_sha256": "04a70b04de0a287922a4bc6f511bf3be830596e79e04abe15e7c3057a17255a6",
+    "item_order": "items.jsonl order",
+    "model_object": "one fresh llama_cpp.Llama per load (label), all items on it",
+    "n_items": 1286,
+    "preflight": "generate.assert_truncation_finish_reason: first call on every model object",
+    "suite_order": [
+      "arithmetic",
+      "arithmetic_twins",
+      "factual_qa",
+      "longctx_retrieval",
+      "longctx_retrieval_2a"
+    ],
+    "tokenizer_match": "longctx_retrieval.assert_tokenizer_match after the preflight: tokenize only, no decode, no KV state"
+  },
+  "_run_config": {
+    "execution": {
+      "flash_attn": false,
+      "n_batch": 512,
+      "n_ctx": 16384,
+      "n_gpu_layers": -1,
+      "n_threads": 4,
+      "n_threads_batch": 8,
+      "n_ubatch": 512,
+      "offload_kqv": true,
+      "op_offload": true,
+      "rope_freq_base": 0.0,
+      "rope_freq_scale": 0.0,
+      "rope_scaling_type": -1,
+      "seed": 42,
+      "type_k": 1,
+      "type_v": 1,
+      "yarn_ext_factor": -1.0
+    },
+    "model_id": "qwen2.5-1.5b-instruct",
+    "suites": {
+      "arithmetic": {
+        "n_items": 500,
+        "seed": 3141
+      },
+      "arithmetic_twins": {
+        "seed": 1301
+      },
+      "factual_qa": {
+        "alias_augmentation_path": "data/popqa_wikidata_aliases_seed2718.json",
+        "max_tokens": 64,
+        "n_items": 500,
+        "seed": 2718,
+        "weights": [
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.16,
+          0.16,
+          0.16,
+          0.16,
+          0.16
+        ]
+      },
+      "longctx_retrieval": {
+        "corpus_path": "corpora/pg1184-monte-cristo.txt",
+        "corpus_sha256": "0a21a13834b5215876bd4019af8fbc436abbfbb61b2826db62223eb990071443",
+        "max_tokens": 32,
+        "n_items": 96,
+        "seed": 2024,
+        "target_tokens": 8192,
+        "tokenizer_path": "models/hf/Qwen2.5-1.5B-Instruct",
+        "variant": "multivalue4"
+      },
+      "longctx_retrieval_2a": {
+        "corpus_dataset": "sgoel9/paul_graham_essays",
+        "corpus_sha256": "b6135331a3132d08cb84262870ae8f9d9acb6bae4cd7f0278926a64c38f9329e",
+        "max_tokens": 32,
+        "n_items": 96,
+        "seed": 2024,
+        "target_tokens": 4096,
+        "tokenizer_path": "models/hf/Qwen2.5-1.5B-Instruct",
+        "variant": "multivalue2"
+      }
+    }
+  }
+}

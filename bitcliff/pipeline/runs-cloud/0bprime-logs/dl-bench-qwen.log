@@ -1,0 +1,2 @@
+ENSURED {'Q8_0': PosixPath('models/Qwen2.5-7B-Instruct-Q8_0.gguf'), 'Q6_K': PosixPath('models/Qwen2.5-7B-Instruct-Q6_K.gguf'), 'Q5_K_M': PosixPath('models/Qwen2.5-7B-Instruct-Q5_K_M.gguf'), 'Q4_K_M': PosixPath('models/Qwen2.5-7B-Instruct-Q4_K_M.gguf'), 'Q3_K_M': PosixPath('models/Qwen2.5-7B-Instruct-Q3_K_M.gguf'), 'Q2_K': PosixPath('models/Qwen2.5-7B-Instruct-Q2_K.gguf'), 'IQ2_M': PosixPath('models/Qwen2.5-7B-Instruct-IQ2_M.gguf')}
+RC=0

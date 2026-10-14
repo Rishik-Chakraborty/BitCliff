@@ -1,0 +1,4 @@
+REVISION Qwen/Qwen2.5-1.5B-Instruct 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  20%|██        | 2/10 [00:00<00:00, 16.01it/s]Fetching 10 files:  80%|████████  | 8/10 [00:00<00:00, 26.53it/s]Fetching 10 files:  90%|█████████ | 9/10 [00:19<00:00, 26.53it/s]Fetching 10 files: 100%|██████████| 10/10 [00:26<00:00,  3.68s/it]Fetching 10 files: 100%|██████████| 10/10 [00:26<00:00,  2.66s/it]
+HF_DONE /home/ubuntu/bitcliff/models/hf/Qwen2.5-1.5B-Instruct
+HF_RC=0

@@ -1,0 +1,26 @@
+NLL_RUN_START 09:56:43
+[transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (660844 > 131072). Running this sequence through the model will result in indexing errors
+Using the latest cached version of the dataset since sgoel9/paul_graham_essays couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'default' at /home/ubuntu/.cache/huggingface/datasets/sgoel9___paul_graham_essays/default/0.0.0/0c7155a53c25e24c9b9858314460e0ee1f5c3e4e (last modified on Wed Oct 14 06:16:48 2026).
+nll items: 192
+n_ctx sized to 8448 (max seq 8263)
+digit token ids: 10
+NLL_START F16 Qwen2.5-1.5B-Instruct-f16.gguf
+NLL_DONE F16 n=192
+NLL_START Q8_0 Qwen2.5-1.5B-Instruct-Q8_0.gguf
+NLL_DONE Q8_0 n=192
+NLL_START Q6_K Qwen2.5-1.5B-Instruct-Q6_K.gguf
+NLL_DONE Q6_K n=192
+NLL_START Q5_K_M Qwen2.5-1.5B-Instruct-Q5_K_M.gguf
+NLL_DONE Q5_K_M n=192
+NLL_START Q4_K_M Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+NLL_DONE Q4_K_M n=192
+NLL_START Q3_K_M Qwen2.5-1.5B-Instruct-Q3_K_M.gguf
+NLL_DONE Q3_K_M n=192
+NLL_START Q2_K Qwen2.5-1.5B-Instruct-Q2_K.gguf
+NLL_DONE Q2_K n=192
+NLL_START IQ2_M Qwen2.5-1.5B-Instruct-IQ2_M.gguf
+NLL_DONE IQ2_M n=192
+NLL_PASS_COMPLETE
+NLL_RUN_RC=0 10:45:07

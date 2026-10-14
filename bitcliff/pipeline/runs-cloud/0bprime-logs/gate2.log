@@ -1,0 +1,28 @@
+NLLGATE_START qwen-7b 06:30:46
+[transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (660844 > 131072). Running this sequence through the model will result in indexing errors
+nll items: 96
+n_ctx sized to 8448 (max seq 8263)
+digit token ids: 10
+NLL_START Q4_K_M Qwen2.5-7B-Instruct-Q4_K_M.gguf
+NLL_DONE Q4_K_M n=96
+NLL_PASS_COMPLETE
+NLLGATE_DRIVER_RC qwen-7b 0 06:36:52
+NLLGATE_START llama-8b 06:36:52
+[transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (657203 > 131072). Running this sequence through the model will result in indexing errors
+[transformers] Ignoring clean_up_tokenization_spaces=True for BPE tokenizer TokenizersBackend. The clean_up_tokenization post-processing step is designed for WordPiece tokenizers and is destructive for BPE (it strips spaces before punctuation). Set clean_up_tokenization_spaces=False to suppress this warning, or set clean_up_tokenization_spaces_for_bpe_even_though_it_will_corrupt_output=True to force cleanup anyway.
+nll items: 96
+n_ctx sized to 8448 (max seq 8261)
+digit token ids: 10
+NLL_START Q4_K_M Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+NLL_DONE Q4_K_M n=96
+NLL_PASS_COMPLETE
+NLLGATE_DRIVER_RC llama-8b 0 06:43:09
+CMP_RC qwen-7b 0
+TIER 1: reproduced exactly (96 records, compared in recorded (file) order)
+COMPARE_RC qwen-7b 0
+CMP_RC llama-8b 0
+TIER 1: reproduced exactly (96 records, compared in recorded (file) order)
+COMPARE_RC llama-8b 0
+GATE2_DONE

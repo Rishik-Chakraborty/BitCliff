@@ -1,0 +1,109 @@
+{
+  "call_sequence": {
+    "item_ids_sha256": "fffe3c5c0dc95e4463f8d938cba4c43aac428d079b1ba0a90d0d1dafc817121a",
+    "item_order": "recorded order",
+    "model_object": "one per load",
+    "per_item": "llm.reset() then one eval of gen_prompt_ids+answer_ids; no KV-prefix reuse across items"
+  },
+  "config_sha256": "d134132a70bad21d4b4d14637fd40789a0447ad8685cb3e24d008d877991afdc",
+  "digit_token_ids": {
+    "count": 10,
+    "ids": [
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ]
+  },
+  "driver_sha256": "0cb652a40e52d8bd17ae4ad3133991e87dfc4b1fc944130d1bccdcfad39ae6ac",
+  "execution": {
+    "flash_attn": false,
+    "n_batch": 512,
+    "n_ctx": 16384,
+    "n_gpu_layers": -1,
+    "n_threads": 4,
+    "n_threads_batch": 8,
+    "n_ubatch": 512,
+    "offload_kqv": true,
+    "op_offload": true,
+    "rope_freq_base": 0.0,
+    "rope_freq_scale": 0.0,
+    "rope_scaling_type": -1,
+    "seed": 42,
+    "type_k": 1,
+    "type_v": 1,
+    "yarn_ext_factor": -1.0
+  },
+  "item_set_gate": "passed",
+  "item_set_sha256": {
+    "longctx_retrieval": "ed18db130e4a035eef4bd581a8c53c7a17daf63085499d9123497991bd257f9c",
+    "longctx_retrieval_2a": "5404e813edbc881306fd3aee25372dd95f8ed297bd705a5d3765b903a1712104"
+  },
+  "labels": {
+    "F16": {
+      "filename": "Qwen2.5-1.5B-Instruct-f16.gguf",
+      "model_sha256": "954b449288dd7989c3ddc193666c88d1bb43857c1a2468d04e422b47cc234fe4",
+      "sha256_source": "run manifest.json (verified)"
+    },
+    "IQ2_M": {
+      "filename": "Qwen2.5-1.5B-Instruct-IQ2_M.gguf",
+      "model_sha256": "cee720c998e71ff3f02fbb3d392c7598bc0f845ae08bbb585ef2ff5fcbd45b81",
+      "sha256_source": "run manifest.json (verified)"
+    },
+    "Q2_K": {
+      "filename": "Qwen2.5-1.5B-Instruct-Q2_K.gguf",
+      "model_sha256": "a8880f0de2348db67d00519ef7f4b40326ef67012bf5f2e90bd1d47474e2355c",
+      "sha256_source": "run manifest.json (verified)"
+    },
+    "Q3_K_M": {
+      "filename": "Qwen2.5-1.5B-Instruct-Q3_K_M.gguf",
+      "model_sha256": "7437ad04011a14fb890074cc783df4c1d537197942337353a824ff7e6115ef9b",
+      "sha256_source": "run manifest.json (verified)"
+    },
+    "Q4_K_M": {
+      "filename": "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+      "model_sha256": "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
+      "sha256_source": "run manifest.json (verified)"
+    },
+    "Q5_K_M": {
+      "filename": "Qwen2.5-1.5B-Instruct-Q5_K_M.gguf",
+      "model_sha256": "cf240adc57e126e86102335f6565fb23e523b28d287c75bdb0759f064e8bb572",
+      "sha256_source": "run manifest.json (verified)"
+    },
+    "Q6_K": {
+      "filename": "Qwen2.5-1.5B-Instruct-Q6_K.gguf",
+      "model_sha256": "1b01b4ea4ccdd5aa6a5972790002e120a5d500a5175be571114d642a8db4d14e",
+      "sha256_source": "run manifest.json (verified)"
+    },
+    "Q8_0": {
+      "filename": "Qwen2.5-1.5B-Instruct-Q8_0.gguf",
+      "model_sha256": "7185d306cf45956c8c017cd0d3b05ecc6bc18b3ea8eb5c240dce40e87563db7f",
+      "sha256_source": "run manifest.json (verified)"
+    }
+  },
+  "logits_all": true,
+  "machine": "Linux-6.8.0-1063-aws-x86_64-with-glibc2.35 / x86_64 / llama-cpp-python 0.3.35",
+  "model_id": "qwen2.5-1.5b-instruct",
+  "n_ctx": {
+    "max_seq": 8263,
+    "rule": "ceil(max_seq/256)*256",
+    "value": 8448
+  },
+  "n_gpu_layers": -1,
+  "n_items": {
+    "longctx_retrieval": 96,
+    "longctx_retrieval_2a": 96
+  },
+  "other_llama_args": "pinned as-run execution settings from the config's `execution:` block (n_ctx and seed set by the driver's own rule)",
+  "seed": 42,
+  "suites": [
+    "longctx_retrieval_2a",
+    "longctx_retrieval"
+  ]
+}
