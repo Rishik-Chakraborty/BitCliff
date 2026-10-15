@@ -1,4 +1,4 @@
-Push status (2026-10-14): HEAD = origin/main = the "docs: HANDOFF and RUN_0B_PRIME — 0B-prime executed" commit (parent `bdb5163`), ahead/behind 0/0 — verify with `git rev-list --left-right --count main...origin/main`.
+Push status (2026-10-14): HEAD = origin/main = the "handoff: rotation before pre-spec" commit (parent `54539b8`), ahead/behind 0/0 — verify with `git rev-list --left-right --count main...origin/main`.
 # HANDOFF — BitCliff session handoff (rewritten 2026-09-07; updated 2026-10-14)
 
 For a fresh Claude Code session with no memory. This is an index, not an
@@ -49,8 +49,11 @@ cold machine needs network or a warm cache).
   RELEASED, zero EC2 instances remain (verified at each teardown).
   **Spend ≈ $100.5 of the $250 cap** (0B ≈ $98, 0b2 ≈ $2.10).
 
-**0B′ (1.5B confirmatory run) EXECUTED 2026-10-14** (record:
-OPEN_QUESTIONS §18; records committed at `0040336`):
+**0B′ (1.5B confirmatory run) COMPLETE 2026-10-14** (record:
+OPEN_QUESTIONS §18). All records and box scripts are committed: run
+records at `0040336`, plus the box scripts under
+`bitcliff/pipeline/scripts/box/`: `write_fingerprint.sh` (`da07ee2`),
+`check_2a_digest.py` and `bench_throughput_0bprime.py` (`7ce166f`).
 
 - Run id `0bprime-qwen-1.5b-ladder`. Records are at
   `runs-cloud/pipeline/runs/0bprime-qwen-1.5b-ladder/`: items, outputs,
@@ -65,7 +68,8 @@ OPEN_QUESTIONS §18; records committed at `0040336`):
   `runs-cloud/0bprime-logs/`.
 - Box i-04147e175eba11337 is TERMINATED; zero instances and zero volumes
   remain.
-- 0B′ ≈ $30 including the earlier $1.93 attempts. **Project spend
+- 0B′ ≈ $30: the run ≈ $28.3 (compute $28.0 + EBS ≈ $0.34 from volume
+  size and hours) plus the earlier $1.93 attempts. **Project spend
   ≈ $130.5 of the $250 cap.**
 - Breach disclosed in §18: a 6 h idle box and a missed $25 burn report.
   New aws-ops rule: an on-box idle watchdog and burn timer, armed before
@@ -194,6 +198,24 @@ OPEN_QUESTIONS §18; records committed at `0040336`):
   never report a curve's story ahead of the registered statistics, and
   label anything exploratory as exploratory.
 - Build work runs subagent-driven with reviews (superpowers SDD).
+- **Unattended guards** (aws-ops `SKILL.MD`, verbatim):
+  "Unattended guards (rule added 2026-10-14, after the 0B-prime idle box and missed $25 burn report, OPEN_QUESTIONS §18). Every box runs two guards on the box itself, independent of the session's attention. Both are armed before any download starts.
+    - Idle watchdog: terminates the instance after 30 minutes with no pipeline process running.
+    - Burn timer: emits a burn report at every hour of runtime and at each cap threshold (BUDGET.md burn-report rule)."
+- **Amendment-append gate** (verbatim from the "stamp it" rule above and
+  §3 items 7 and 8):
+
+  > "stamp it" runs an amendment ceremony (append → commit → OTS →
+  > follow-up commit)
+
+  > Gated append: rule quote byte-identical, every hash re-read from HF at
+  > stamp time, content grep for run-plan terms outside §F returned zero.
+
+  > Every append is gated on `git diff 5e6882b7 HEAD -- PREREG.md` showing
+  > only those two body hunks plus the receipt/appendix hunk at 790.
+
+  The two body hunks are line 3 (the status header) and line 570 (the §7
+  slot pointer); see OPEN_QUESTIONS §11.
 
 ## 5. Open items
 
@@ -220,13 +242,16 @@ OPEN_QUESTIONS §18; records committed at `0040336`):
   recorded as Amendment 3 (stamped). Before it can run: a stamped
   `shootout-7b.json` manifest section fixing the items OPEN_QUESTIONS §12
   lists, then a user go for spend. "Run after the launch analyses."
-- **0B′ (1.5B confirmatory run): EXECUTED 2026-10-14** (§2;
+- **0B′ (1.5B confirmatory run): COMPLETE 2026-10-14** (§2;
   OPEN_QUESTIONS §18; plan `RUN_0B_PRIME.md`). Records are at
-  `runs-cloud/pipeline/runs/0bprime-qwen-1.5b-ladder/`. Generation, grades
-  and NLL (2b + 2a) exist for all 8 loads; nothing has been analyzed.
-  **Next step: the Q1 to Q3 and Q5 pre-specification, written and stamped
+  `runs-cloud/pipeline/runs/0bprime-qwen-1.5b-ladder/`, and all records
+  and box scripts are committed. Generation, grades and NLL (2b + 2a)
+  exist for all 8 loads; nothing has been analyzed.
+  **Next step: the Q1/Q2/Q3/Q5 pre-specification, written and stamped
   before any 1.5B analysis runs.** No accuracy, NLL or retention number
   is computed from these records before then.
+- **The pre-spec is a post-freeze pre-specification: stamped like an
+  amendment, but not an amendment; it fills no registered slot.**
 - **Parked items (ruled, deferred; none blocks the box run):**
   no committed box command captures `llama_cpp_commit` for
   `fingerprint.txt` (operator records it from the build); the Llama-8B
