@@ -20,3 +20,6 @@ Canon: bitcliff/.claude/skills/aws-ops/BUDGET.md. Deviations require explicit ap
 - Before launching anything: state instance type, estimated $/hr, and run duration.
 - Stop and ask before any action over $500 in credits or any cash spend over $50.
 - Sync 0B artifacts to S3 before teardown, then terminate, never stop-and-forget.
+- Unattended guards (rule added 2026-10-14, after the 0B-prime idle box and missed $25 burn report, OPEN_QUESTIONS §18). Every box runs two guards on the box itself, independent of the session's attention. Both are armed before any download starts.
+  - Idle watchdog: terminates the instance after 30 minutes with no pipeline process running.
+  - Burn timer: emits a burn report at every hour of runtime and at each cap threshold (BUDGET.md burn-report rule).
