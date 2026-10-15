@@ -942,10 +942,16 @@ The gate dirs add 2 × 96 records (S3 only; scratch per §4).
 `runs-cloud/bench-0bprime/bench-llama-8b.csv` and `bench-qwen-7b.csv`,
 each with F16 plus 7 quants (16 files total), n_ctx 16384. Script
 `bench_throughput_0bprime.py` was recovered from the S3
-`attempt-20261004` prefix and shipped untracked (not in the repo).
+`attempt-20261004` prefix and shipped untracked; committed for the record
+at `7ce166f`.
 
-**Cost.** 12.49 h × $2.2421 ≈ $28.0 plus EBS (estimated under $0.50,
-not verified). The earlier 0B′ attempts cost $1.93, so 0B′ total ≈ $30.
+**Cost.** 12.49 h × $2.2421 ≈ $28.0 plus EBS ≈ $0.34, ≈ $28.3 for the
+run. The EBS figure comes from the volume's size and hours: one 250 GB
+gp3 root volume, from the launch block-device mapping, with
+DeleteOnTermination true and no IOPS or throughput above baseline. It
+existed for 12.49 h at $0.08/GB-month, prorated over October's 744 h.
+This is not billing data: Cost Explorer was not queried (each request is
+charged) and CloudTrail is denied to `bitcliff-agent`. The earlier 0B′ attempts cost $1.93, so 0B′ total ≈ $30.
 That is under the $50 cap, and the conditional $80 extension was not
 used.
 
@@ -990,4 +996,5 @@ used.
 11. Expected duration. The pre-launch estimate (6.9–10.6 h) did not match
     the 8–12 h in the go message. The user ruled "Launch" before launch.
 12. Helper scripts `check_2a_digest.py` and `bench_throughput_0bprime.py`
-    ran on the box untracked (in S3 only).
+    ran on the box untracked. Only the benchmark script has an S3 copy;
+    both are committed for the record at `7ce166f`.
