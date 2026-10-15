@@ -720,6 +720,22 @@ total, all carrying `machine`
 "Linux-6.8.0-1063-aws-x86_64-with-glibc2.35 / x86_64 / llama-cpp-python
 0.3.35".
 
+**Closed 2026-10-14.** The committed driver (`scripts/nll_driver.py`)
+reproduced the committed 0B NLL records on both legs of the two-rung gate
+(RUN_0B_PRIME.md §4), on the 0B′ box (§18):
+
+- Qwen-7B Q4_K_M vs `0b-qwen-7b-ladder/nll/Q4_K_M.jsonl`: **tier 1,
+  exact**, 96 records; `cmp` rc 0 (byte-identical); max per-token
+  difference 0. n_ctx 8448 (max seq 8263), digit token ids 10.
+- Llama-8B Q4_K_M vs `0b-llama-8b-ladder/nll/Q4_K_M.jsonl`: **tier 1,
+  exact**, 96 records; `cmp` rc 0 (byte-identical); max per-token
+  difference 0. n_ctx 8448 (max seq 8261).
+
+The Llama-8B pass is the test of the pre-fix provider path named in
+RUN_0B_PRIME §4: the post-fix driver reproduced the pre-fix records
+byte for byte. No regeneration of the 26 0B NLL passes (ruling 2 not
+triggered).
+
 ## 17. Call-history dependence of generated text (2026-10-07)
 
 Disclosure. No registered slot is filled, nothing is amended, nothing
@@ -868,3 +884,110 @@ the same grades; `gen_token_ids` was present on 40/40 and the length rule
 held on 40/40. Re-run at the final code commit `c621e5f`: again 0 of 40
 differ from `1806754`, grades identical, `gen_token_ids` identical to the
 `8a31ac4` run.
+
+## 18. 0B-prime run record (2026-10-14)
+
+Run plan RUN_0B_PRIME.md, code at `bab3023`, run id
+`0bprime-qwen-1.5b-ladder`. Records committed at `0040336` under
+`bitcliff/pipeline/runs-cloud/pipeline/runs/0bprime-qwen-1.5b-ladder/`;
+box logs under `runs-cloud/0bprime-logs/`; benchmark CSVs under
+`runs-cloud/bench-0bprime/`. Everything, including the two scratch NLL gate
+dirs, is also in `s3://bitcliff-artifacts-048568674517/0b-prime/run-20261014/`
+(`final/final-runs.tgz`, sha256 `83b7e8c5…`, and `final/tree/`).
+
+**Box.** `i-04147e175eba11337`, g6e.2xlarge, on-demand $2.2421/h,
+us-east-1a, AMI `ami-0dc0c90fcfca46f7c`. Launched 2026-10-14 06:05:53
+UTC; terminated (user-initiated) 18:35:00 UTC; termination confirmed
+18:41, with no instances and no volumes left in us-east-1. Runtime 12.49 h.
+
+**Fingerprint** (`fingerprint.txt` in the run dir). Matches
+`runs-cloud/fingerprint.txt` on instance type, GPU (NVIDIA L40S, driver
+595.91.07), CUDA (release 13.2), kernel (6.8.0-1063-aws), python
+(3.11.16), and llama-cpp-python (0.3.35 CUDA build, gpu offload
+supported). It differs on instance, AMI and AZ, and on `llama_cpp_commit`:
+the installed build reads GGML_COMMIT `4df29be-dirty`, recorded as
+`4df29be4f4c3673f428170fda944a5b19f743bb8` (the vendor submodule of
+llama-cpp-python v0.3.35), against `bf942164…` in the 0B fingerprint.
+That is the label finding of §17, not a build difference, and was not a
+stop.
+
+**Gates.**
+
+- Corpora. Monte Cristo (pg1184) sha256 `0a21a138…` matches the 0B run
+  manifest. PG-essays (2a) sha256 `b6135331…` matches, and the 2a first-20
+  item digest is `9220589b…` ✓.
+- Downloads. Every file passed its hash gate: Qwen-7B and Llama-8B
+  Q4_K_M; Qwen2.5-1.5B HF snapshot at revision `989aa798…`; the 7 1.5B
+  ladder quants; both benchmark ladders. No HF token was used, and there
+  were no 401 or 403 responses.
+- 1.5B F16. The conversion reproduced `954b4492…` exactly, so the
+  pilot's file was not transferred.
+- Gate 1, replay form (Qwen-7B Q4_K_M, 0B items in recorded order, then
+  the first 25 longctx items): **PASS, exact**, 06:10:23–06:30:00.
+- Gate 2, NLL two-rung (§16 closure): Qwen-7B tier 1 exact (96 records),
+  06:30:46–06:36:52; Llama-8B tier 1 exact (96 records), 06:36:52–06:43:09.
+  Max per-token difference 0 on both. No regeneration.
+
+**Generation** (06:43:51–08:21:23). 8 loads (F16, Q8_0, Q6_K, Q5_K_M,
+Q4_K_M, Q3_K_M, Q2_K, IQ2_M) in the fixed build order. Each load ran 1286
+items: arithmetic 500, arithmetic_twins 94, factual_qa 500,
+longctx_retrieval (2b) 96, longctx_retrieval_2a 96. 10288 outputs were
+graded. The manifest records `execution` and `_call_sequence`.
+
+**NLL §3** (09:56:43–10:45:07). 8 loads × 192 records (2b 96 + 2a 96) =
+1536 records; item-set gate passed; n_ctx 8448; `call_sequence` recorded.
+The gate dirs add 2 × 96 records (S3 only; scratch per §4).
+
+**Benchmark** (§6, product data, not science). 16:43:08–18:33:11.
+`runs-cloud/bench-0bprime/bench-llama-8b.csv` and `bench-qwen-7b.csv`,
+each with F16 plus 7 quants (16 files total), n_ctx 16384. Script
+`bench_throughput_0bprime.py` was recovered from the S3
+`attempt-20261004` prefix and shipped untracked (not in the repo).
+
+**Cost.** 12.49 h × $2.2421 ≈ $28.0 plus EBS (estimated under $0.50,
+not verified). The earlier 0B′ attempts cost $1.93, so 0B′ total ≈ $30.
+That is under the $50 cap, and the conditional $80 extension was not
+used.
+
+**Deviations from the plan.**
+
+1. **Six-hour idle box; breach of the standing rule "Nothing GPU-shaped
+   stays up idle."** The NLL pass finished at 10:45:07 UTC. The box then
+   sat idle until 16:42 UTC (about 6 h, about $13 of the $28) until the
+   user sent "continue". Cause: the agent's turn ended after starting the
+   NLL pass without a background watcher that would notify it on
+   completion. Nothing on the box would act on its own, so progress
+   depended on the session's attention.
+2. **Missed $25 burn report; breach of the burn-report rule.** The
+   benchmark watcher's time check used `\>` in a zsh `[ ]` test, which
+   errored on every poll ("condition expected: >"). So the $25 report,
+   due around 17:06 UTC, was never emitted. The overrun was seen only
+   when the benchmark finished at 18:33 (about $28). The $40 and $50
+   thresholds were not reached. Same root cause as 1: burn reports
+   depended on a session-side watcher. (Fix: aws-ops skill rule,
+   2026-10-14.)
+3. Fingerprint script regex fix. `scripts/box/write_fingerprint.sh` first
+   matched an unrelated hex string (`3333333`) in libggml-base.so and
+   exited 3. The regex was tightened to `^[0-9a-f]{7}-dirty$` on the box
+   before use. The script was untracked; it was committed with the fix at
+   `da07ee2`.
+4. The PG-essays (2a) corpus is a Hugging Face dataset, not a file under
+   `bitcliff/pipeline/corpora/`, so no scp was possible. It was verified
+   by sha256 (`b6135331…`) and by the first-20 digest instead.
+5. The rung watcher's parsing missed intermediate rung completions and
+   exited only on the final return code. Rung lines were therefore
+   reported late, with times taken from file mtimes.
+6. AZ us-east-1a; 0B ran in us-east-1c (capacity retries at launch).
+7. `llama_cpp_commit` label `4df29be` vs `bf942164` (above; §17).
+8. The F16 converter ran with `uv run --no-project --with-requirements`,
+   not 0B's `uv run --with-requirements`, to keep the CUDA venv intact.
+   The output hash matched.
+9. One relay sync, box → local → S3 via rsync, stalled about 1.5 h
+   (08:21–09:56) and delayed the NLL start. Later pulls used tar over ssh
+   and took seconds.
+10. S3 syncs relayed through the local `bitcliff-agent` profile; the box
+    held no AWS credentials.
+11. Expected duration. The pre-launch estimate (6.9–10.6 h) did not match
+    the 8–12 h in the go message. The user ruled "Launch" before launch.
+12. Helper scripts `check_2a_digest.py` and `bench_throughput_0bprime.py`
+    ran on the box untracked (in S3 only).
