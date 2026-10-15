@@ -1,5 +1,5 @@
-Push status (2026-10-11): HEAD = origin/main = the "docs: replay-form gate, pinned execution settings, §17 call-history dependence" commit (parent `c621e5f`), ahead/behind 0/0 — verify with `git rev-list --left-right --count main...origin/main`.
-# HANDOFF — BitCliff session handoff (rewritten 2026-09-07; updated 2026-10-03)
+Push status (2026-10-14): HEAD = origin/main = the "docs: HANDOFF and RUN_0B_PRIME — 0B-prime executed" commit (parent `bdb5163`), ahead/behind 0/0 — verify with `git rev-list --left-right --count main...origin/main`.
+# HANDOFF — BitCliff session handoff (rewritten 2026-09-07; updated 2026-10-14)
 
 For a fresh Claude Code session with no memory. This is an index, not an
 archive: every claim below is verifiable in the named files, git history,
@@ -48,6 +48,29 @@ cold machine needs network or a warm cache).
   i-0ce4aad4171306a13 for 0b2), EIP `eipalloc-04a06d3cbff03d123`
   RELEASED, zero EC2 instances remain (verified at each teardown).
   **Spend ≈ $100.5 of the $250 cap** (0B ≈ $98, 0b2 ≈ $2.10).
+
+**0B′ (1.5B confirmatory run) EXECUTED 2026-10-14** (record:
+OPEN_QUESTIONS §18; records committed at `0040336`):
+
+- Run id `0bprime-qwen-1.5b-ladder`. Records are at
+  `runs-cloud/pipeline/runs/0bprime-qwen-1.5b-ladder/`: items, outputs,
+  grades, answer spans, manifest, `nll/`, per-run `fingerprint.txt`,
+  results.
+- Coverage: 8 loads × 1286 items over 5 suites; 8 × 192 NLL records
+  (2b + 2a).
+- Gates: gate 1 (replay) passed exactly. Gate 2 NLL was tier 1 exact on
+  both Qwen-7B and Llama-8B, which closes OPEN_QUESTIONS §16; no
+  regeneration.
+- Benchmark CSVs: `runs-cloud/bench-0bprime/`. Box logs:
+  `runs-cloud/0bprime-logs/`.
+- Box i-04147e175eba11337 is TERMINATED; zero instances and zero volumes
+  remain.
+- 0B′ ≈ $30 including the earlier $1.93 attempts. **Project spend
+  ≈ $130.5 of the $250 cap.**
+- Breach disclosed in §18: a 6 h idle box and a missed $25 burn report.
+  New aws-ops rule: an on-box idle watchdog and burn timer, armed before
+  any download.
+- **No 1.5B analysis has been run.**
 
 ## 3. Disclosure ledger — do not summarize this away; it is the record
 
@@ -187,9 +210,9 @@ cold machine needs network or a warm cache).
   in the §8 matrix as ordinary cells, but the REGISTERED within-pair
   original-vs-twin comparison (restricted to pairs where F16 solves
   both, PREREG §3.3) has NOT been run.
-- **Q5 (asymmetry transfer to k-quants): NOT run.** Requires the 1.5B
-  config-2a comparability run (0B′ scope) plus the cross-suite
-  asymmetry analysis; neither exists.
+- **Q5 (asymmetry transfer to k-quants): NOT run.** The 1.5B config-2a
+  comparability data now exists (0B′, 2026-10-14). The cross-suite
+  asymmetry analysis does not, and waits on the pre-specification.
 - Also NOT run: the §9 durability comparison page-analysis, and 0C
   (blind check) is unstarted with its `[TO BE FILLED before 0C]` slots
   open in PREREG §10.
@@ -197,50 +220,13 @@ cold machine needs network or a warm cache).
   recorded as Amendment 3 (stamped). Before it can run: a stamped
   `shootout-7b.json` manifest section fixing the items OPEN_QUESTIONS §12
   lists, then a user go for spend. "Run after the launch analyses."
-- **0B′ (1.5B confirmatory run): ladder registered (Amendment 4), run
-  plan in `RUN_0B_PRIME.md`; two box attempts, no 0B′ item generated.**
-  Plan readings confirmed 2026-09-27 (OPEN_QUESTIONS §13): twins run for
-  the 1.5B; the 2a NLL pass is registered Q2 data, not exploratory. §8's
-  rate $2.2421/h. Of RUN_0B_PRIME.md §9's pre-"proceed" list, done: 2a
-  item-set hash in `registered.py` (`05537fe`); `configs/0b-prime/` ladder
-  + smoke configs and cross-check tests (`fca1a25`); the runner's per-item
-  timing field (`1b6f418`, legacy-load fix `9546a93`); the
-  reproduction-gate script (`7e9db50`); the item-set hash gate's
-  n-mismatch fix (`bf6ac1f`). The NLL driver that produced 0B's
-  `nll/*.jsonl` records was not recoverable — the S3 `0b/code/` prefix
-  holds only a 2026-08-30 snapshot predating the NLL runs, and no driver
-  exists in git history (OPEN_QUESTIONS §16) — so a new one was
-  **written** (`scripts/nll_driver.py`, commit `ba146e7`, against
-  `nll_scorer.score_records`) **and reviewed; pending the box NLL
-  reproduction gate** (RUN_0B_PRIME.md §4, second gate) before the §3 NLL
-  passes can run. Machine ruling: the 0B fingerprint / CUDA AMI.
-  **Code prerequisites complete through `c621e5f`** (fix turn after
-  `1806754`: pinned as-run execution settings `8218bf9`; `gen_token_ids`
-  and manifest `_call_sequence` `8a31ac4`; replay-form gate `88e2252`,
-  `289babe`; NLL `call_sequence` and `scripts/nll_gate_compare.py`
-  `2ab8ca4`, `e6cf3a9`; stale-manifest execution guard `c621e5f`).
-  **Attempts:** 2026-10-04 stopped at gate 1 (1/25 items differed,
-  item 0005); the 2026-10-07 diagnostic resolved it — cause is call
-  history through llama-cpp-python's KV-prefix reuse; the replay gate was
-  adopted (OPEN_QUESTIONS §17). Spent to date: $1.93. **A relaunch needs
-  the user's "proceed".** Box procedure in `RUN_0B_PRIME.md`: §1
-  pre-launch statement and pinned execution settings; §3 the single fixed
-  1.5B NLL invocation (after the generate stage, same `--run-id`; the
-  driver refuses a non-exploratory run without that run's
-  `manifest.json`); §4 gate 1 is the replay form (`scripts/repro_gate.py`
-  default, Qwen-7B Q4_K_M, 0B's call sequence through the first 25 longctx
-  items, empty diff on those 25); gate 2 unchanged in substance
-  (`scripts/nll_driver.py` `--allow-no-manifest`, Qwen-7B and Llama-8B
-  Q4_K_M on 2b, tiered match rule via `scripts/nll_gate_compare.py`); the
-  per-run `fingerprint.txt` step before sync-back (required by
-  `analyze_0b.py` for non-0B run sets); every box command is `uv run
-  --no-sync`; §8 cost table at $2.2421/h (≈ $12–19 without benchmark,
-  ≈ $16–25 with); caps: $50 relaunch session hard stop, conditional $80
-  session cap unchanged. Risk to weigh before "proceed": the Llama leg
-  may mismatch — the pre-fix Llama/arm1 n_ctx and all unlogged llama-cpp
-  constructor args are unrecoverable (OPEN_QUESTIONS §16; the NLLCFG_* log
-  lines carry no settings) — and a full 26-pass regeneration would exceed
-  the $50 0B′ cap.
+- **0B′ (1.5B confirmatory run): EXECUTED 2026-10-14** (§2;
+  OPEN_QUESTIONS §18; plan `RUN_0B_PRIME.md`). Records are at
+  `runs-cloud/pipeline/runs/0bprime-qwen-1.5b-ladder/`. Generation, grades
+  and NLL (2b + 2a) exist for all 8 loads; nothing has been analyzed.
+  **Next step: the Q1 to Q3 and Q5 pre-specification, written and stamped
+  before any 1.5B analysis runs.** No accuracy, NLL or retention number
+  is computed from these records before then.
 - **Parked items (ruled, deferred; none blocks the box run):**
   no committed box command captures `llama_cpp_commit` for
   `fingerprint.txt` (operator records it from the build); the Llama-8B

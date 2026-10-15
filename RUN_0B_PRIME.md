@@ -1,5 +1,10 @@
 # RUN_0B′ — 1.5B confirmatory run plan (working doc, 2026-09-08)
 
+**Status: EXECUTED 2026-10-14.** Run id `0bprime-qwen-1.5b-ladder`, code at
+`bab3023`, records committed at `0040336`
+(`runs-cloud/pipeline/runs/0bprime-qwen-1.5b-ladder/`). Run record and
+deviations: OPEN_QUESTIONS §18.
+
 Working document, not registration. PREREG.md governs; Amendment 4 pins the
 1.5B ladder — stamped 2026-09-12 (commit `3d793e5`), Bitcoin-attested
 2026-09-14 (blocks 966743/966744/966764). Every ruling below is labeled with its PREREG
